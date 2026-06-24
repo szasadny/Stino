@@ -128,11 +128,10 @@ per-row tolerant (a bad row is skipped, not fatal), returns a `{created, skipped
   migrations run at startup via the compiled-in `sqlx::migrate!()`.
 - **SQLx offline cache:** `query!` macros are checked at compile time. Dev builds verify against a
   live DB via `DATABASE_URL` (`backend/.env`); the Docker build has no DB, so it builds offline
-  against the committed `backend/.sqlx/` cache (`SQLX_OFFLINE=true` in the Dockerfile). Regenerate
-  the cache whenever a query changes. `cargo sqlx prepare` is currently broken on this toolchain
-  (it can't parse cargo 1.96's metadata), so regenerate with — from `backend/`, with the dev DB
-  migrated and `DATABASE_URL` set — `SQLX_OFFLINE_DIR="$PWD/.sqlx" cargo check --all-targets`, then
-  commit the resulting `.sqlx/` JSON.
+  against the committed `backend/.sqlx/` cache (`SQLX_OFFLINE=true` in the Dockerfile). After
+  changing any query, regenerate from `backend/` (dev DB migrated + `DATABASE_URL` set) with
+  `cargo sqlx prepare`, and commit the updated `.sqlx/` JSON. CI can assert the cache is current
+  with `cargo sqlx prepare --check`.
 
 ## 9. Open decisions (revisit when their slice arrives)
 

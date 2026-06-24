@@ -2,17 +2,14 @@
 
 A personal, self-hosted task + calendar web app — a calm, core-only replacement for TickTick.
 Rust (Axum + SQLx + SQLite) backend serving a Svelte (Vite + Tailwind) SPA from a single
-Docker container, reachable over Tailscale. See [CLAUDE.md](./CLAUDE.md) for the product spec
-and [ARCHITECTURE.md](./ARCHITECTURE.md) for the contract.
+Docker container, reachable over Tailscale. See [CLAUDE.md](./CLAUDE.md) for the product spec,
+[ARCHITECTURE.md](./ARCHITECTURE.md) for the contract, and [ROADMAP.md](./ROADMAP.md) for what's
+built and what's next.
 
-> ⚠️ **Folder name must not contain a colon.** Rust (`LD_LIBRARY_PATH`), npm (`PATH`), and
-> Docker bind mounts (`host:container`) all use `:` as a separator, so a `:` in the project
-> path (e.g. `ToDo: …`) breaks `cargo run`, `npm run`, **and** `docker compose up` (the
-> `./data:/data` mount). The Docker *image build* itself is fine (it copies into `/app`).
-> **Fix:** rename the folder to a colon-free slug like `stino` — then everything below works
-> unchanged. (Verified interim workarounds without renaming: `CARGO_TARGET_DIR=$HOME/.cache/stino/target`
-> for cargo, calling `./node_modules/.bin/*` directly for the frontend, and `docker run` with a
-> colon-free `-v` path instead of compose.)
+> ℹ️ **Keep the folder path colon-free.** Rust (`LD_LIBRARY_PATH`), npm (`PATH`), and Docker bind
+> mounts (`host:container`) all use `:` as a separator, so a `:` anywhere in the project path
+> breaks `cargo run`, `npm run`, **and** `docker compose up` (the `./data:/data` mount). The folder
+> is now `Stino` (colon-free), so everything below works unchanged — just don't reintroduce a `:`.
 
 ## Run it (Docker — the intended deployment)
 

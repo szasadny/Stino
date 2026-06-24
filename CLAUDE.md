@@ -10,6 +10,7 @@ Match the task against this table and do the listed action **before** reading co
 
 | If the task involves… | Then first… |
 | --- | --- |
+| Picking up the project / deciding what to build next | Read [ROADMAP.md](./ROADMAP.md) — the per-slice checklist; the first unchecked box is the next slice |
 | Any frontend / UI work (a view, component, styling, layout, mobile) | The `frontend-design` skill loads automatically — follow it, and stay inside the design tokens in [§ Design Language](#design-language--calm-mountain-forest) |
 | A DB schema change (table, column, index) | Read [§ Data Model](#data-model) and [§ Hard Rules](#hard-rules--quick-index) 3; add a **new** SQLx migration, never edit an applied one |
 | Deciding where a new piece of code belongs | Use [§ Architecture & Module Boundaries](#architecture--module-boundaries) — every concern has exactly one home |
@@ -258,6 +259,5 @@ Tracked here because the project is greenfield. Update as setup progresses.
 
 - **Installed:** Rust 1.96 (cargo, clippy, rustfmt, **rust-analyzer**) via rustup; `sqlx-cli` 0.8.6 (sqlite/rustls) via `cargo install`; Node 22 + npm 10; `typescript-language-server` 5.3 + `tsc` 6.0 in `~/.local/bin` (npm user prefix set to `~/.local`, which is on PATH); Docker 29.
 - **Claude skills/plugins enabled** (user scope, load next session): `rust-analyzer-lsp`, `typescript-lsp`, `frontend-design`, `claude-md-management`.
-- **Walking skeleton: built and verified.** Backend (Axum + SQLx + `0001_init` migration, `/api/health`), frontend (Svelte 5 + Vite + Tailwind shell with the Stinō palette, nav, view stubs), and the multi-stage Dockerfile + compose all exist. Verified end-to-end: backend serves the built SPA, DB migrates, health/SPA-fallback/API-404 all correct, `clippy -D warnings` and `svelte-check` clean.
-- **Labels slice: done.** Full vertical slice — `domain`/`db`/`services`/`routes` for label CRUD (`/api/labels`, see ARCHITECTURE.md §5), compile-time-checked queries with a committed `.sqlx` offline cache, four integration tests, and a frontend **Labels manager** opened from the header (native `<dialog>`, palette swatch picker, inline rename/recolor/delete). All gates green (clippy `-D warnings`, `cargo test`, `prettier`, `svelte-check`, `vite build`) and smoke-tested live over HTTP. Note: regenerate the `.sqlx` cache via the `SQLX_OFFLINE_DIR` command in ARCHITECTURE.md §8 — `cargo sqlx prepare` can't parse cargo 1.96 metadata.
-- **Next (Phase 2 feature slices, in order):** Tasks + Inbox → Month → Day (group-by-label) → Week → Today → Recurrence → Search → reorder → quick-add → TickTick import → polish. Each slice = db + service + route + view + test, ending green.
+- **Progress & build order:** see **[ROADMAP.md](./ROADMAP.md)** — the per-slice checklist of what's built and what's next (the first unchecked box is the next job). Skeleton + Labels are done; **Tasks + Inbox** is next.
+- **SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details in ARCHITECTURE.md §8).

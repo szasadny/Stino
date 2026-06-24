@@ -1,13 +1,40 @@
-# Rust
+# --- Rust (backend) ---
 /backend/target/
+**/*.rs.bk
 
-# Node
+# --- Node (frontend) ---
 /frontend/node_modules/
 /frontend/dist/
+.vite/
+*.tsbuildinfo
 
-# Local data + secrets
+# --- Local data + secrets ---
+# SQLite lives on a mounted volume; never commit the DB or env values.
 /data/
+**/data/
 *.db
 *.db-shm
 *.db-wal
 .env
+.env.local
+.env.*.local
+# keep .env.example tracked
+!.env.example
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# --- Editor / OS cruft ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Claude Code local settings (machine-specific) ---
+.claude/settings.local.json
