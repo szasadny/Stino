@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"\n           FROM label\n           WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "color!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e851cffe6edd2e9cb48fefe4b646b698649257f8fe64396339d91dc1b5b459f3"
+}

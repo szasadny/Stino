@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO label (name, color, sort_order)\n           VALUES (?, ?, ?)\n           RETURNING id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "color!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "acc15a8e1071cfeaa4513163cf510ed53f3371ba5d778d6ae87140a4d406e11c"
+}

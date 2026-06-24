@@ -1,0 +1,15 @@
+services:
+  stino:
+    build: .
+    container_name: stino
+    ports:
+      - "8080:8080"
+    volumes:
+      # SQLite database lives here so it survives container/image rebuilds.
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      STATIC_DIR: /app/static
+      PORT: "8080"
+      TZ: Europe/Amsterdam
+    restart: unless-stopped
