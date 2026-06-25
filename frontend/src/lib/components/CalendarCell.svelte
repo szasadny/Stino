@@ -58,9 +58,12 @@
 </script>
 
 <div
-  class="group flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden rounded-lg border p-1 sm:p-1.5
-    {inCurrentMonth ? 'bg-surface' : 'bg-fog/40'}
-    {isToday ? 'border-pine/40' : 'border-lichen'}"
+  class="group flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden rounded-lg border p-1 transition sm:p-1.5
+    {isToday
+    ? 'border-pine/50 bg-pine/[0.07] ring-1 ring-inset ring-pine/15'
+    : inCurrentMonth
+      ? 'border-lichen bg-cell'
+      : 'border-lichen/70 bg-cell-out'}"
 >
   <div class="flex shrink-0 items-center justify-between">
     <button

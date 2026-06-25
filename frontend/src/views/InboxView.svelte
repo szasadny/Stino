@@ -18,7 +18,12 @@
     removeActiveToken,
   } from '../lib/quickadd'
   import { type ComposerDraft, taskToDraft } from '../lib/composer'
-  import { LABEL_NAME_MAX_LENGTH, LABEL_PALETTE, TITLE_MAX_LENGTH } from '../lib/constants'
+  import {
+    LABEL_NAME_MAX_LENGTH,
+    LABEL_PALETTE,
+    PRIMARY_BTN_CLASS,
+    TITLE_MAX_LENGTH,
+  } from '../lib/constants'
   import { errorMessage } from '../lib/errors'
   import { labelLookup } from '../lib/labels'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
@@ -381,7 +386,7 @@
 
 <section class="mx-auto flex h-full w-full max-w-2xl flex-col px-4">
   <header class="shrink-0 pt-6 sm:pt-8">
-    <h1 class="text-xl font-semibold text-pine-deep">Inbox</h1>
+    <h1 class="font-display text-2xl font-semibold tracking-tight text-pine-deep">Inbox</h1>
     <p class="mt-1 text-sm text-sage">Capture now, schedule later.</p>
   </header>
 
@@ -396,7 +401,7 @@
 
   <!-- Capture a new task -->
   <form
-    class="mt-5 shrink-0 rounded-xl border border-lichen bg-surface p-3 shadow-sm"
+    class="mt-5 shrink-0 rounded-xl border border-lichen bg-surface p-3 shadow-soft"
     onsubmit={addTask}
   >
     <div class="flex items-center gap-2">
@@ -487,7 +492,7 @@
       <button
         type="submit"
         disabled={!newTitle.trim() || core.pending}
-        class="shrink-0 rounded-lg bg-pine px-4 py-2 text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40"
+        class="{PRIMARY_BTN_CLASS} shrink-0 px-4 py-2"
       >
         Add
       </button>

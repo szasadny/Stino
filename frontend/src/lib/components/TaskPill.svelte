@@ -1,8 +1,8 @@
 <script lang="ts">
   // One task in a month/week cell, rendered as its own label-colored pill (replaces
   // the old dot + title row). The label color is user data, NOT a theme token, so it
-  // shows as a clear color tint + a bold solid left bar so the label reads at a glance
-  // across the month — while the title stays on the themed `ink` token, which keeps any
+  // shows as a soft color tint so the label reads at a glance across the month — while
+  // the title stays on the themed `ink` token, which keeps any
   // chosen color legible on the light OR dark cell ground (same safe approach as
   // LabelChip / TaskDot, no `dark:` classes).
   //
@@ -36,10 +36,10 @@
   } = $props()
 
   const color = $derived(label?.color ?? null)
-  // ~25% tint composited over the (light or dark) cell surface, plus the solid hex as
-  // the bold left bar — enough color to recognize the label at a glance while `ink`
-  // text stays legible. `40` is the 8-digit-hex alpha byte (~25%).
-  const tintStyle = $derived(color ? `background-color:${color}40;border-color:${color}` : '')
+  // ~25% tint composited over the (light or dark) cell surface — enough colour to
+  // recognize the label at a glance while `ink` text stays legible (no extra left
+  // bar; the soft tint alone carries it). `40` is the 8-digit-hex alpha byte (~25%).
+  const tintStyle = $derived(color ? `background-color:${color}40` : '')
   const barStyle = $derived(color ? `background-color:${color}` : '')
 
   const openLabel = $derived(
@@ -114,9 +114,9 @@
     onclick={onOpen}
     onkeydown={openOnKey}
     aria-label={openLabel}
-    class="flex min-w-0 items-center gap-1 rounded border-l-4 px-1 py-0.5 text-left {color
+    class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color
       ? ''
-      : 'border-pine/50 bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
+      : 'bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
       ? 'cursor-grab active:cursor-grabbing'
       : 'cursor-pointer'}"
     style={tintStyle}

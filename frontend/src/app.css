@@ -32,22 +32,34 @@
    * in the dark blocks below: a backdrop should always darken the page, never
    * invert to a light wash, so this stays fixed across themes. */
   --scrim: 30 58 52;
+  /* Calendar cell grounds. Light: in-month cells are the crisp surface, other
+   * months recede to fog. Dark SWAPS these (below) — in-month uses the deep night
+   * ground and other-month days are the lighter slate, so the current month reads
+   * as the calm dark field rather than a grid of grey panels. */
+  --cell: 251 252 250;
+  --cell-out: 244 246 243;
 }
 
-/* System mode (no explicit choice): follow the OS. */
+/* System mode (no explicit choice): follow the OS.
+ * "Forest at night" — the ground is a calm, COOL blue-charcoal (night sky and
+ * shadow), deliberately NOT green-tinted: green-on-black reads as an old terminal.
+ * Evergreen stays only in the ACCENTS (pine/moss), so the forest shows as colour
+ * against the cool night, and text is a soft, cool off-white rather than glaring. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --fog: 15 23 20;
-    --surface: 23 33 28;
-    --pine: 102 167 148;
-    --pine-deep: 124 182 164;
-    --moss: 134 174 128;
-    --bark: 196 144 102;
-    --mist: 159 195 214;
-    --ink: 231 236 232;
-    --sage: 157 169 161;
-    --lichen: 58 70 63;
+    --fog: 18 23 28;
+    --surface: 27 34 41;
+    --pine: 126 178 158;
+    --pine-deep: 152 196 178;
+    --moss: 142 176 134;
+    --bark: 202 158 120;
+    --mist: 152 186 206;
+    --ink: 223 229 234;
+    --sage: 148 158 168;
+    --lichen: 45 53 62;
+    --cell: 18 23 28;
+    --cell-out: 27 34 41;
   }
 }
 
@@ -56,16 +68,18 @@
  * through to :root above, and the media query's :not([data-theme]) skips it. */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --fog: 15 23 20;
-  --surface: 23 33 28;
-  --pine: 102 167 148;
-  --pine-deep: 124 182 164;
-  --moss: 134 174 128;
-  --bark: 196 144 102;
-  --mist: 159 195 214;
-  --ink: 231 236 232;
-  --sage: 157 169 161;
-  --lichen: 58 70 63;
+  --fog: 18 23 28;
+  --surface: 27 34 41;
+  --pine: 126 178 158;
+  --pine-deep: 152 196 178;
+  --moss: 142 176 134;
+  --bark: 202 158 120;
+  --mist: 152 186 206;
+  --ink: 223 229 234;
+  --sage: 148 158 168;
+  --lichen: 45 53 62;
+  --cell: 18 23 28;
+  --cell-out: 27 34 41;
 }
 
 @layer base {
@@ -75,5 +89,40 @@
 
   body {
     @apply bg-fog text-ink antialiased;
+  }
+
+  /* A single, restrained atmosphere so the app never sits on a dead-flat fill: one
+   * soft cool gradient from the top — "light between the peaks" by day, a faint
+   * moonlit sky at night. Token-driven (adapts to dark), fixed + behind content. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(125% 78% at 50% -12%, rgb(var(--mist) / 0.16), transparent 58%);
+  }
+}
+
+/* Gentle, calm entrance — a short fade + tiny rise. Used for view mounts (never
+ * bouncy, per the design language). Respects reduced motion. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in {
+    animation: none;
   }
 }

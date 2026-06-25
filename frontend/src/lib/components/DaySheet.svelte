@@ -141,7 +141,7 @@
         <button
           type="button"
           onclick={() => (composing = { mode: 'add' })}
-          class="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-lichen px-3 py-2.5 text-sm font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep"
+          class="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-lichen px-3 py-2.5 text-sm font-medium text-sage transition hover:border-pine/40 hover:bg-pine/[0.04] hover:text-pine-deep"
         >
           <svg
             viewBox="0 0 24 24"

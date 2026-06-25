@@ -47,7 +47,7 @@
     onclick={() => (open = !open)}
     aria-haspopup="listbox"
     aria-expanded={open}
-    class="flex w-full items-center justify-between gap-2 rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm outline-none transition hover:border-sage focus:border-pine focus:bg-surface"
+    class="flex w-full items-center justify-between gap-2 rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm outline-none transition hover:border-sage focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20"
   >
     {#if selected}
       <LabelChip name={selected.name} color={selected.color} emoji={selected.emoji} />
@@ -71,7 +71,7 @@
   {#if open}
     <ul
       role="listbox"
-      class="absolute z-20 mt-1 max-h-60 w-full min-w-[11rem] overflow-y-auto rounded-lg border border-lichen bg-surface p-1 shadow-md"
+      class="absolute z-20 mt-1 max-h-60 w-full min-w-[11rem] overflow-y-auto rounded-lg border border-lichen bg-surface p-1 shadow-lift"
     >
       <li>
         <button

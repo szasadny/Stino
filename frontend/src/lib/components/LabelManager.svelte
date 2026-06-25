@@ -10,6 +10,7 @@
     LABEL_EMOJI_SUGGESTIONS,
     LABEL_NAME_MAX_LENGTH,
     LABEL_PALETTE,
+    PRIMARY_BTN_CLASS,
   } from '../constants'
   import { errorMessage } from '../errors'
   import type { Label } from '../types'
@@ -219,7 +220,7 @@
       <button
         type="submit"
         disabled={!newName.trim() || busy}
-        class="shrink-0 rounded-lg bg-pine px-4 py-2 text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40"
+        class="{PRIMARY_BTN_CLASS} shrink-0 px-4 py-2"
       >
         Add
       </button>
@@ -249,13 +250,13 @@
                   type="text"
                   maxlength={LABEL_NAME_MAX_LENGTH}
                   aria-label="Label name"
-                  class="min-w-0 flex-1 rounded-lg border border-lichen bg-surface px-3 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+                  class="min-w-0 flex-1 rounded-lg border border-lichen bg-surface px-3 py-1.5 text-sm text-ink outline-none transition focus:border-pine focus:ring-2 focus:ring-pine/20"
                 />
                 <button
                   type="button"
                   onclick={() => saveEdit(label.id)}
                   disabled={!editName.trim() || busy}
-                  class="shrink-0 rounded-lg bg-pine px-3 py-1.5 text-sm font-medium text-surface transition hover:bg-pine-deep disabled:opacity-40"
+                  class="{PRIMARY_BTN_CLASS} shrink-0 px-3 py-1.5"
                 >
                   Save
                 </button>

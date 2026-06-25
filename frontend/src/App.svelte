@@ -27,11 +27,14 @@
 
 <div class="flex h-dvh flex-col overflow-hidden">
   <header
-    class="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-lichen bg-surface/85 px-4 backdrop-blur-sm"
+    class="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
   >
     <div class="flex items-center gap-2">
-      <Cairn class="h-7 w-7 text-pine" />
-      <span class="text-lg font-semibold tracking-tight text-pine-deep">Stinō</span>
+      <Cairn class="h-7 w-7" />
+      <span
+        class="font-display text-[1.35rem] font-semibold leading-none tracking-tight text-pine-deep"
+        >Stinō</span
+      >
     </div>
 
     <nav class="ml-2 hidden items-center gap-1 md:flex">
@@ -39,9 +42,9 @@
         <button
           type="button"
           onclick={() => (current = view.id)}
-          class="rounded-lg px-3 py-1.5 text-sm font-medium transition {current === view.id
-            ? 'bg-pine/10 text-pine'
-            : 'text-sage hover:text-pine-deep'}"
+          class="rounded-full px-3.5 py-1.5 text-sm font-medium transition {current === view.id
+            ? 'bg-pine/12 text-pine-deep ring-1 ring-pine/15'
+            : 'text-sage hover:bg-pine/5 hover:text-pine-deep'}"
         >
           {view.label}
         </button>
@@ -122,18 +125,28 @@
   </header>
 
   <main class="min-h-0 flex-1">
-    <Active />
+    {#key current}
+      <div class="h-full animate-rise-in">
+        <Active />
+      </div>
+    {/key}
   </main>
 
-  <nav class="z-20 flex shrink-0 border-t border-lichen bg-surface/95 backdrop-blur-sm md:hidden">
+  <nav
+    class="z-20 flex shrink-0 border-t border-lichen/80 bg-surface/85 backdrop-blur-md md:hidden"
+  >
     {#each VIEWS as view (view.id)}
       <button
         type="button"
         onclick={() => (current = view.id)}
-        class="flex-1 py-2.5 text-center text-xs font-medium transition {current === view.id
-          ? 'text-pine'
+        class="relative flex-1 py-2.5 text-center text-xs font-medium transition {current ===
+        view.id
+          ? 'text-pine-deep'
           : 'text-sage'}"
       >
+        {#if current === view.id}
+          <span class="absolute inset-x-6 top-0 h-0.5 rounded-full bg-pine"></span>
+        {/if}
         {view.label}
       </button>
     {/each}

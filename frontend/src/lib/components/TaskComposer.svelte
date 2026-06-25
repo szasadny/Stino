@@ -11,7 +11,7 @@
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
   import { type ComposerDraft, draftToInput, emptyDraft } from '../composer'
-  import { INPUT_CLASS, TITLE_MAX_LENGTH } from '../constants'
+  import { INPUT_CLASS, PRIMARY_BTN_CLASS, TITLE_MAX_LENGTH } from '../constants'
   import { toISODate } from '../date'
   import DeleteConfirm from './DeleteConfirm.svelte'
   import RecurrencePicker from './RecurrencePicker.svelte'
@@ -85,7 +85,7 @@
       maxlength={TITLE_MAX_LENGTH}
       autocomplete="off"
       aria-label="Task name"
-      class="w-full rounded-lg border border-lichen bg-fog px-3 py-2.5 text-base font-medium text-ink outline-none transition placeholder:font-normal placeholder:text-sage focus:border-pine focus:bg-surface"
+      class="w-full rounded-lg border border-lichen bg-fog px-3 py-2.5 text-base font-medium text-ink outline-none transition placeholder:font-normal placeholder:text-sage hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20"
     />
     <textarea
       bind:value={draft.notes}
@@ -141,7 +141,7 @@
         onchange={syncTime}
         type="date"
         aria-label="Due date"
-        class="rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm text-ink outline-none transition hover:border-sage focus:border-pine focus:bg-surface"
+        class="rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm text-ink outline-none transition hover:border-sage focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20"
       />
       <input
         bind:value={draft.time}
@@ -149,7 +149,7 @@
         disabled={!draft.date}
         aria-label="Due time"
         title={draft.date ? '' : 'Pick a date first'}
-        class="rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm text-ink outline-none transition hover:border-sage focus:border-pine focus:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+        class="rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm text-ink outline-none transition hover:border-sage focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20 disabled:cursor-not-allowed disabled:opacity-40"
       />
       <button
         type="button"
@@ -204,11 +204,7 @@
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          class="rounded-lg bg-pine px-4 py-1.5 text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} px-4 py-1.5">
           {submitLabel}
         </button>
       </div>

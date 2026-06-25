@@ -25,7 +25,13 @@ export const SEARCH_DEBOUNCE_MS = 200
 // padding overrides) so the look stays in one place. Design tokens only (Hard
 // Rule 6).
 export const INPUT_CLASS =
-  'rounded-lg border border-lichen bg-fog px-3 py-2 text-sm text-ink outline-none transition placeholder:text-sage focus:border-pine focus:bg-surface'
+  'rounded-lg border border-lichen bg-fog px-3 py-2 text-sm text-ink outline-none transition placeholder:text-sage hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20'
+
+// The shared look for the primary (pine) action button — a clean solid fill that
+// darkens on hover, defined once so every CTA matches. Minimal by design.
+// Callers prepend only layout (flex, padding, width); design tokens only.
+export const PRIMARY_BTN_CLASS =
+  'rounded-lg bg-pine text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40'
 
 // The tabbed views. Search is not a tab — it opens as an overlay from the
 // header's search icon (see SearchDialog), so you can search from anywhere.

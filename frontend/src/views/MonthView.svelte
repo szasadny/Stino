@@ -79,7 +79,7 @@
 <section class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4">
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
-      <h1 class="text-lg font-semibold text-pine-deep sm:text-xl">
+      <h1 class="font-display text-xl font-semibold tracking-tight text-pine-deep sm:text-2xl">
         {formatMonthYear(viewYear, viewMonth)}
       </h1>
       {#if core.loading}

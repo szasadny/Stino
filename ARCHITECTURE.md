@@ -201,8 +201,10 @@ Behaviours that matter:
 - `src/lib/constants.ts` — view list, the input length caps (`TITLE_MAX_LENGTH` /
   `LABEL_NAME_MAX_LENGTH`, mirroring the backend `config.rs`), the calendar-cell overflow thresholds
   (`MONTH_CELL_MAX_TITLES` / `…MAX_DOTS` / `WEEK_CELL_MAX_TITLES`), the drag-FLIP and search-debounce
-  durations (`DND_FLIP_MS` / `SEARCH_DEBOUNCE_MS`), and the shared input class (`INPUT_CLASS`). Also
-  re-exports `LABEL_PALETTE` from `palette.js` so the rest of the UI still imports it from here.
+  durations (`DND_FLIP_MS` / `SEARCH_DEBOUNCE_MS`), and the shared look-tokens (`INPUT_CLASS` field
+  styling + `PRIMARY_BTN_CLASS`, the solid pine CTA — both defined once so fields and buttons match
+  everywhere). Also re-exports `LABEL_PALETTE` from `palette.js` so the rest of the UI still imports
+  it from here.
 - `src/lib/controllers/calendar-selection.svelte.ts` — `createCalendarSelection(core)` (the
   `labelFor` + per-day index + selected-day state the Month and Week views share) and
   `preloadLabels(core)` (the graceful label load for the calendar's color dots), so neither view

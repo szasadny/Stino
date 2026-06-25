@@ -178,7 +178,7 @@
 <dialog
   bind:this={dialogEl}
   onclose={onClose}
-  class="mx-auto mt-[8vh] max-h-[84vh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl border border-lichen bg-surface p-0 text-ink shadow-xl"
+  class="mx-auto mt-[8vh] max-h-[84vh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl border border-lichen bg-surface p-0 text-ink shadow-overlay"
 >
   <div class="flex max-h-[84vh] flex-col">
     {#if editing}
@@ -313,8 +313,8 @@
 <style>
   dialog::backdrop {
     /* `--scrim` is the one chrome token kept fixed across themes (see app.css). */
-    background: rgb(var(--scrim) / 0.32);
-    backdrop-filter: blur(2px);
+    background: rgb(var(--scrim) / 0.42);
+    backdrop-filter: blur(3px);
   }
   dialog[open] {
     animation: search-in 160ms ease-out;

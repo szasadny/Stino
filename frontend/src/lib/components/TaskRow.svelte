@@ -106,7 +106,7 @@
     onclick={onSelect}
     role="checkbox"
     aria-checked={selected}
-    class="flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left shadow-sm transition {selected
+    class="flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left shadow-soft transition {selected
       ? 'border-pine bg-pine/5'
       : 'border-lichen bg-surface hover:border-pine/40'}"
   >
@@ -134,7 +134,7 @@
   </button>
 {:else}
   <div
-    class="flex items-start gap-3 rounded-xl border border-lichen bg-surface px-3 py-2.5 shadow-sm transition"
+    class="flex items-start gap-3 rounded-xl border border-lichen bg-surface px-3 py-2.5 shadow-soft transition hover:border-pine/30"
   >
     {#if leading}
       <div class="mt-0.5 flex shrink-0 items-center self-stretch">

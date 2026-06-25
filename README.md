@@ -19,7 +19,6 @@ the contract.
 ```bash
 git clone https://github.com/szasadny/Stino.git && cd Stino
 docker compose up -d --build
-# → http://localhost:8080   (data persists in ./data/stino.db)
 ```
 
 ## Develop

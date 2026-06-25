@@ -4,6 +4,7 @@
   // Modal; this owns the picker, the request, and the result.
   import { api } from '../api'
   import type { ImportSummary } from '../types'
+  import { PRIMARY_BTN_CLASS } from '../constants'
   import { errorMessage } from '../errors'
   import ErrorAlert from './ErrorAlert.svelte'
   import Modal from './Modal.svelte'
@@ -89,11 +90,7 @@
         >
           Import another
         </button>
-        <button
-          type="button"
-          onclick={onClose}
-          class="rounded-lg bg-pine px-4 py-2 text-sm font-medium text-surface transition hover:bg-pine-deep"
-        >
+        <button type="button" onclick={onClose} class="{PRIMARY_BTN_CLASS} px-4 py-2">
           Done
         </button>
       </div>
@@ -115,7 +112,7 @@
           type="button"
           onclick={runImport}
           disabled={!file || busy}
-          class="rounded-lg bg-pine px-4 py-2 text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40"
+          class="{PRIMARY_BTN_CLASS} px-4 py-2"
         >
           {busy ? 'Importing…' : 'Import'}
         </button>

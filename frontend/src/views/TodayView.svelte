@@ -8,6 +8,7 @@
   import type { Task } from '../lib/types'
   import { formatDayFull, toISODate } from '../lib/date'
   import { taskToDraft } from '../lib/composer'
+  import { PRIMARY_BTN_CLASS } from '../lib/constants'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import DayAgenda from '../lib/components/DayAgenda.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
@@ -62,7 +63,7 @@
 <section class="mx-auto flex h-full w-full max-w-2xl flex-col px-4">
   <header class="flex shrink-0 items-start justify-between gap-3 pt-6 sm:pt-8">
     <div>
-      <h1 class="text-xl font-semibold text-pine-deep">{heading}</h1>
+      <h1 class="font-display text-2xl font-semibold tracking-tight text-pine-deep">{heading}</h1>
       <p class="mt-1 text-sm text-sage">
         {#if core.loading}
           Loading…
@@ -75,7 +76,7 @@
     <button
       type="button"
       onclick={() => (editing = 'new')}
-      class="flex shrink-0 items-center gap-1.5 rounded-lg bg-pine px-3 py-2 text-sm font-medium text-surface transition hover:bg-pine-deep"
+      class="{PRIMARY_BTN_CLASS} flex shrink-0 items-center gap-1.5 px-3 py-2"
     >
       <svg
         viewBox="0 0 24 24"

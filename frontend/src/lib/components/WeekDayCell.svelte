@@ -52,8 +52,10 @@
 </script>
 
 <div
-  class="group flex h-full min-h-[4rem] w-full flex-col gap-1.5 overflow-hidden rounded-lg border bg-surface p-2
-    {isToday ? 'border-pine/40' : 'border-lichen'}"
+  class="group flex h-full min-h-[4rem] w-full flex-col gap-1.5 overflow-hidden rounded-lg border p-2 transition
+    {isToday
+    ? 'border-pine/50 bg-pine/[0.07] ring-1 ring-inset ring-pine/15'
+    : 'border-lichen bg-cell'}"
 >
   <div class="flex shrink-0 items-center justify-between gap-1">
     <button

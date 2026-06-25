@@ -68,12 +68,12 @@
   bind:this={dialogEl}
   onclose={onClose}
   onclick={handleBackdropClick}
-  class="border border-lichen bg-surface p-0 text-ink shadow-xl {panelClass}"
+  class="border border-lichen bg-surface p-0 text-ink shadow-overlay {panelClass}"
 >
   <div class="flex flex-col {containerClass}">
     <header class="flex items-start justify-between gap-4 border-b border-lichen px-5 py-4">
       <div>
-        <h2 class="text-lg font-semibold text-pine-deep">{title}</h2>
+        <h2 class="font-display text-xl font-semibold tracking-tight text-pine-deep">{title}</h2>
         {#if subtitle}
           <p class="mt-0.5 text-sm text-sage">{subtitle}</p>
         {/if}
@@ -105,8 +105,8 @@
 <style>
   dialog::backdrop {
     /* `--scrim` is the one chrome token kept fixed across themes (see app.css). */
-    background: rgb(var(--scrim) / 0.32);
-    backdrop-filter: blur(2px);
+    background: rgb(var(--scrim) / 0.42);
+    backdrop-filter: blur(3px);
   }
   dialog[open] {
     animation: sheet-in 160ms ease-out;

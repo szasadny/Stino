@@ -1,17 +1,34 @@
 <script lang="ts">
-  // The Stinō mark: a small stack of trail stones (a cairn), narrowing upward.
+  // The Stinō mark: a cairn — three stacked trail stones. Each stone is a distinct
+  // forest tone (pine / moss / sage) and they sit with clear gaps and a slight
+  // natural lean, so it reads as a balanced stack of stones — never one smooth
+  // blob. The tones are theme tokens, so the mark adapts in dark mode.
   let { class: className = '' }: { class?: string } = $props()
 </script>
 
-<svg
-  viewBox="0 0 24 24"
-  fill="currentColor"
-  class={className}
-  xmlns="http://www.w3.org/2000/svg"
-  aria-hidden="true"
->
-  <ellipse cx="12" cy="19" rx="8" ry="2.6" opacity="0.95" />
-  <ellipse cx="12" cy="14.2" rx="6" ry="2.3" opacity="0.82" />
-  <ellipse cx="12" cy="10" rx="4.4" ry="2" opacity="0.7" />
-  <ellipse cx="12" cy="6.4" rx="3" ry="1.7" opacity="0.62" />
+<svg viewBox="0 0 24 24" class={className} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <ellipse
+    cx="12"
+    cy="18.6"
+    rx="7.7"
+    ry="2.6"
+    fill="rgb(var(--pine))"
+    transform="rotate(-3 12 18.6)"
+  />
+  <ellipse
+    cx="12.7"
+    cy="12.4"
+    rx="5.6"
+    ry="2.4"
+    fill="rgb(var(--moss))"
+    transform="rotate(5 12.7 12.4)"
+  />
+  <ellipse
+    cx="11.3"
+    cy="6.8"
+    rx="3.7"
+    ry="2.1"
+    fill="rgb(var(--sage))"
+    transform="rotate(-4 11.3 6.8)"
+  />
 </svg>
