@@ -16,6 +16,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
+rrule = "0.14.0"
+csv = "1"
 
 [dev-dependencies]
 # Drive the router in-process for integration tests (Service::oneshot) and read

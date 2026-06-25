@@ -1,11 +1,14 @@
 mod health;
+mod import;
 mod labels;
+mod search;
+mod tasks;
 
 use std::path::Path;
 
 use axum::http::StatusCode;
 use axum::{
-    routing::{get, patch},
+    routing::{get, patch, post},
     Json, Router,
 };
 use sqlx::SqlitePool;
@@ -26,6 +29,17 @@ pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
         .route("/health", get(health::health))
         .route("/labels", get(labels::list).post(labels::create))
         .route("/labels/{id}", patch(labels::update).delete(labels::delete))
+        .route("/tasks", get(tasks::list).post(tasks::create))
+        // Static `/tasks/reorder` is registered alongside the `/tasks/{id}` param
+        // route; matchit gives the literal segment priority, so it never collides.
+        .route("/tasks/reorder", patch(tasks::reorder))
+        .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
+        .route(
+            "/tasks/{id}/completions",
+            post(tasks::complete).delete(tasks::uncomplete),
+        )
+        .route("/search", get(search::list))
+        .route("/import/ticktick", post(import::ticktick))
         // Unknown /api/* paths return a JSON 404 instead of falling through to
         // the SPA index, so the client always gets a parseable error.
         .fallback(api_not_found)

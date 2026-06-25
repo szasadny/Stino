@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO completion (task_id, occurrence_date)\n           SELECT ?, ?\n           WHERE NOT EXISTS (\n               SELECT 1 FROM completion\n               WHERE task_id = ? AND occurrence_date IS ?\n           )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "84d819f6fb6e54f6b0f0052cc254167b3cfd0a73f5b938fdb5c97f46f8075316"
+}

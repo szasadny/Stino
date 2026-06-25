@@ -29,6 +29,21 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Label>, sqlx::Erro
     .await
 }
 
+/// Find a label by name, case-insensitively (`COLLATE NOCASE` folds ASCII case).
+/// Used by the importer to map a tag/list to an existing label instead of
+/// creating a duplicate.
+pub async fn find_by_name(pool: &SqlitePool, name: &str) -> Result<Option<Label>, sqlx::Error> {
+    sqlx::query_as!(
+        Label,
+        r#"SELECT id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!"
+           FROM label
+           WHERE name = ? COLLATE NOCASE"#,
+        name
+    )
+    .fetch_optional(pool)
+    .await
+}
+
 /// The next `sort_order` to assign so new labels append to the end.
 pub async fn next_sort_order(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "next!" FROM label"#)

@@ -1,5 +1,19 @@
 use std::path::PathBuf;
 
+// Domain constants — the single source of truth for validation limits and the
+// local date/time wire formats, shared across the service layer so no value is
+// written twice. (Runtime, environment-driven settings live in `Config` below.)
+
+/// Cap titles so list rows stay legible; notes are unbounded (free text).
+pub const MAX_TITLE_LEN: usize = 200;
+/// Cap label names so the UI chips stay legible; imported names are clamped to it.
+pub const MAX_LABEL_NAME_LEN: usize = 60;
+/// Local calendar-date format (`YYYY-MM-DD`). Stored verbatim, never via UTC
+/// (Hard Rule 7). This is the `chrono` pattern, not the human label.
+pub const DATE_FORMAT: &str = "%Y-%m-%d";
+/// Local wall-clock time format (`HH:MM`, 24-hour). The `chrono` pattern.
+pub const TIME_FORMAT: &str = "%H:%M";
+
 /// Runtime configuration, sourced entirely from environment variables so the
 /// same binary runs in local dev and in the container without code changes.
 #[derive(Clone, Debug)]

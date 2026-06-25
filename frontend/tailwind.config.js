@@ -1,20 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{svelte,ts,js}'],
-  darkMode: 'class',
+  // Dark mode follows the OS via prefers-color-scheme — the chrome tokens below
+  // are CSS variables flipped in src/app.css, so no `dark:` utilities are needed.
   theme: {
     extend: {
       colors: {
-        // Calm mountain-forest chrome — see CLAUDE.md § Design Language.
-        fog: '#F4F6F3',
-        surface: '#FBFCFA',
-        pine: { DEFAULT: '#2F5D50', deep: '#1E3A34' },
-        moss: '#6F8F6B',
-        bark: '#8B6F52',
-        mist: '#8FB3C7',
-        ink: '#2B332E',
-        sage: '#6B7770',
-        lichen: '#DDE3DD',
+        // Calm mountain-forest chrome — see CLAUDE.md § Design Language. Defined
+        // as `rgb(var(--x) / <alpha-value>)` so `/opacity` modifiers still work
+        // and the values can be themed for dark mode from one place (app.css).
+        fog: 'rgb(var(--fog) / <alpha-value>)',
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        pine: {
+          DEFAULT: 'rgb(var(--pine) / <alpha-value>)',
+          deep: 'rgb(var(--pine-deep) / <alpha-value>)',
+        },
+        moss: 'rgb(var(--moss) / <alpha-value>)',
+        bark: 'rgb(var(--bark) / <alpha-value>)',
+        mist: 'rgb(var(--mist) / <alpha-value>)',
+        ink: 'rgb(var(--ink) / <alpha-value>)',
+        sage: 'rgb(var(--sage) / <alpha-value>)',
+        lichen: 'rgb(var(--lichen) / <alpha-value>)',
         // Fixed, nature-derived label palette (mirrors src/lib/constants.ts).
         label: {
           pine: '#2F5D50',

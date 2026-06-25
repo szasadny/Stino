@@ -1,3 +1,15 @@
+// Input length caps, mirrored from the backend (`config.rs`) so the UI bounds
+// what it sends. Keep in sync with the service-layer limits.
+export const TITLE_MAX_LENGTH = 200
+export const LABEL_NAME_MAX_LENGTH = 60
+
+// How many task titles / dots a calendar cell shows before collapsing to a
+// "+N more" affordance. Month cells are denser (titles + dot overflow); the
+// roomier week cells just cap titles.
+export const MONTH_CELL_MAX_TITLES = 3
+export const MONTH_CELL_MAX_DOTS = 5
+export const WEEK_CELL_MAX_TITLES = 4
+
 export type ViewId = 'month' | 'week' | 'today' | 'inbox' | 'search'
 
 export const VIEWS: { id: ViewId; label: string }[] = [

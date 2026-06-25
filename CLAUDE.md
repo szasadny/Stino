@@ -141,7 +141,7 @@ This is the easiest area to introduce subtle bugs. Rules:
 - **`due_date` is a calendar date in the user's local timezone**, stored as a plain date (e.g. `2026-06-24`), not a UTC timestamp. Never convert it through UTC — that's how a task jumps to the wrong day. The timezone is a single configured value (`TZ`), since there is one user.
 - **`due_time` is a local wall-clock time.** Combine with `due_date` only at the edges (display, sorting) using the configured timezone.
 - **Sorting within a view:** timed tasks first, ordered by `due_time` ascending; untimed tasks after, ordered by `sort_order`. This is the "time has to be sorted" requirement.
-- **Recurrence is stored as one task with an RRULE**, not as materialized rows. To render the calendar, **expand the rule with the `rrule` crate over the visible date range** (the month/week window) and overlay completion state per occurrence. Completing an occurrence writes a `completion` row; it does not mutate the task.
+- **Recurrence is stored as one task with an RRULE**, not as materialized rows. To render the calendar, **expand the rule with the `rrule` crate over the visible date range** (the month/week window) and overlay completion state per occurrence. Completing an occurrence writes a `completion` row keyed by `(task_id, occurrence_date)`; it does not mutate the task. The range/date queries return **one `Task` per expanded occurrence** carrying a derived **`occurrence_date`** (the instance; `due_date` stays the series start) — so clients key rows by `(id, occurrence_date)`, not `id` alone. See [ARCHITECTURE.md](./ARCHITECTURE.md) §4–§5.
 - **Custom intervals** map to RRULE (`FREQ=DAILY;INTERVAL=n`, `FREQ=WEEKLY;INTERVAL=n;BYDAY=MO,WE`). Keep the UI's recurrence options as: Daily, Weekly (pick weekdays), and Custom (every N days/weeks) — and translate to/from RRULE in the service layer.
 
 ## Import from TickTick
@@ -212,7 +212,7 @@ The feel is a quiet morning in a pine forest: soft light, mist, stone, evergreen
 | `sage` | `#6B7770` | secondary text, muted labels |
 | `lichen` | `#DDE3DD` | borders, dividers |
 
-**Dark mode** (optional, nice-to-have — "forest at night"): deep charcoal-greens for background/surface, the same pine/moss/mist accents lifted slightly for contrast. Build with Tailwind `dark:` from the start so it's cheap to add; don't block the MVP on it.
+**Dark mode** ("forest at night") — **implemented**. Defaults to **System** (`prefers-color-scheme`), with a **Settings → Appearance** toggle (System / Light / Dark) that overrides the OS; the choice persists in `localStorage` (`theme.ts`). Mechanism: the chrome tokens are CSS variables (RGB channel triplets) in `frontend/src/app.css`; the dark `@media` block (guarded with `:not([data-theme])` so an explicit choice wins) and a `:root[data-theme='dark']` block re-point the same variables, so every `bg-fog` / `text-ink` adapts with **no per-component `dark:` classes**. A manual override sets `data-theme` on `<html>` (applied pre-paint by a tiny inline bootstrap in `index.html` to avoid a flash). Deep charcoal-greens for background/surface; pine/pine-deep go **light** in the dark so `bg-pine text-surface` buttons stay readable (dark text on a light fill); accents lifted for contrast (all text pairs verified ≥ AA). Tokens stay in `tailwind.config.js` as `rgb(var(--x) / <alpha-value>)` so `/opacity` modifiers keep working. **Label colors are user data and are not themed** (Hard Rule 6) — a `LabelChip` shows the color as a small dot, legible on either ground.
 
 **Label palette** (the colors a user can assign — nature-derived but distinguishable): pine, moss, fern, clay, amber, slate-blue, plum, stone. Fixed set in `constants.ts`.
 
@@ -235,9 +235,10 @@ Run before considering a change done. (Commands assume the toolchain is installe
 1. **Backend lint:** `cd backend && cargo fmt --check && cargo clippy -- -D warnings`
 2. **Backend tests:** `cd backend && cargo test` — integration tests run against a temporary SQLite database.
 3. **Frontend lint + types:** `cd frontend && npm run lint && npm run check` (svelte-check / tsc).
-4. **Frontend build smoke:** `cd frontend && npm run build` — catches type and bundling errors.
+4. **Frontend unit tests:** `cd frontend && npm test` — Vitest over the pure `lib/*.ts` helpers (date, recurrence, grouping, quickadd, theme). Node env, no DOM; component testing is out of scope.
+5. **Frontend build smoke:** `cd frontend && npm run build` — catches type and bundling errors.
 
-Treat any clippy/eslint/svelte-check error as a failing build — fix it in the same change. **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test`.
+Treat any clippy/eslint/svelte-check error as a failing build — fix it in the same change. **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test` (backend) or a Vitest case (a pure frontend helper).
 
 ## Working Approach
 

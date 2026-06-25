@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "lint": "prettier --check ."
+    "lint": "prettier --check .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.0",
@@ -27,6 +28,7 @@
     "tailwindcss": "^3.4.17",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.1.9"
   }
 }

@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Theme tokens as RGB channel triplets so Tailwind's `/opacity` modifiers keep
+ * working — the tokens are defined as `rgb(var(--x) / <alpha-value>)` in
+ * tailwind.config.js. Dark mode ("forest at night") simply re-points the same
+ * variables under prefers-color-scheme, so every `bg-fog` / `text-ink` adapts
+ * automatically with no per-component `dark:` classes.
+ *
+ * Default is System (the prefers-color-scheme block below). Settings → Light/Dark
+ * sets a `data-theme` attribute on <html> (see theme.ts) that overrides the OS:
+ * the media query is guarded with `:not([data-theme])` so an explicit choice wins.
+ * Accents (pine/moss/…) are LIFTED to read on the dark ground — pine/pine-deep go
+ * light so the existing `bg-pine text-surface` buttons stay readable (dark text on
+ * a light fill). Label colors are user data and intentionally NOT themed.
+ */
+:root {
+  color-scheme: light;
+  --fog: 244 246 243;
+  --surface: 251 252 250;
+  --pine: 47 93 80;
+  --pine-deep: 30 58 52;
+  --moss: 111 143 107;
+  --bark: 139 111 82;
+  --mist: 143 179 199;
+  --ink: 43 51 46;
+  --sage: 107 119 112;
+  --lichen: 221 227 221;
+  /* Modal/overlay scrim (pine-deep's light value). Intentionally NOT re-pointed
+   * in the dark blocks below: a backdrop should always darken the page, never
+   * invert to a light wash, so this stays fixed across themes. */
+  --scrim: 30 58 52;
+}
+
+/* System mode (no explicit choice): follow the OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --fog: 15 23 20;
+    --surface: 23 33 28;
+    --pine: 102 167 148;
+    --pine-deep: 124 182 164;
+    --moss: 134 174 128;
+    --bark: 196 144 102;
+    --mist: 159 195 214;
+    --ink: 231 236 232;
+    --sage: 157 169 161;
+    --lichen: 58 70 63;
+  }
+}
+
+/* Manual override (Settings → Dark) — wins over the OS regardless of source order
+ * via the attribute selector's higher specificity. Light needs no block: it falls
+ * through to :root above, and the media query's :not([data-theme]) skips it. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --fog: 15 23 20;
+  --surface: 23 33 28;
+  --pine: 102 167 148;
+  --pine-deep: 124 182 164;
+  --moss: 134 174 128;
+  --bark: 196 144 102;
+  --mist: 159 195 214;
+  --ink: 231 236 232;
+  --sage: 157 169 161;
+  --lichen: 58 70 63;
+}
+
 @layer base {
   html {
     font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;

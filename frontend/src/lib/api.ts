@@ -1,6 +1,6 @@
 // The ONE place the app talks HTTP. Every endpoint gets a typed function here;
 // components import from this module and never call fetch directly.
-import type { Health, Label } from './types'
+import type { Health, ImportSummary, Label, Task } from './types'
 
 const BASE = '/api'
 
@@ -38,8 +38,29 @@ export interface LabelInput {
   color: string
 }
 
+// Task create/update payloads. For an update, a field set to `null` clears it
+// (e.g. removing a label), while an omitted field is left unchanged — the
+// backend distinguishes the two.
+export interface TaskInput {
+  title: string
+  notes?: string | null
+  label_id?: number | null
+  due_date?: string | null
+  due_time?: string | null
+  recurrence_rule?: string | null
+}
+
+// Completing/reopening targets one occurrence. Omitting the date defaults to the
+// task's own due_date (the only occurrence for a one-off; null for an Inbox task).
+function occurrenceQuery(occurrenceDate?: string | null): string {
+  return occurrenceDate ? `?occurrence_date=${occurrenceDate}` : ''
+}
+
 export const api = {
   health: () => http<Health>('/health'),
+  // Find tasks by part of their title or notes (LIKE over both). A blank query
+  // returns no rows. Recurring tasks come back as their series row, not expanded.
+  search: (q: string) => http<Task[]>(`/search?q=${encodeURIComponent(q)}`),
   labels: {
     list: () => http<Label[]>('/labels'),
     create: (input: LabelInput) =>
@@ -47,5 +68,37 @@ export const api = {
     update: (id: number, input: Partial<LabelInput>) =>
       http<Label>(`/labels/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     remove: (id: number) => http<void>(`/labels/${id}`, { method: 'DELETE' }),
+  },
+  tasks: {
+    // Inbox = unscheduled tasks; `forDate` = everything on one local day;
+    // `range` = every scheduled task in [from, to] for the calendar grid.
+    inbox: () => http<Task[]>('/tasks?inbox=true'),
+    forDate: (date: string) => http<Task[]>(`/tasks?date=${date}`),
+    range: (from: string, to: string) => http<Task[]>(`/tasks?from=${from}&to=${to}`),
+    create: (input: TaskInput) =>
+      http<Task>('/tasks', { method: 'POST', body: JSON.stringify(input) }),
+    update: (id: number, input: Partial<TaskInput>) =>
+      http<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+    remove: (id: number) => http<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    // Persist a manual order for untimed tasks: `ids` is the full ordered list,
+    // and each task's sort_order becomes its position. Timed/recurring tasks keep
+    // their time-sort, so only untimed ids are sent.
+    reorder: (ids: number[]) =>
+      http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+    // Completing/reopening targets a single occurrence (see `occurrenceQuery`).
+    // The response is that occurrence, so the caller updates exactly its row.
+    complete: (id: number, occurrenceDate?: string | null) =>
+      http<Task>(`/tasks/${id}/completions${occurrenceQuery(occurrenceDate)}`, { method: 'POST' }),
+    uncomplete: (id: number, occurrenceDate?: string | null) =>
+      http<Task>(`/tasks/${id}/completions${occurrenceQuery(occurrenceDate)}`, {
+        method: 'DELETE',
+      }),
+  },
+  import: {
+    // Upload a TickTick CSV backup. The picked File is sent as the raw request
+    // body; the empty `headers` lets the browser set the file's content type
+    // (overriding the default JSON one), and the backend parses the bytes as CSV.
+    ticktick: (file: File) =>
+      http<ImportSummary>('/import/ticktick', { method: 'POST', body: file, headers: {} }),
   },
 }

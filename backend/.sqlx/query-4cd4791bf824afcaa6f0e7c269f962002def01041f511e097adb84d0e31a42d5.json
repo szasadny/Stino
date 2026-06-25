@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM completion WHERE task_id = ? AND occurrence_date IS ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4cd4791bf824afcaa6f0e7c269f962002def01041f511e097adb84d0e31a42d5"
+}

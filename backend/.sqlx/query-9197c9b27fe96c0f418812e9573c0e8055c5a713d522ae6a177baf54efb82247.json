@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO task (title, notes, label_id, due_date, due_time, recurrence_rule, sort_order)\n           VALUES (?, ?, ?, ?, ?, ?, ?)\n           RETURNING\n            id              AS \"id!\",\n            title           AS \"title!\",\n            notes,\n            label_id,\n            due_date,\n            due_time,\n            recurrence_rule,\n            due_date        AS occurrence_date,\n            sort_order      AS \"sort_order!\",\n            FALSE           AS \"completed!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "title!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "notes",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "label_id",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "due_date",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "due_time",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "recurrence_rule",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "occurrence_date",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "completed!: bool",
+        "ordinal": 9,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "9197c9b27fe96c0f418812e9573c0e8055c5a713d522ae6a177baf54efb82247"
+}

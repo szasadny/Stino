@@ -1,0 +1,165 @@
+//! Thin HTTP handlers for task CRUD + completion: parse the request, call one
+//! service, shape the response. No business logic, no SQL.
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::Json;
+use serde::{Deserialize, Deserializer};
+
+use super::AppState;
+use crate::domain::{NewTask, TaskPatch};
+use crate::error::{AppError, AppResult};
+use crate::services::task_service;
+
+/// `GET /api/tasks` selectors, most specific first: `?from=&to=` lists a date
+/// range (the calendar grid), `?date=YYYY-MM-DD` lists one day, and otherwise
+/// (incl. `?inbox=true`) the Inbox. Giving only one of `from`/`to` is a 400.
+#[derive(Deserialize)]
+pub struct ListParams {
+    pub date: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateTask {
+    pub title: String,
+    pub notes: Option<String>,
+    pub label_id: Option<i64>,
+    pub due_date: Option<String>,
+    pub due_time: Option<String>,
+    pub recurrence_rule: Option<String>,
+}
+
+/// Partial update. Nullable fields use `double_option` so a JSON `null` clears
+/// the field, while omitting it leaves the field untouched.
+#[derive(Deserialize)]
+pub struct UpdateTask {
+    pub title: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub label_id: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub due_date: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub due_time: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub recurrence_rule: Option<Option<String>>,
+}
+
+/// Optional occurrence for (un)completing; defaults to the task's own due_date.
+#[derive(Deserialize)]
+pub struct CompletionParams {
+    pub occurrence_date: Option<String>,
+}
+
+/// Reorder payload: the full ordered list of (untimed) task ids for a list/day.
+/// Each task's `sort_order` becomes its position in this list.
+#[derive(Deserialize)]
+pub struct ReorderTasks {
+    pub ids: Vec<i64>,
+}
+
+/// Deserialize so that a present `null` becomes `Some(None)` (clear) rather than
+/// `None` (absent) — serde's default collapses both to `None`. Combined with
+/// `#[serde(default)]`, an omitted field stays `None`.
+fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+pub async fn list(
+    State(state): State<AppState>,
+    Query(params): Query<ListParams>,
+) -> AppResult<impl IntoResponse> {
+    let tasks = match (params.from, params.to, params.date) {
+        (Some(from), Some(to), _) => task_service::list_in_range(&state.pool, &from, &to).await?,
+        (Some(_), None, _) | (None, Some(_), _) => {
+            return Err(AppError::Validation(
+                "both from and to are required for a range".into(),
+            ))
+        }
+        (None, None, Some(date)) => task_service::list_for_date(&state.pool, &date).await?,
+        (None, None, None) => task_service::list_inbox(&state.pool).await?,
+    };
+    Ok(Json(tasks))
+}
+
+pub async fn create(
+    State(state): State<AppState>,
+    Json(body): Json<CreateTask>,
+) -> AppResult<impl IntoResponse> {
+    let task = task_service::create(
+        &state.pool,
+        NewTask {
+            title: body.title,
+            notes: body.notes,
+            label_id: body.label_id,
+            due_date: body.due_date,
+            due_time: body.due_time,
+            recurrence_rule: body.recurrence_rule,
+        },
+    )
+    .await?;
+    Ok((StatusCode::CREATED, Json(task)))
+}
+
+pub async fn update(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<UpdateTask>,
+) -> AppResult<impl IntoResponse> {
+    let task = task_service::update(
+        &state.pool,
+        id,
+        TaskPatch {
+            title: body.title,
+            notes: body.notes,
+            label_id: body.label_id,
+            due_date: body.due_date,
+            due_time: body.due_time,
+            recurrence_rule: body.recurrence_rule,
+        },
+    )
+    .await?;
+    Ok(Json(task))
+}
+
+pub async fn delete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> AppResult<impl IntoResponse> {
+    task_service::delete(&state.pool, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn reorder(
+    State(state): State<AppState>,
+    Json(body): Json<ReorderTasks>,
+) -> AppResult<impl IntoResponse> {
+    task_service::reorder(&state.pool, &body.ids).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn complete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(params): Query<CompletionParams>,
+) -> AppResult<impl IntoResponse> {
+    let task = task_service::complete(&state.pool, id, params.occurrence_date).await?;
+    Ok(Json(task))
+}
+
+pub async fn uncomplete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(params): Query<CompletionParams>,
+) -> AppResult<impl IntoResponse> {
+    let task = task_service::uncomplete(&state.pool, id, params.occurrence_date).await?;
+    Ok(Json(task))
+}

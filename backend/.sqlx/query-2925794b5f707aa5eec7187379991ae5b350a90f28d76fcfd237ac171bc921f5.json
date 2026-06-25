@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(MAX(sort_order), -1) + 1 AS \"next!\" FROM task",
+  "describe": {
+    "columns": [
+      {
+        "name": "next!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2925794b5f707aa5eec7187379991ae5b350a90f28d76fcfd237ac171bc921f5"
+}
