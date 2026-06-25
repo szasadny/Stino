@@ -13,9 +13,9 @@
   // Drag: when `draggable`, the ENTIRE pill is the drag handle AND the click-to-open
   // target — one element, so a press-and-drag anywhere on it moves the task while a plain
   // click/tap opens it. The checkbox is the only exception: it swallows the pointer/mouse/
-  // touch start so ticking never starts a drag, and its click never bubbles to "open". On a
-  // phone the auto-density pill collapses to a slim colored bar (still a whole-bar handle;
-  // no checkbox — tap the day to open its sheet) so the month stays legible.
+  // touch start so ticking never starts a drag, and its click never bubbles to "open".
+  // (The month/week grids that use this pill render only on wider screens — a phone shows
+  // the compact dot-grid + readable agenda instead — so there is no slim-bar variant here.)
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
 
@@ -23,14 +23,12 @@
     task,
     label,
     draggable = false,
-    density = 'full',
     onOpen,
     onToggle,
   }: {
     task: Task
     label: Label | undefined
     draggable?: boolean
-    density?: 'full' | 'auto'
     onOpen: () => void
     onToggle?: (task: Task) => void
   } = $props()
@@ -40,7 +38,6 @@
   // recognize the label at a glance while `ink` text stays legible (no extra left
   // bar; the soft tint alone carries it). `40` is the 8-digit-hex alpha byte (~25%).
   const tintStyle = $derived(color ? `background-color:${color}40` : '')
-  const barStyle = $derived(color ? `background-color:${color}` : '')
 
   const openLabel = $derived(
     `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${
@@ -135,32 +132,4 @@
   </div>
 {/snippet}
 
-{#snippet bar()}
-  <!-- Phone: a slim colored bar keeps the month legible. The whole bar is the drag handle
-       (when movable) and a tap opens the day sheet; no checkbox at this density. -->
-  <div
-    use:dragHandleIf
-    role="button"
-    tabindex="0"
-    onclick={onOpen}
-    onkeydown={openOnKey}
-    aria-label={openLabel}
-    class="block w-full rounded {draggable
-      ? 'cursor-grab active:cursor-grabbing'
-      : 'cursor-pointer'}"
-  >
-    <span
-      class="block h-1.5 w-full rounded-full {color ? '' : 'bg-pine/60'} {task.completed
-        ? 'opacity-40'
-        : ''}"
-      style={barStyle}
-    ></span>
-  </div>
-{/snippet}
-
-{#if density === 'auto'}
-  <span class="block sm:hidden">{@render bar()}</span>
-  <span class="hidden sm:block">{@render pill()}</span>
-{:else}
-  {@render pill()}
-{/if}
+{@render pill()}

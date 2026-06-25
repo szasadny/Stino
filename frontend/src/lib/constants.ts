@@ -12,6 +12,13 @@ export const MONTH_CELL_MAX_TITLES = 4
 export const MONTH_CELL_MAX_DOTS = 5
 export const WEEK_CELL_MAX_TITLES = 8
 
+// The viewport width (px) at/below which the calendar views switch to their
+// compact, phone-friendly layouts (a dot grid + readable agenda) instead of the
+// 7-column grids, whose cells are too narrow for task text on a phone. 639 keeps
+// the break aligned with Tailwind's `sm` (640px) used everywhere else. Read via
+// `lib/viewport.svelte.ts`'s `isCompact()`.
+export const COMPACT_MAX_WIDTH = 639
+
 // svelte-dnd-action's FLIP animation duration (ms) for the drag-to-reorder
 // lists — shared by every zone so reordering feels identical across the app.
 export const DND_FLIP_MS = 150

@@ -7,6 +7,7 @@
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { addWeeks, buildWeekGrid, formatWeekRange, toISODate } from '../lib/date'
+  import { isCompact } from '../lib/viewport.svelte'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
@@ -15,6 +16,7 @@
     preloadLabels,
   } from '../lib/controllers/calendar-selection.svelte'
   import WeekDayCell from '../lib/components/WeekDayCell.svelte'
+  import WeekDaySection from '../lib/components/WeekDaySection.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
@@ -125,41 +127,61 @@
 
   <ErrorAlert error={core.error} class="mb-3" />
 
-  <div
-    class="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-7 sm:overflow-visible"
-  >
-    {#each week as date, i (weekKeys[i])}
-      <WeekDayCell
-        {date}
-        dateKey={weekKeys[i]}
-        items={cal.board[weekKeys[i]] ?? []}
-        isToday={weekKeys[i] === todayKey}
-        pending={core.pending}
-        labelFor={sel.labelFor}
-        onSelect={() => (sel.selectedDate = date)}
-        onAdd={() => composer.add(weekKeys[i])}
-        onEditTask={(task) => composer.edit(task)}
-        onToggle={core.toggle}
-        onConsider={cal.consider}
-        onFinalize={cal.finalize}
-      />
-    {/each}
-  </div>
+  {#if isCompact()}
+    <!-- Phone: seven narrow columns leave no room for task text, so each day becomes
+         a full-width section with its tasks as readable rows, the whole week scrolling. -->
+    <div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+      {#each week as date, i (weekKeys[i])}
+        <WeekDaySection
+          {date}
+          items={cal.board[weekKeys[i]] ?? []}
+          isToday={weekKeys[i] === todayKey}
+          labelFor={sel.labelFor}
+          onToggle={core.toggle}
+          onEditTask={(task) => composer.edit(task)}
+          onAdd={() => composer.add(weekKeys[i])}
+        />
+      {/each}
+    </div>
+  {:else}
+    <div class="grid min-h-0 flex-1 grid-cols-7 gap-2">
+      {#each week as date, i (weekKeys[i])}
+        <WeekDayCell
+          {date}
+          dateKey={weekKeys[i]}
+          items={cal.board[weekKeys[i]] ?? []}
+          isToday={weekKeys[i] === todayKey}
+          pending={core.pending}
+          labelFor={sel.labelFor}
+          onSelect={() => (sel.selectedDate = date)}
+          onAdd={() => composer.add(weekKeys[i])}
+          onEditTask={(task) => composer.edit(task)}
+          onToggle={core.toggle}
+          onConsider={cal.consider}
+          onFinalize={cal.finalize}
+        />
+      {/each}
+    </div>
+  {/if}
 </section>
 
-<DaySheet
-  date={sel.selectedDate}
-  tasks={sel.selectedTasks}
-  labels={core.labels}
-  pending={core.pending}
-  onToggle={core.toggle}
-  onReorder={core.reorder}
-  onReorderLabels={core.reorderLabels}
-  onCreate={dayCrud.create}
-  onUpdate={dayCrud.update}
-  onDelete={dayCrud.remove}
-  onClose={() => (sel.selectedDate = null)}
-/>
+{#if !isCompact()}
+  <!-- Desktop only: a tap on a column zooms into the day sheet. On a phone each day's
+       tasks are already readable inline above, so the sheet isn't mounted. -->
+  <DaySheet
+    date={sel.selectedDate}
+    tasks={sel.selectedTasks}
+    labels={core.labels}
+    pending={core.pending}
+    onToggle={core.toggle}
+    onReorder={core.reorder}
+    onReorderLabels={core.reorderLabels}
+    onCreate={dayCrud.create}
+    onUpdate={dayCrud.update}
+    onDelete={dayCrud.remove}
+    onClose={() => (sel.selectedDate = null)}
+  />
+{/if}
 
 <TaskComposerDialog
   open={composer.open}

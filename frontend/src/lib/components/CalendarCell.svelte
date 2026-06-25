@@ -2,8 +2,8 @@
   // One day in the month grid: a wide "open day" header (the day number) plus that
   // day's tasks as label-colored pills. The pills live in a svelte-dnd-action zone,
   // so a non-recurring task can be dragged to another day's cell (the parent persists
-  // the new date); a plain tap on a pill opens the day sheet. On a phone the pills
-  // collapse to slim colored bars so the month stays legible.
+  // the new date); a plain tap on a pill opens the day sheet. This cell is used only on
+  // wider screens — a phone shows MonthView's compact dot-grid + readable agenda instead.
   //
   // The zone must render EVERY item (svelte-dnd-action needs child↔item parity, or a
   // dropped task could vanish), so we never slice — the list is clipped with
@@ -105,7 +105,6 @@
         <TaskPill
           task={item.task}
           label={labelFor(item.task)}
-          density="auto"
           draggable={true}
           onOpen={() => onEditTask(item.task)}
           {onToggle}

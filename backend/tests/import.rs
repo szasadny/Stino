@@ -74,7 +74,7 @@ async fn imports_tasks_labels_and_completions_with_a_skipped_row() {
 }
 
 #[tokio::test]
-async fn all_day_and_timed_tasks_keep_their_literal_date_and_time() {
+async fn all_day_keeps_its_date_and_timed_tasks_convert_into_the_export_timezone() {
     let app = test_app().await;
     send(&app, import_req(FIXTURE)).await;
 
@@ -86,12 +86,39 @@ async fn all_day_and_timed_tasks_keep_their_literal_date_and_time() {
     assert_eq!(boots[0]["due_time"], Value::Null);
     assert_eq!(boots[0]["completed"], false);
 
-    // Completed timed task: the wall-clock time is kept and it shows as done.
+    // Completed timed task: the UTC instant (07:30+0000) is converted into the
+    // export's Europe/Amsterdam zone (CEST, +2 in June) → 09:30, same day, done.
     let (_, june27) = send(&app, get("/api/tasks?date=2026-06-27")).await;
     let stretch = titled(&june27, "Stretch");
     assert_eq!(stretch.len(), 1);
-    assert_eq!(stretch[0]["due_time"], "07:30");
+    assert_eq!(stretch[0]["due_time"], "09:30");
     assert_eq!(stretch[0]["completed"], true);
+}
+
+#[tokio::test]
+async fn an_early_morning_timed_task_imports_on_the_correct_local_day() {
+    // Regression for the "imported a day too soon" bug: a task at 00:30 Amsterdam
+    // time on Jun 25 is exported as the *previous* UTC day (22:30 on Jun 24).
+    // Reading the UTC string literally put it on Jun 24; converting into the
+    // export's timezone must land it back on Jun 25 at 00:30.
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","Midnight ping","","","false","","2026-06-24T22:30:00+0000","","","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"#;
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+
+    // Not on Jun 24 (the literal UTC day)...
+    let (_, june24) = send(&app, get("/api/tasks?date=2026-06-24")).await;
+    assert!(titled(&june24, "Midnight ping").is_empty());
+    // ...but on Jun 25, the real local day, at 00:30.
+    let (_, june25) = send(&app, get("/api/tasks?date=2026-06-25")).await;
+    let ping = titled(&june25, "Midnight ping");
+    assert_eq!(ping.len(), 1);
+    assert_eq!(ping[0]["due_date"], "2026-06-25");
+    assert_eq!(ping[0]["due_time"], "00:30");
 }
 
 #[tokio::test]
@@ -108,7 +135,8 @@ async fn recurring_task_expands_across_the_window() {
         standups[0]["recurrence_rule"],
         "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"
     );
-    assert_eq!(standups[0]["due_time"], "09:00");
+    // 09:00+0000 converted into the export's Europe/Amsterdam zone (CEST) → 11:00.
+    assert_eq!(standups[0]["due_time"], "11:00");
 }
 
 #[tokio::test]

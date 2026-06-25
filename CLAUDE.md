@@ -78,6 +78,7 @@ Browser (Svelte SPA)  ──HTTP/JSON──▶  Axum  ──▶  services  ─�
 - **All HTTP goes through `lib/api.ts`** — typed functions, one per endpoint. Components never call `fetch` directly.
 - **Shared types live in `lib/types.ts`** — mirror the API contract; single source of truth.
 - **Reusable UI** (calendar cell, task row, label chip, day sheet) lives in `lib/components/`; views compose them, never re-implement them.
+- **The calendar views go compact at or below `COMPACT_MAX_WIDTH` (639px — i.e. anything narrower than Tailwind's `sm` 640px breakpoint).** A 7-column grid cell is too narrow for task text on a phone, so a reactive `isCompact()` (`lib/viewport.svelte.ts` — one app-wide `matchMedia` listener) picks exactly ONE layout per view (never CSS-toggle both — that would mount duplicate `svelte-dnd-action` zones). Wide screens keep the grids (`CalendarCell`/`WeekDayCell`) + the `DaySheet` modal on tap. A phone shows **Month** as a compact dot-grid (`CalendarCellCompact`) over an inline `DayAgenda` for the selected day, and **Week** as a stacked, scrollable list of readable `WeekDaySection`s. `DaySheet` is gated `{#if !isCompact()}`, so only one `DayAgenda` — one set of untimed drag zones — is ever mounted.
 - **Shared view orchestration lives in `lib/controllers/` (rune factories, `*.svelte.ts`).** `createTaskCore()` owns the task/label state + the load/toggle/reorder/remove/save actions (plus a throwing `dayCrud(reload)` the Month/Week day-sheet binds — same lock, reloads the range, rethrows so the sheet shows its own error) behind ONE in-flight lock and a uniform optimistic-then-revert update; `createCalendarBoard(core, keys, reload)` adds the month/week drop zones; `createGridComposer(core, reload)` owns the month/week add/edit dialog (state + create/update/delete through the lock, exposing the dialog's derived props). Every standing view (Today/Month/Week/Inbox) binds to a core instead of re-implementing CRUD — don't fork this logic back into a view.
 - **Drag-and-drop uses flat, non-nested `svelte-dnd-action` zones only.** A drop list is owned `$state`, mutated solely by `consider`/`finalize`, and re-projected from source data only while no gesture is live (guard the `$effect` with a `dragging` flag read via `untrack`). Never nest one zone inside another (it breaks the inner drag — see DayAgenda: tasks reorder by drag, label sections reorder by up/down controls). Pure drag logic (e.g. a cross-day move) lives in `lib/move.ts`, unit-tested.
 - **Constants** (label palette, view names, layout sizes) live in `lib/constants.ts`.
@@ -188,8 +189,9 @@ frontend/
       constants.ts     # view names, layout sizes, durations, INPUT_CLASS; re-exports the palette
       controllers/      # rune factories (*.svelte.ts): task-core (shared CRUD + lock), calendar-board (month/week drag), calendar-selection (month/week day-select + label preload), grid-composer (month/week add/edit dialog)
       move.ts          # pure cross-day-move logic (dropKind / applyMove), unit-tested
-      components/       # calendar cell, task row, label chip, day sheet, quick-add, search dialog
-    views/             # MonthView, WeekView, Today, Inbox (day zoom = DaySheet overlay; search is an overlay, not a tab)
+      viewport.svelte.ts # reactive isCompact() — picks the phone (compact) vs wide calendar layout
+      components/       # calendar cell (+ compact dot cell), task row, label chip, day sheet, week day section, quick-add, search dialog
+    views/             # MonthView, WeekView, Today, Inbox (day zoom = DaySheet overlay on desktop; phone shows inline agenda/sections; search is an overlay, not a tab)
     app.css            # Tailwind entry + theme tokens
   index.html, vite.config.ts, tailwind.config.*
 

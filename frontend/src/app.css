@@ -105,7 +105,15 @@
 }
 
 /* Gentle, calm entrance — a short fade + tiny rise. Used for view mounts (never
- * bouncy, per the design language). Respects reduced motion. */
+ * bouncy, per the design language). Respects reduced motion.
+ *
+ * Fill mode is `backwards`, not `both`, on purpose: a forwards-filling transform
+ * animation stays permanently "in effect", so the browser keeps the animated
+ * element as a containing block for its descendants — which traps a nested modal
+ * <dialog> (the day sheet) into this element's coordinate space instead of the
+ * viewport, so on a scrolled phone it opens next to the tapped cell rather than
+ * pinned to the screen. The final frame is the default (`transform: none`), so
+ * dropping the forwards fill is visually identical but lets the element go idle. */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -118,7 +126,7 @@
 }
 
 .animate-rise-in {
-  animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

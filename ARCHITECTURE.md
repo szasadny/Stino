@@ -165,7 +165,7 @@ a `{ created: { tasks, labels, completions }, skipped }` summary. Implemented in
 | --- | --- |
 | Title / Content | `task.title` / `task.notes` |
 | Tags / List | `label` (first **Tag**, else the **List** name unless it's "Inbox"; created on demand, deduped by name case-insensitively, next palette color by append order) |
-| Due Date, Is All Day, time | `task.due_date` / `task.due_time` |
+| Due Date, Is All Day, Is Floating, Timezone | `task.due_date` / `task.due_time` (timed tasks converted from the UTC instant into the export's `Timezone`; see below) |
 | Repeat (RRULE) | `task.recurrence_rule` |
 | Status / Completed Time | a `completion` row (for the task's own occurrence) |
 | Reminder, Priority, Start Date, Order, … | **ignored** (out of scope / not modelled) |
@@ -176,9 +176,15 @@ Behaviours that matter:
   line) before the real header. The parser scans for the first row that has a `Title` column and
   treats everything after it as data — so the preamble is ignored and column **order doesn't
   matter** (cells are read by name, case-insensitively).
-- **Dates are literal (Hard Rule 7).** The calendar date and `HH:MM` wall-clock time are read
-  **straight from the export string** (`2026-06-24T09:00:00+0000` → `2026-06-24` / `09:00`); the
-  trailing offset is never used to convert, so a task can't shift a day. `Is All Day` drops the time.
+- **Dates honour the export's timezone (Hard Rule 7).** TickTick stores a **timed** task's Due Date
+  as a **UTC instant** (`…+0000`) and shows it in its `Timezone` column's zone (e.g.
+  `Europe/Amsterdam`). We convert the instant into that zone before reading the local date + `HH:MM`,
+  so the stored day/time match what the user saw — reading the UTC string literally put early-morning
+  local times on the **previous** day (the "imported a day too soon" bug) and the clock off by the
+  offset. **All-day** tasks (a floating UTC-midnight date) and **floating** tasks (a zone-independent
+  wall-clock, `Is Floating=true`) are kept **literally** — converting them could itself slip a day.
+  If the `Timezone` is missing/unrecognised or the instant won't parse, we fall back to the literal
+  read (degrade, never lose the task). `Is All Day` drops the time.
 - **Recurrence.** A leading `RRULE:` is stripped to our bare stored form; the rule is kept only if it
   parses against the task's start date — otherwise it's dropped and the task is still imported (we
   degrade, never lose the task).

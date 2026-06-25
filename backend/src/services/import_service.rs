@@ -5,17 +5,25 @@
 //! and the summary reports how many. Labels dedupe by name (case-insensitive);
 //! tasks are add-only (the export carries no id we trust), so a re-run appends.
 //!
-//! Dates/times are read **literally** from the export string — the calendar date
-//! and wall-clock time exactly as TickTick wrote them — with **no timezone
-//! conversion**. The trailing offset (`+0000`) is annotation, not a cue to
-//! convert, so a task can never shift a day (Hard Rule 7).
+//! Dates/times honour the export's timezone (Hard Rule 7 — our stored local date
+//! must match what the user saw, never slip a day). TickTick writes a **timed**
+//! task's Due Date as a **UTC instant** (`…+0000`) plus a `Timezone` column (e.g.
+//! `Europe/Amsterdam`) and displays it converted into that zone — so we convert
+//! the instant into the task's timezone before reading its local date + time.
+//! Reading the UTC string literally was the "imported a day too soon" bug: an
+//! early-morning local time (e.g. `00:30` Amsterdam) is stored as the *previous*
+//! UTC day, so the literal date was a day early and the clock off by the offset.
+//! **All-day** tasks carry a floating calendar date (UTC midnight) and **floating**
+//! tasks a zone-independent wall-clock — both are kept literally, never converted
+//! (converting UTC midnight into a western zone would itself slip a day).
 //!
 //! Validation and ordering are not duplicated here: each mapped row is created
 //! through [`task_service::create`], the one place that enforces the task rules.
 
 use std::collections::HashMap;
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveTime};
+use chrono_tz::Tz;
 use sqlx::SqlitePool;
 
 use crate::config;
@@ -33,6 +41,8 @@ const COL_TAGS: &str = "tags";
 const COL_LIST: &str = "list name";
 const COL_DUE: &str = "due date";
 const COL_ALL_DAY: &str = "is all day";
+const COL_TIMEZONE: &str = "timezone";
+const COL_FLOATING: &str = "is floating";
 const COL_REPEAT: &str = "repeat";
 const COL_STATUS: &str = "status";
 const COL_COMPLETED: &str = "completed time";
@@ -40,6 +50,10 @@ const COL_COMPLETED: &str = "completed time";
 /// TickTick's default list; mapping it to a label would mint a confusing "Inbox"
 /// label, so the list fallback skips it.
 const DEFAULT_LIST: &str = "inbox";
+
+/// How TickTick writes a Due Date instant: an offset with no colon (`+0000`), so
+/// it parses with `%z`, not RFC-3339 (which wants `+00:00`).
+const TICKTICK_DT_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%z";
 
 /// Lowercased TickTick column name → its index in the data rows.
 type Headers = HashMap<String, usize>;
@@ -67,7 +81,9 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
         let notes = field(record, &headers, COL_CONTENT).map(str::to_string);
         let (due_date, due_time) = parse_due(
             field(record, &headers, COL_DUE),
-            is_all_day(field(record, &headers, COL_ALL_DAY)),
+            is_true(field(record, &headers, COL_ALL_DAY)),
+            field(record, &headers, COL_TIMEZONE),
+            is_true(field(record, &headers, COL_FLOATING)),
         );
         let recurrence_rule =
             parse_repeat(field(record, &headers, COL_REPEAT), due_date.as_deref());
@@ -168,16 +184,28 @@ fn field<'a>(record: &'a csv::StringRecord, headers: &Headers, name: &str) -> Op
     (!value.is_empty()).then_some(value)
 }
 
-/// TickTick's "Is All Day" is `true`/`false`; absent/blank ⇒ not all-day.
-fn is_all_day(raw: Option<&str>) -> bool {
+/// A TickTick boolean column (`Is All Day`, `Is Floating`) is `true`/`false`;
+/// absent/blank ⇒ false.
+fn is_true(raw: Option<&str>) -> bool {
     raw.is_some_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
-/// Read the calendar date and wall-clock time **literally** from a TickTick due
-/// date (`2026-06-24T09:00:00+0000`), with no timezone math (Hard Rule 7). An
-/// all-day task keeps only the date; an unparseable date drops to the Inbox
-/// rather than losing the task.
-fn parse_due(raw: Option<&str>, all_day: bool) -> (Option<String>, Option<String>) {
+/// Resolve a TickTick Due Date into our stored local `(due_date, due_time)`.
+///
+/// A **timed, non-floating** task is a UTC instant (`2026-06-24T22:30:00+0000`)
+/// that TickTick shows in its `timezone` column's zone, so we convert into that
+/// zone before reading the date + time — otherwise an early-morning local time
+/// lands a day too soon (Hard Rule 7). **All-day** tasks (a floating UTC-midnight
+/// date) and **floating** tasks (a zone-independent wall-clock) are read
+/// literally — converting them could itself slip a day. We also fall back to the
+/// literal read when the timezone is missing/unknown or the instant won't parse,
+/// degrading rather than losing the task; an unparseable date drops to the Inbox.
+fn parse_due(
+    raw: Option<&str>,
+    all_day: bool,
+    timezone: Option<&str>,
+    floating: bool,
+) -> (Option<String>, Option<String>) {
     let Some(raw) = raw else {
         return (None, None);
     };
@@ -185,19 +213,49 @@ fn parse_due(raw: Option<&str>, all_day: bool) -> (Option<String>, Option<String
         Some((date, rest)) => (date, Some(rest)),
         None => (raw, None),
     };
-    let Ok(date) = NaiveDate::parse_from_str(date_part, config::DATE_FORMAT) else {
+    let Ok(literal_date) = NaiveDate::parse_from_str(date_part, config::DATE_FORMAT) else {
         return (None, None);
     };
-    let due_date = Some(date.format(config::DATE_FORMAT).to_string());
+
+    // All-day: a floating calendar date — keep it literally, no time, no convert.
     if all_day {
-        return (due_date, None);
+        return (Some(fmt_date(literal_date)), None);
     }
-    // Take the leading HH:MM of the time component; ignore seconds and offset.
+
+    // Timed and zoned: convert the UTC instant into the task's own timezone.
+    if !floating {
+        if let Some((date, time)) = timezone
+            .and_then(|name| name.parse::<Tz>().ok())
+            .and_then(|tz| to_local(raw, tz))
+        {
+            return (Some(fmt_date(date)), Some(fmt_time(time)));
+        }
+    }
+
+    // Floating, or no usable timezone: read the leading HH:MM wall-clock literally
+    // (ignore seconds and offset).
     let due_time = time_part
         .and_then(|t| t.get(0..5))
         .and_then(|hhmm| NaiveTime::parse_from_str(hhmm, config::TIME_FORMAT).ok())
-        .map(|t| t.format(config::TIME_FORMAT).to_string());
-    (due_date, due_time)
+        .map(fmt_time);
+    (Some(fmt_date(literal_date)), due_time)
+}
+
+/// Convert a TickTick UTC instant string into a wall-clock date + time in `tz`.
+/// `None` if the instant doesn't parse, so the caller can fall back to a literal
+/// read.
+fn to_local(raw: &str, tz: Tz) -> Option<(NaiveDate, NaiveTime)> {
+    let instant = DateTime::parse_from_str(raw, TICKTICK_DT_FORMAT).ok()?;
+    let local = instant.with_timezone(&tz);
+    Some((local.date_naive(), local.time()))
+}
+
+fn fmt_date(date: NaiveDate) -> String {
+    date.format(config::DATE_FORMAT).to_string()
+}
+
+fn fmt_time(time: NaiveTime) -> String {
+    time.format(config::TIME_FORMAT).to_string()
 }
 
 /// Map TickTick's Repeat column to a stored recurrence rule. The rule needs a
@@ -276,18 +334,90 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_due_literally_without_shifting_the_day() {
-        // A late-evening UTC time and an all-day date in a +0800 zone must both
-        // keep their literal calendar date — no UTC conversion (Hard Rule 7).
+    fn timed_task_converts_the_utc_instant_into_the_tasks_timezone() {
+        // The reported bug: TickTick stores a timed task as a UTC instant. An
+        // early-morning Amsterdam time (00:30 CEST on Jun 25) is written as the
+        // *previous* UTC day (22:30 on Jun 24). Read literally it imported a day
+        // too soon at the wrong clock; converted into Europe/Amsterdam it must
+        // land back on Jun 25 at 00:30.
         assert_eq!(
-            parse_due(Some("2026-06-24T23:30:00+0000"), false),
-            (Some("2026-06-24".into()), Some("23:30".into()))
+            parse_due(
+                Some("2026-06-24T22:30:00+0000"),
+                false,
+                Some("Europe/Amsterdam"),
+                false
+            ),
+            (Some("2026-06-25".into()), Some("00:30".into()))
         );
+        // A daytime instant shifts only the clock by the offset, not the day:
+        // 07:30 UTC → 09:30 CEST, still Jun 27.
         assert_eq!(
-            parse_due(Some("2026-06-24T00:00:00+0800"), true),
+            parse_due(
+                Some("2026-06-27T07:30:00+0000"),
+                false,
+                Some("Europe/Amsterdam"),
+                false
+            ),
+            (Some("2026-06-27".into()), Some("09:30".into()))
+        );
+        // A western zone shifts the other way: 01:00 UTC Jun 27 → 21:00 EDT Jun 26.
+        assert_eq!(
+            parse_due(
+                Some("2026-06-27T01:00:00+0000"),
+                false,
+                Some("America/New_York"),
+                false
+            ),
+            (Some("2026-06-26".into()), Some("21:00".into()))
+        );
+    }
+
+    #[test]
+    fn all_day_and_floating_tasks_are_read_literally_not_converted() {
+        // All-day is a floating UTC-midnight date — keep the literal day (never
+        // convert; UTC midnight in a western zone would slip to the day before).
+        assert_eq!(
+            parse_due(
+                Some("2026-06-24T00:00:00+0000"),
+                true,
+                Some("America/New_York"),
+                false
+            ),
             (Some("2026-06-24".into()), None)
         );
-        assert_eq!(parse_due(None, false), (None, None));
+        // A floating task's wall-clock is zone-independent — kept literally.
+        assert_eq!(
+            parse_due(
+                Some("2026-06-27T07:30:00+0000"),
+                false,
+                Some("Europe/Amsterdam"),
+                true
+            ),
+            (Some("2026-06-27".into()), Some("07:30".into()))
+        );
+    }
+
+    #[test]
+    fn unknown_or_missing_timezone_falls_back_to_a_literal_read() {
+        // No timezone column, or an unrecognised name: degrade to the literal
+        // wall-clock rather than losing the time.
+        assert_eq!(
+            parse_due(Some("2026-06-27T07:30:00+0000"), false, None, false),
+            (Some("2026-06-27".into()), Some("07:30".into()))
+        );
+        assert_eq!(
+            parse_due(
+                Some("2026-06-27T07:30:00+0000"),
+                false,
+                Some("Not/AZone"),
+                false
+            ),
+            (Some("2026-06-27".into()), Some("07:30".into()))
+        );
+        assert_eq!(
+            parse_due(None, false, Some("Europe/Amsterdam"), false),
+            (None, None)
+        );
     }
 
     #[test]

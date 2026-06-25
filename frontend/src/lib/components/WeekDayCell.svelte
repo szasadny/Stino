@@ -1,12 +1,11 @@
 <script lang="ts">
   // One day in the week view: a weekday + date "open day" header and that day's tasks
-  // as label-colored pills. The same cell is a narrow column in the desktop seven-
-  // across grid and a full-width section in the stacked mobile layout. Pills live in a
+  // as label-colored pills. This cell is the column in the desktop seven-across grid; a
+  // phone shows WeekView's stacked WeekDaySection list instead. Pills live in a
   // svelte-dnd-action zone so a non-recurring task can be dragged to another day. The
-  // week has room, so pills always show their title (no slim bar). The zone renders
-  // every item (child↔item parity) and clips with "+N more". Tapping the day header
-  // (or "+N more") opens the day sheet via `onSelect`; tapping a task pill edits that
-  // task via `onEditTask`.
+  // week has room, so pills always show their title. The zone renders every item
+  // (child↔item parity) and clips with "+N more". Tapping the day header (or "+N more")
+  // opens the day sheet via `onSelect`; tapping a task pill edits that task via `onEditTask`.
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -103,7 +102,6 @@
         <TaskPill
           task={item.task}
           label={labelFor(item.task)}
-          density="full"
           draggable={true}
           onOpen={() => onEditTask(item.task)}
           {onToggle}
