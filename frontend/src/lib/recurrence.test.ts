@@ -83,6 +83,19 @@ describe('buildRRule', () => {
       ),
     ).toBe('FREQ=MONTHLY;BYDAY=MO;BYSETPOS=5')
   })
+
+  it('builds monthly rules by first/last workday (the Mon–Fri set)', () => {
+    expect(
+      buildRRule(
+        value({ freq: 'monthly', monthlyMode: 'weekday', position: 1, monthWeekday: 'WD' }),
+      ),
+    ).toBe('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1')
+    expect(
+      buildRRule(
+        value({ freq: 'monthly', monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' }),
+      ),
+    ).toBe('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1')
+  })
 })
 
 describe('parseRRule', () => {
@@ -134,9 +147,29 @@ describe('parseRRule', () => {
       position: -1,
       monthWeekday: 'FR',
     })
+    // First/last workday: the full Mon–Fri BYDAY set + a BYSETPOS.
+    expect(parseRRule('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1')).toMatchObject({
+      freq: 'monthly',
+      monthlyMode: 'weekday',
+      position: 1,
+      monthWeekday: 'WD',
+    })
+    expect(parseRRule('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1')).toMatchObject({
+      freq: 'monthly',
+      monthlyMode: 'weekday',
+      position: -1,
+      monthWeekday: 'WD',
+    })
+    // Weekday order in the stored rule doesn't matter — still the workday set.
+    expect(parseRRule('FREQ=MONTHLY;BYDAY=FR,MO,WE,TU,TH;BYSETPOS=-1')).toMatchObject({
+      monthWeekday: 'WD',
+      position: -1,
+    })
     // A monthly rule we don't model stays read-only.
     expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=1,15').freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15').freq).toBe('none')
+    // The weekend pair isn't the workday set, so it stays unmodeled.
+    expect(parseRRule('FREQ=MONTHLY;BYDAY=SA,SU;BYSETPOS=-1').freq).toBe('none')
   })
 
   it('carries an UNTIL end date onto a modeled rule, accepting both date and date-time forms', () => {
@@ -167,6 +200,8 @@ describe('parseRRule', () => {
       'FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1',
       'FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1',
       'FREQ=MONTHLY;BYDAY=WE;BYSETPOS=5',
+      'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1',
+      'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
     ]) {
       expect(buildRRule(parseRRule(rule))).toBe(rule)
     }
@@ -179,6 +214,10 @@ describe('summarize', () => {
     expect(summarize(value({ freq: 'daily' }))).toBe('Every day')
     expect(summarize(value({ freq: 'weekly', weekdays: ['WE', 'MO'] }))).toBe('Weekly on Mon, Wed')
     expect(summarize(value({ freq: 'weekly' }))).toBe('Every week')
+    // The full Mon–Fri set reads as the cleaner "Every weekday".
+    expect(summarize(value({ freq: 'weekly', weekdays: ['FR', 'MO', 'TU', 'TH', 'WE'] }))).toBe(
+      'Every weekday',
+    )
     expect(summarize(value({ freq: 'custom', unit: 'day', interval: 1 }))).toBe('Every day')
     expect(summarize(value({ freq: 'custom', unit: 'week', interval: 2 }))).toBe('Every 2 weeks')
   })
@@ -200,6 +239,16 @@ describe('summarize', () => {
         value({ freq: 'monthly', monthlyMode: 'weekday', position: -1, monthWeekday: 'FR' }),
       ),
     ).toBe('Monthly on the last Fri')
+    expect(
+      summarize(
+        value({ freq: 'monthly', monthlyMode: 'weekday', position: 1, monthWeekday: 'WD' }),
+      ),
+    ).toBe('Monthly on the first workday')
+    expect(
+      summarize(
+        value({ freq: 'monthly', monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' }),
+      ),
+    ).toBe('Monthly on the last workday')
   })
 
   it('appends the end date when a rule has an UNTIL', () => {
@@ -229,6 +278,10 @@ describe('parseRecurrencePhrase', () => {
       ['the last Friday of every month', 'FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1'],
       ['the fifth Wednesday of every month', 'FREQ=MONTHLY;BYDAY=WE;BYSETPOS=5'],
       ['every month on the first monday', 'FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1'],
+      ['the first workday of every month', 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1'],
+      ['the last work day of each month', 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1'],
+      ['the last business day of the month', 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1'],
+      ['every month on the last workday', 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1'],
     ]
     for (const [text, rule] of cases) {
       expect(parseRecurrencePhrase(text)?.rule).toBe(rule)
@@ -239,6 +292,11 @@ describe('parseRecurrencePhrase', () => {
     expect(parseRecurrencePhrase('first day of every week')?.rule).toBe('FREQ=WEEKLY;BYDAY=MO')
     expect(parseRecurrencePhrase('last day of every week')?.rule).toBe('FREQ=WEEKLY;BYDAY=SU')
     expect(parseRecurrencePhrase('every monday')?.rule).toBe('FREQ=WEEKLY;BYDAY=MO')
+    expect(parseRecurrencePhrase('every weekday')?.rule).toBe('FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR')
+    expect(parseRecurrencePhrase('every workday')?.rule).toBe('FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR')
+    expect(parseRecurrencePhrase('every business day')?.rule).toBe(
+      'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+    )
     expect(parseRecurrencePhrase('daily')?.rule).toBe('FREQ=DAILY')
     expect(parseRecurrencePhrase('every week')?.rule).toBe('FREQ=WEEKLY')
   })

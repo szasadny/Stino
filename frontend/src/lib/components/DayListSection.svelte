@@ -1,14 +1,18 @@
 <script lang="ts">
-  // One day in the COMPACT (phone) week view. The desktop week is seven narrow
-  // columns; on a phone that leaves no room for task text, so each day instead
-  // becomes a full-width section — a weekday + date header (with a quick-add) over
-  // that day's tasks as readable TaskRows. The week is a multi-day overview, so the
-  // rows are flat (no per-day label grouping or drag — that's the single-day job of
-  // the day sheet on desktop); the day already labels the rows, so the date is
-  // omitted from each row's meta line.
+  // One day rendered as a full-width, readable section — the phone layout for the Week
+  // view (each of the seven days). A weekday + date header sits over that day's tasks as
+  // readable TaskRows, so a phone shows what's on every day at a glance instead of
+  // cramming text into a grid cell. (The phone Month view uses CalendarCellMobile — a
+  // calendar grid of compact cells — instead.)
+  //
+  // Optional props:
+  //  - `onAdd` shows the quick-add "+" beside the header.
+  //  - `emptyLabel` shows placeholder text on an empty day; omit it for a header-only row.
+  // The rows carry no svelte-dnd-action zone (drag-reorder is a desktop affordance), so
+  // any number of these sections can be stacked without colliding drop zones.
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
-  import { formatDayFull, weekdayAbbrev } from '../date'
+  import { formatDayFull, weekdayLong } from '../date'
   import TaskRow from './TaskRow.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
 
@@ -20,6 +24,7 @@
     onToggle,
     onEditTask,
     onAdd,
+    emptyLabel,
   }: {
     date: Date
     items: CellItem[]
@@ -27,19 +32,16 @@
     labelFor: (task: Task) => Label | undefined
     onToggle: (task: Task) => void
     onEditTask: (task: Task) => void
-    onAdd: () => void
+    onAdd?: () => void
+    emptyLabel?: string
   } = $props()
 </script>
 
 <section class="group">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
-      <span
-        class="text-[11px] font-medium uppercase tracking-wide {isToday
-          ? 'text-pine'
-          : 'text-sage'}"
-      >
-        {weekdayAbbrev(date)}
+      <span class="text-sm font-semibold {isToday ? 'text-pine' : 'text-ink'}">
+        {weekdayLong(date)}
       </span>
       <span
         class="grid h-6 w-6 place-items-center rounded-full text-xs font-semibold tabular-nums
@@ -48,12 +50,13 @@
         {date.getDate()}
       </span>
     </div>
-    <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
+
+    {#if onAdd}
+      <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
+    {/if}
   </div>
 
-  {#if items.length === 0}
-    <p class="px-0.5 pb-1 text-sm text-sage/70">Nothing scheduled</p>
-  {:else}
+  {#if items.length > 0}
     <ul class="space-y-2">
       {#each items as item (item.id)}
         <li>
@@ -66,5 +69,7 @@
         </li>
       {/each}
     </ul>
+  {:else if emptyLabel}
+    <p class="px-0.5 pb-1 text-sm text-sage/70">{emptyLabel}</p>
   {/if}
 </section>

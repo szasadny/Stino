@@ -310,6 +310,40 @@ mod tests {
     }
 
     #[test]
+    fn monthly_first_workday_skips_weekend_starts() {
+        // First weekday (Mon–Fri) of each month, Jan–Mar 2026. Jan 1 is a Thursday
+        // (a workday); Feb 1 and Mar 1 are Sundays, so the first workday is the 2nd.
+        let got = expand(
+            "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-03-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-01-01"), date("2026-02-02"), date("2026-03-02")]
+        );
+    }
+
+    #[test]
+    fn monthly_last_workday_skips_weekend_ends() {
+        // Last weekday of each month, Jan–Mar 2026. Jan 31 and Feb 28 are Saturdays,
+        // so the last workday is the preceding Friday; Mar 31 is a Tuesday.
+        let got = expand(
+            "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-03-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-01-30"), date("2026-02-27"), date("2026-03-31")]
+        );
+    }
+
+    #[test]
     fn monthly_fifth_weekday_skips_months_without_one() {
         // Only March 2026 has a fifth Monday (Mar 30) in Jan–Mar; Jan and Feb don't.
         let got = expand(

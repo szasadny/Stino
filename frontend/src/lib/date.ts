@@ -60,6 +60,18 @@ export function buildMonthGrid(year: number, month: number): Date[] {
   )
 }
 
+/**
+ * How many week-rows (4–6) a month occupies in the Monday-first grid — the leading
+ * days before the 1st plus the month's length, divided into weeks. Lets the phone
+ * month view render only the rows it needs instead of a fixed 6. Uses the same
+ * offset math as `buildMonthGrid`, so the two never disagree.
+ */
+export function monthWeekCount(year: number, month: number): number {
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  return Math.ceil((offset + daysInMonth) / 7)
+}
+
 /** Step `delta` months from a year/month, rolling the year over as needed. */
 export function addMonths(
   year: number,
@@ -80,10 +92,14 @@ export function formatMonthYear(year: number, month: number): string {
   return `${MONTH_NAMES[month]} ${year}`
 }
 
+/** Full weekday name for a date, e.g. "Wednesday". */
+export function weekdayLong(d: Date): string {
+  return d.toLocaleDateString(undefined, { weekday: 'long' })
+}
+
 /** e.g. "Wednesday, 24 June" — the day-sheet header. */
 export function formatDayFull(d: Date): string {
-  const weekday = d.toLocaleDateString(undefined, { weekday: 'long' })
-  return `${weekday}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
+  return `${weekdayLong(d)}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
 }
 
 /** Short weekday label for a date — Monday-first English, matches `WEEKDAYS`. */

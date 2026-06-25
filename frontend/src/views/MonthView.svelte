@@ -1,19 +1,22 @@
 <script lang="ts">
-  // The month calendar — the primary view. A 6×7 Monday-first grid; each scheduled task
-  // shows on its occurrence day (a recurring task appears on every occurrence the backend
-  // expands into the range). Navigate months, jump to today, tap a day to zoom into it
-  // (the day sheet), tap a pill to edit it, tick a pill to complete it, drag a pill to
-  // another day to reschedule it. All task orchestration lives in the shared TaskCore +
-  // calendar board; this view is thin glue + the grid/date markup. Date math: lib/date.ts.
+  // The month calendar — the primary view. A 6×7 Monday-first calendar grid on every
+  // screen; each scheduled task shows on its occurrence day (a recurring task appears on
+  // every occurrence the backend expands into the range). Navigate months, jump to today,
+  // tap a day to zoom into it (the day sheet), tap a pill to edit it, tick a pill to
+  // complete it, drag a pill to another day to reschedule it. On a phone the cells are too
+  // narrow for the full pills, so each shows compact readable task lines (CalendarCellMobile)
+  // — the day's tasks are still legible at a glance and tapping the cell opens the same day
+  // sheet. Task orchestration lives in the shared TaskCore + calendar board; this view is
+  // thin glue + markup. Date math: lib/date.ts.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import {
     WEEKDAYS,
     addMonths,
     buildMonthGrid,
-    formatDayFull,
     formatMonthYear,
     isSameMonth,
+    monthWeekCount,
     toISODate,
   } from '../lib/date'
   import { isCompact } from '../lib/viewport.svelte'
@@ -25,8 +28,7 @@
     preloadLabels,
   } from '../lib/controllers/calendar-selection.svelte'
   import CalendarCell from '../lib/components/CalendarCell.svelte'
-  import CalendarCellCompact from '../lib/components/CalendarCellCompact.svelte'
-  import DayAgenda from '../lib/components/DayAgenda.svelte'
+  import CalendarCellMobile from '../lib/components/CalendarCellMobile.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
@@ -39,6 +41,11 @@
   const grid = $derived(buildMonthGrid(viewYear, viewMonth))
   const gridKeys = $derived(grid.map(toISODate))
 
+  // Phone only: render just the week-rows this month occupies (4–6), not a fixed 6, so
+  // no all-spill-over row wastes space. The data layer (board/range) keeps the full grid.
+  const weeks = $derived(monthWeekCount(viewYear, viewMonth))
+  const compactCells = $derived(grid.slice(0, weeks * 7))
+
   const core = createTaskCore()
   const cal = createCalendarBoard(core, () => gridKeys, loadRange)
   // The grid add/edit dialog ('add' = header "+", date prefilled; 'edit' = tapped pill).
@@ -49,26 +56,6 @@
   // range on success), so the sheet stays serialized with grid toggles/drags. Reuses the same
   // `loadRange` resync as everything else in this view.
   const dayCrud = core.dayCrud(loadRange)
-
-  const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
-
-  // On a phone the month grid shows only dots, so keep a day selected to feed the
-  // agenda beneath it — today in the current month, otherwise the month's first day.
-  // On a wide screen the day sheet only opens on tap, so crossing back to wide must
-  // clear that auto-selection — otherwise the phone's selected day would pop the
-  // desktop sheet open (it shows whenever `selectedDate` is non-null) on a resize
-  // across the breakpoint.
-  let wasCompact = isCompact()
-  $effect(() => {
-    const compact = isCompact()
-    if (compact && sel.selectedDate == null) {
-      const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth()
-      sel.selectedDate = isCurrentMonth ? today : new Date(viewYear, viewMonth, 1)
-    } else if (!compact && wasCompact) {
-      sel.selectedDate = null
-    }
-    wasCompact = compact
-  })
 
   onMount(async () => {
     await preloadLabels(core)
@@ -170,60 +157,23 @@
   </div>
 
   {#if isCompact()}
-    <!-- Phone: a compact dot-grid (no task text fits in a cell this narrow) over a
-         readable agenda for the selected day. -->
-    <div class="grid auto-rows-[2.75rem] shrink-0 grid-cols-7 gap-1.5">
-      {#each grid as date, i (gridKeys[i])}
-        <CalendarCellCompact
+    <!-- Phone: the same calendar grid, but each cell shows compact readable task lines
+         (a colour dot + title) instead of the full pills; tap a day to open its popup.
+         Only the month's actual week-rows render, so the cells get the reclaimed height. -->
+    <div
+      class="grid min-h-0 flex-1 grid-cols-7 gap-1"
+      style:grid-template-rows="repeat({weeks}, minmax(0, 1fr))"
+    >
+      {#each compactCells as date, i (gridKeys[i])}
+        <CalendarCellMobile
           {date}
           items={cal.board[gridKeys[i]] ?? []}
           inCurrentMonth={isSameMonth(date, viewMonth)}
           isToday={gridKeys[i] === todayKey}
-          isSelected={gridKeys[i] === selectedKey}
           labelFor={sel.labelFor}
           onSelect={() => (sel.selectedDate = date)}
         />
       {/each}
-    </div>
-
-    <div class="mt-4 flex min-h-0 flex-1 flex-col">
-      {#if sel.selectedDate}
-        <h2 class="mb-3 shrink-0 px-0.5 font-display text-base font-semibold text-pine-deep">
-          {formatDayFull(sel.selectedDate)}
-        </h2>
-        <div class="min-h-0 flex-1 overflow-y-auto">
-          <DayAgenda
-            tasks={sel.selectedTasks}
-            labels={core.labels}
-            pending={core.pending}
-            onToggle={core.toggle}
-            onReorder={core.reorder}
-            onReorderLabels={core.reorderLabels}
-            onEdit={(task) => composer.edit(task)}
-          />
-          <button
-            type="button"
-            onclick={() => selectedKey && composer.add(selectedKey)}
-            class="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-lichen px-3 py-2.5 text-sm font-medium text-sage transition hover:border-pine/40 hover:bg-pine/[0.04] hover:text-pine-deep"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="h-4 w-4"
-              aria-hidden="true"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add a task
-          </button>
-        </div>
-      {:else}
-        <p class="py-6 text-center text-sm text-sage">Tap a day to see its tasks.</p>
-      {/if}
     </div>
   {:else}
     <div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1.5">
@@ -248,24 +198,22 @@
   {/if}
 </section>
 
-{#if !isCompact()}
-  <!-- Desktop only: the grid shows readable pills and a tap zooms into the day sheet.
-       On a phone that detail is the inline agenda above, so the sheet isn't mounted
-       (which also keeps a single DayAgenda — and one set of drag zones — in play). -->
-  <DaySheet
-    date={sel.selectedDate}
-    tasks={sel.selectedTasks}
-    labels={core.labels}
-    pending={core.pending}
-    onToggle={core.toggle}
-    onReorder={core.reorder}
-    onReorderLabels={core.reorderLabels}
-    onCreate={dayCrud.create}
-    onUpdate={dayCrud.update}
-    onDelete={dayCrud.remove}
-    onClose={() => (sel.selectedDate = null)}
-  />
-{/if}
+<!-- The day popup: tap any day cell (desktop or phone) to zoom in and add / edit /
+     complete / reorder that day's tasks. Only one is ever open, so its single DayAgenda
+     is the only drag zone live at a time. -->
+<DaySheet
+  date={sel.selectedDate}
+  tasks={sel.selectedTasks}
+  labels={core.labels}
+  pending={core.pending}
+  onToggle={core.toggle}
+  onReorder={core.reorder}
+  onReorderLabels={core.reorderLabels}
+  onCreate={dayCrud.create}
+  onUpdate={dayCrud.update}
+  onDelete={dayCrud.remove}
+  onClose={() => (sel.selectedDate = null)}
+/>
 
 <TaskComposerDialog
   open={composer.open}

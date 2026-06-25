@@ -10,6 +10,7 @@ import {
   formatWeekRange,
   fromISODate,
   isSameMonth,
+  monthWeekCount,
   startOfWeek,
   toISODate,
   weekdayAbbrev,
@@ -85,5 +86,31 @@ describe('formatters', () => {
 
   it('formats the full day label with the controlled date part', () => {
     expect(formatDayFull(new Date(2026, 5, 24)).endsWith('24 June')).toBe(true)
+  })
+})
+
+describe('monthWeekCount', () => {
+  it('is 4 for a 28-day February that starts on a Monday', () => {
+    expect(monthWeekCount(2021, 1)).toBe(4) // Feb 2021, 1st = Monday
+  })
+
+  it('is 5 for June 2026 (1st = Monday, 30 days) — drops the all-spill-over 6th row', () => {
+    expect(monthWeekCount(2026, 5)).toBe(5)
+  })
+
+  it('is 5 for a 29-day leap February that starts on a Monday', () => {
+    expect(monthWeekCount(2016, 1)).toBe(5) // Feb 2016, 1st = Monday, 29 days
+  })
+
+  it('is 6 for a 31-day month that starts on a Saturday', () => {
+    expect(monthWeekCount(2026, 7)).toBe(6) // Aug 2026, 1st = Saturday
+  })
+
+  it('never exceeds the 6-row grid or falls below 4', () => {
+    for (let m = 0; m < 12; m++) {
+      const n = monthWeekCount(2026, m)
+      expect(n).toBeGreaterThanOrEqual(4)
+      expect(n).toBeLessThanOrEqual(6)
+    }
   })
 })

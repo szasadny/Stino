@@ -7,12 +7,14 @@
   import { untrack } from 'svelte'
   import {
     buildRRule,
+    MONTH_WEEKDAY_OPTIONS,
     monthlyDefaultsFor,
     ORDINAL_OPTIONS,
     parseRRule,
     summarize,
-    WEEKDAY_LONG,
     WEEKDAY_OPTIONS,
+    WORKDAY_CODE,
+    WORKDAYS,
     type MonthlyMode,
     type OrdinalPosition,
     type RecurrenceFreq,
@@ -62,6 +64,10 @@
     until,
   })
   const summary = $derived(summarize(current))
+  // True when exactly Mon–Fri are picked — lights up the "Weekdays" preset.
+  const isWeekdaysPreset = $derived(
+    weekdays.length === WORKDAYS.length && WORKDAYS.every((c) => weekdays.includes(c)),
+  )
 
   // 1..31 then "Last day" (value -1) — the day-of-month select options.
   const MONTHDAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1)
@@ -92,6 +98,10 @@
   }
   function toggleWeekday(code: string) {
     weekdays = weekdays.includes(code) ? weekdays.filter((d) => d !== code) : [...weekdays, code]
+    emit()
+  }
+  function selectWeekdays() {
+    weekdays = [...WORKDAYS]
     emit()
   }
   function onInterval(event: Event) {
@@ -156,7 +166,7 @@
     </div>
 
     {#if freq === 'weekly'}
-      <div class="flex flex-wrap gap-1">
+      <div class="flex flex-wrap items-center gap-1">
         {#each WEEKDAY_OPTIONS as day (day.code)}
           <button
             type="button"
@@ -171,6 +181,16 @@
             {day.label}
           </button>
         {/each}
+        <button
+          type="button"
+          onclick={selectWeekdays}
+          aria-pressed={isWeekdaysPreset}
+          class="ml-1 h-7 rounded-lg border px-2.5 text-xs font-medium transition {isWeekdaysPreset
+            ? 'border-pine bg-pine/10 text-pine'
+            : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+        >
+          Weekdays
+        </button>
       </div>
     {/if}
 
@@ -238,12 +258,12 @@
               aria-label="Weekday"
               class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
             >
-              {#each WEEKDAY_LONG as day (day.code)}
+              {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}
                 <option value={day.code}>{day.label}</option>
               {/each}
             </select>
           </div>
-          {#if position === 5}
+          {#if position === 5 && monthWeekday !== WORKDAY_CODE}
             <p class="text-xs text-sage">Months without a fifth one are skipped.</p>
           {/if}
         {/if}

@@ -5,7 +5,7 @@
   // not in its own dialog, so we never stack a modal on this one; `onCreate`/
   // `onUpdate` bubble the change up to the owning view (it does the API call and
   // reloads, which refreshes this sheet through its `tasks` prop). The shell lives
-  // in Modal — a bottom sheet on a phone, a centered card on wider screens. Driven
+  // in Modal — full-screen on a phone, a centered card on wider screens. Driven
   // by the `date` prop (null = closed).
   import type { Label, Task } from '../types'
   import type { TaskInput } from '../api'
@@ -104,8 +104,8 @@
   {onClose}
   title={date ? formatDayFull(date) : ''}
   {subtitle}
-  panelClass="mx-auto mb-0 mt-auto max-h-[85vh] w-full rounded-t-2xl sm:my-auto sm:w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
-  containerClass="max-h-[85vh]"
+  panelClass="m-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
+  containerClass="h-full sm:h-auto sm:max-h-[85vh]"
 >
   <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
     <ErrorAlert {error} class="mb-3" />

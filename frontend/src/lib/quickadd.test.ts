@@ -91,6 +91,24 @@ describe('parseQuickAdd', () => {
     })
   })
 
+  it('extracts a monthly recurrence on the first/last workday', () => {
+    expect(parseQuickAdd('payroll the last workday of every month', REF)).toEqual({
+      title: 'payroll',
+      label: null,
+      due_date: '2026-06-25',
+      due_time: null,
+      recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+    })
+    // Phrase + #tag together still leave a clean title.
+    expect(
+      parseQuickAdd('send report #work the first business day of the month', REF),
+    ).toMatchObject({
+      title: 'send report',
+      label: 'work',
+      recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1',
+    })
+  })
+
   it('extracts a weekly recurrence without leaking a one-off date from the weekday', () => {
     expect(parseQuickAdd('standup first day of every week', REF)).toMatchObject({
       title: 'standup',
@@ -100,6 +118,20 @@ describe('parseQuickAdd', () => {
     expect(parseQuickAdd('gym every monday', REF)).toMatchObject({
       title: 'gym',
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+    })
+  })
+
+  it('extracts an "every weekday" repeat as weekly Mon–Fri', () => {
+    expect(parseQuickAdd('check email every weekday', REF)).toMatchObject({
+      title: 'check email',
+      due_date: '2026-06-25',
+      recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+    })
+    // A stated time still rides along with the weekday repeat.
+    expect(parseQuickAdd('standup every workday at 9am', REF)).toMatchObject({
+      title: 'standup',
+      due_time: '09:00',
+      recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
     })
   })
 

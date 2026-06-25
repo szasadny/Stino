@@ -93,8 +93,10 @@ its `completion` **and** `task_exception` rows.
 - Recurrence dates are treated as **calendar dates**: expansion anchors DTSTART at UTC midnight and
   reads back each occurrence's date, so no timezone conversion can shift a day (Hard Rule 7).
 - UI recurrence options map to RRULE — Daily (`FREQ=DAILY`), Weekly (`FREQ=WEEKLY;BYDAY=…`), Monthly
-  (by date `FREQ=MONTHLY;BYMONTHDAY=n`, `n=-1` ⇒ the last day; or by the Nth weekday
-  `FREQ=MONTHLY;BYDAY=xx;BYSETPOS=n`, `n=-1` ⇒ last), Custom (every N days/weeks:
+  (by date `FREQ=MONTHLY;BYMONTHDAY=n`, `n=-1` ⇒ the last day; by the Nth weekday
+  `FREQ=MONTHLY;BYDAY=xx;BYSETPOS=n`, `n=-1` ⇒ last; or the first/last workday — the same BYSETPOS
+  rule over the full Mon–Fri set `FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=n`, modeled in the
+  picker via a `WD` sentinel weekday), Custom (every N days/weeks:
   `FREQ=DAILY|WEEKLY;INTERVAL=n`). The option⇄RRULE mapping is a presentation concern in
   `frontend/src/lib/recurrence.ts`; the canonical wire/storage form is the RRULE string, which the
   service is the source of truth for validating and expanding. Months that lack a chosen day (a 31st,

@@ -49,6 +49,21 @@ export const WEEKDAY_LONG: { code: string; label: string }[] = [
   { code: 'SU', label: 'Sunday' },
 ]
 
+/** The Monday–Friday set, in week order, expanded by the monthly "workday" option. */
+export const WORKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR']
+/**
+ * Sentinel `monthWeekday` value for the monthly "first/last workday" option: it
+ * stands in for the whole Mon–Fri set, so the Nth-weekday machinery (BYSETPOS)
+ * yields the first/Nth/last *workday* of the month (`BYDAY=MO,TU,WE,TH,FR`).
+ */
+export const WORKDAY_CODE = 'WD'
+
+/** Options for the monthly "Nth weekday" select: the workday set, then each weekday. */
+export const MONTH_WEEKDAY_OPTIONS: { code: string; label: string }[] = [
+  { code: WORKDAY_CODE, label: 'Workday' },
+  ...WEEKDAY_LONG,
+]
+
 /** Ordinal positions for the monthly "Nth weekday" select — the one source. */
 export const ORDINAL_OPTIONS: { value: OrdinalPosition; label: string }[] = [
   { value: 1, label: 'First' },
@@ -79,6 +94,11 @@ function isWeekdayCode(code: string): boolean {
 
 function isOrdinalPosition(n: number): n is OrdinalPosition {
   return n === -1 || (n >= 1 && n <= 5)
+}
+
+/** True when `codes` is exactly the Mon–Fri set (already ordered & deduped). */
+function isWorkdaySet(codes: string[]): boolean {
+  return codes.length === WORKDAYS.length && codes.every((c, i) => c === WORKDAYS[i])
 }
 
 /** Label for an ordinal position, e.g. 1 → "First", -1 → "Last". */
@@ -132,10 +152,12 @@ function buildBase(value: RecurrenceValue): string | null {
       // No weekday chosen ⇒ a plain weekly rule, which repeats on the start day.
       return days.length ? `FREQ=WEEKLY;BYDAY=${days.join(',')}` : 'FREQ=WEEKLY'
     }
-    case 'monthly':
-      return value.monthlyMode === 'weekday'
-        ? `FREQ=MONTHLY;BYDAY=${value.monthWeekday};BYSETPOS=${value.position}`
-        : `FREQ=MONTHLY;BYMONTHDAY=${value.monthday}`
+    case 'monthly': {
+      if (value.monthlyMode !== 'weekday') return `FREQ=MONTHLY;BYMONTHDAY=${value.monthday}`
+      // "Workday" stands in for the whole Mon–Fri set; any real weekday is itself.
+      const byday = value.monthWeekday === WORKDAY_CODE ? WORKDAYS.join(',') : value.monthWeekday
+      return `FREQ=MONTHLY;BYDAY=${byday};BYSETPOS=${value.position}`
+    }
     case 'custom': {
       const freq = value.unit === 'week' ? 'WEEKLY' : 'DAILY'
       const interval = Math.max(1, Math.floor(value.interval) || 1)
@@ -222,10 +244,21 @@ function parseBase(rule: string | null): RecurrenceValue {
     }
     return { ...EMPTY_RECURRENCE, freq: 'weekly', weekdays }
   }
-  // Monthly: only the two shapes the picker models, and only at interval 1.
+  // Monthly: only the shapes the picker models, and only at interval 1.
   if (freq === 'MONTHLY' && interval === 1) {
     const bysetpos = parts.get('BYSETPOS')
     const bymonthday = parts.get('BYMONTHDAY')
+    const setpos = bysetpos ? parseInt(bysetpos, 10) : NaN
+    // Workday: the full Mon–Fri BYDAY set plus a position ⇒ first/Nth/last workday.
+    if (isWorkdaySet(weekdays) && isOrdinalPosition(setpos)) {
+      return {
+        ...EMPTY_RECURRENCE,
+        freq: 'monthly',
+        monthlyMode: 'weekday',
+        position: setpos,
+        monthWeekday: WORKDAY_CODE,
+      }
+    }
     // Nth weekday: a single BYDAY (possibly `1MO`-style) plus a position.
     if (byday && !byday.includes(',')) {
       const od = parseOrdinalDay(byday)
@@ -255,6 +288,11 @@ function codeLabel(code: string): string {
   return WEEKDAY_OPTIONS.find((d) => d.code === code)?.label ?? code
 }
 
+/** Like [`codeLabel`] but renders the monthly workday sentinel as "workday". */
+function monthWeekdayLabel(code: string): string {
+  return code === WORKDAY_CODE ? 'workday' : codeLabel(code)
+}
+
 /** A short human summary of a structured value, e.g. "Weekly on Mon, Wed". */
 export function summarize(value: RecurrenceValue): string {
   const base = summarizeBase(value)
@@ -268,13 +306,15 @@ function summarizeBase(value: RecurrenceValue): string {
       return 'Does not repeat'
     case 'daily':
       return 'Every day'
-    case 'weekly':
-      return value.weekdays.length
-        ? `Weekly on ${orderWeekdays(value.weekdays).map(codeLabel).join(', ')}`
-        : 'Every week'
+    case 'weekly': {
+      if (!value.weekdays.length) return 'Every week'
+      const days = orderWeekdays(value.weekdays)
+      if (isWorkdaySet(days)) return 'Every weekday'
+      return `Weekly on ${days.map(codeLabel).join(', ')}`
+    }
     case 'monthly':
       if (value.monthlyMode === 'weekday') {
-        return `Monthly on the ${positionLabel(value.position).toLowerCase()} ${codeLabel(value.monthWeekday)}`
+        return `Monthly on the ${positionLabel(value.position).toLowerCase()} ${monthWeekdayLabel(value.monthWeekday)}`
       }
       return value.monthday === -1 ? 'Monthly on the last day' : `Monthly on day ${value.monthday}`
     case 'custom': {
@@ -356,6 +396,16 @@ const PHRASE_RULES: { re: RegExp; value: (m: RegExpExecArray) => RecurrenceValue
     ),
     value: (m) => monthlyWeekday(m[1], m[2]),
   },
+  // "(the) first/last workday of every/each month" (work day / business day too)
+  {
+    re: /\b(?:the\s+)?(first|last)\s+(?:work(?:ing)?\s?day|business\s+day)\s+of\s+(?:every|each|the)\s+month\b/i,
+    value: (m) => monthlyWorkday(m[1].toLowerCase() === 'last' ? -1 : 1),
+  },
+  // "every month/monthly on the first/last workday"
+  {
+    re: /\b(?:every\s+month|monthly)\s+on\s+the\s+(first|last)\s+(?:work(?:ing)?\s?day|business\s+day)\b/i,
+    value: (m) => monthlyWorkday(m[1].toLowerCase() === 'last' ? -1 : 1),
+  },
   // "(the) first/last day of every/each month"
   {
     re: /\b(?:the\s+)?(first|last)\s+day\s+of\s+(?:every|each|the)\s+month\b/i,
@@ -384,6 +434,11 @@ const PHRASE_RULES: { re: RegExp; value: (m: RegExpExecArray) => RecurrenceValue
       freq: 'weekly',
       weekdays: [m[1].toLowerCase() === 'last' ? 'SU' : 'MO'],
     }),
+  },
+  // "every weekday" / "every workday" / "every business day" ⇒ weekly Mon–Fri
+  {
+    re: /\bevery\s+(?:week\s?day|work(?:ing)?\s?day|business\s+day)\b/i,
+    value: () => ({ ...EMPTY_RECURRENCE, freq: 'weekly', weekdays: [...WORKDAYS] }),
   },
   // "every Monday"
   {
@@ -415,6 +470,16 @@ function monthlyWeekday(ordinal: string, weekday: string): RecurrenceValue | nul
 function monthlyMonthday(day: number): RecurrenceValue | null {
   if (day !== -1 && (day < 1 || day > 31)) return null
   return { ...EMPTY_RECURRENCE, freq: 'monthly', monthlyMode: 'monthday', monthday: day }
+}
+
+function monthlyWorkday(position: OrdinalPosition): RecurrenceValue {
+  return {
+    ...EMPTY_RECURRENCE,
+    freq: 'monthly',
+    monthlyMode: 'weekday',
+    position,
+    monthWeekday: WORKDAY_CODE,
+  }
 }
 
 /**

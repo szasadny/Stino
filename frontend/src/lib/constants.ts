@@ -3,13 +3,11 @@
 export const TITLE_MAX_LENGTH = 200
 export const LABEL_NAME_MAX_LENGTH = 60
 
-// How many task titles / dots a calendar cell shows before collapsing to a
-// "+N more" affordance. The grid fills the viewport now, so cells are tall and
-// can preview more; cells clip (overflow-hidden) so these stay safe on short
-// windows. Month cells are denser (titles + dot overflow); the roomier week
-// columns run the full height, so they cap higher.
+// How many task titles a DESKTOP calendar cell previews before collapsing the rest
+// to a "+N more" affordance (cells clip with overflow-hidden, so these stay safe on
+// short windows). The phone month grid uses no cap — `CalendarCellMobile` fits its
+// lines to the measured cell height (see `lib/fit.ts`).
 export const MONTH_CELL_MAX_TITLES = 4
-export const MONTH_CELL_MAX_DOTS = 5
 export const WEEK_CELL_MAX_TITLES = 8
 
 // The viewport width (px) at/below which the calendar views switch to their

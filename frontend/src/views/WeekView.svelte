@@ -16,7 +16,7 @@
     preloadLabels,
   } from '../lib/controllers/calendar-selection.svelte'
   import WeekDayCell from '../lib/components/WeekDayCell.svelte'
-  import WeekDaySection from '../lib/components/WeekDaySection.svelte'
+  import DayListSection from '../lib/components/DayListSection.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
@@ -132,7 +132,7 @@
          a full-width section with its tasks as readable rows, the whole week scrolling. -->
     <div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       {#each week as date, i (weekKeys[i])}
-        <WeekDaySection
+        <DayListSection
           {date}
           items={cal.board[weekKeys[i]] ?? []}
           isToday={weekKeys[i] === todayKey}
@@ -140,6 +140,7 @@
           onToggle={core.toggle}
           onEditTask={(task) => composer.edit(task)}
           onAdd={() => composer.add(weekKeys[i])}
+          emptyLabel="Nothing scheduled"
         />
       {/each}
     </div>
@@ -165,23 +166,21 @@
   {/if}
 </section>
 
-{#if !isCompact()}
-  <!-- Desktop only: a tap on a column zooms into the day sheet. On a phone each day's
-       tasks are already readable inline above, so the sheet isn't mounted. -->
-  <DaySheet
-    date={sel.selectedDate}
-    tasks={sel.selectedTasks}
-    labels={core.labels}
-    pending={core.pending}
-    onToggle={core.toggle}
-    onReorder={core.reorder}
-    onReorderLabels={core.reorderLabels}
-    onCreate={dayCrud.create}
-    onUpdate={dayCrud.update}
-    onDelete={dayCrud.remove}
-    onClose={() => (sel.selectedDate = null)}
-  />
-{/if}
+<!-- Desktop: a tap on a column zooms into the day sheet. On a phone the day's tasks are
+     already readable inline above; the sheet stays available (it just isn't opened there). -->
+<DaySheet
+  date={sel.selectedDate}
+  tasks={sel.selectedTasks}
+  labels={core.labels}
+  pending={core.pending}
+  onToggle={core.toggle}
+  onReorder={core.reorder}
+  onReorderLabels={core.reorderLabels}
+  onCreate={dayCrud.create}
+  onUpdate={dayCrud.update}
+  onDelete={dayCrud.remove}
+  onClose={() => (sel.selectedDate = null)}
+/>
 
 <TaskComposerDialog
   open={composer.open}
