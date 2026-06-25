@@ -1,47 +1,33 @@
 # Stinō
 
-A personal, self-hosted task + calendar web app — a calm, core-only replacement for TickTick.
-Rust (Axum + SQLx + SQLite) backend serving a Svelte (Vite + Tailwind) SPA from a single
-Docker container, reachable over Tailscale. See [CLAUDE.md](./CLAUDE.md) for the product spec,
-[ARCHITECTURE.md](./ARCHITECTURE.md) for the contract, and [ROADMAP.md](./ROADMAP.md) for what's
-built and what's next.
+A personal, self-hosted, open-source replacement for TickTick.
 
-> ℹ️ **Keep the folder path colon-free.** Rust (`LD_LIBRARY_PATH`), npm (`PATH`), and Docker bind
-> mounts (`host:container`) all use `:` as a separator, so a `:` anywhere in the project path
-> breaks `cargo run`, `npm run`, **and** `docker compose up` (the `./data:/data` mount). The folder
-> is now `Stino` (colon-free), so everything below works unchanged — just don't reintroduce a `:`.
+I know, I know. There are already a million todo apps out there, but for some reason every free, open-source alternative falls short of what I want. 
 
-## Run it (Docker — the intended deployment)
+To resolve this, I made this project as a totally vibecoded TickTick alternative that I keep up-to-date through leftover tokens.
+
+It's made for my purely personal use: no auth (I host through Tailscale) and I only built the features I actually use within TickTick with some personal tweaks that I wanted. If something you need is missing, feel free to fork it and use it as your own.
+
+## Stack
+
+A Rust (Axum + SQLx + SQLite) backend serves a Svelte (Vite + Tailwind) SPA from a single Docker
+container. See [CLAUDE.md](./CLAUDE.md) for the spec and [ARCHITECTURE.md](./ARCHITECTURE.md) for
+the contract.
+
+## Run it
 
 ```bash
 docker compose up --build
 # → http://localhost:8080   (data persists in ./data/stino.db)
 ```
 
-## Develop locally
-
-Two terminals (assumes a colon-free folder path):
+## Develop
 
 ```bash
-# backend — JSON API on :8080
-cd backend && cargo run
-
-# frontend — SPA on :5173, proxies /api to the backend
-cd frontend && npm install && npm run dev
-# open http://localhost:5173
+cd backend  && cargo run                     # JSON API on :8080
+cd frontend && npm install && npm run dev    # SPA on :5173, proxies /api
 ```
 
-## Checks
+## License
 
-```bash
-cd backend  && cargo fmt --check && cargo clippy -- -D warnings && cargo test
-cd frontend && npm run check && npm run lint && npm run build
-```
-
-## Layout
-
-```
-backend/    Axum + SQLx; routes/ (thin) → services/ → db/ ; migrations/
-frontend/   Svelte 5 + Vite + Tailwind; lib/api.ts is the only HTTP client
-Dockerfile  multi-stage: build SPA → build Rust → slim runtime serving both
-```
+[MIT](./LICENSE)

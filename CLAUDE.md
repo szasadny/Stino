@@ -10,7 +10,6 @@ Match the task against this table and do the listed action **before** reading co
 
 | If the task involves… | Then first… |
 | --- | --- |
-| Picking up the project / deciding what to build next | Read [ROADMAP.md](./ROADMAP.md) — the per-slice checklist; the first unchecked box is the next slice |
 | Any frontend / UI work (a view, component, styling, layout, mobile) | The `frontend-design` skill loads automatically — follow it, and stay inside the design tokens in [§ Design Language](#design-language--calm-mountain-forest) |
 | A DB schema change (table, column, index) | Read [§ Data Model](#data-model) and [§ Hard Rules](#hard-rules--quick-index) 3; add a **new** SQLx migration, never edit an applied one |
 | Deciding where a new piece of code belongs | Use [§ Architecture & Module Boundaries](#architecture--module-boundaries) — every concern has exactly one home |
@@ -230,7 +229,7 @@ The feel is a quiet morning in a pine forest: soft light, mist, stone, evergreen
 
 ## Testing & Lint
 
-Run before considering a change done. (Commands assume the toolchain is installed — see [§ Toolchain / Setup status](#toolchain--setup-status).)
+Run before considering a change done. (Commands assume the toolchain is installed — see [§ Toolchain](#toolchain).)
 
 1. **Backend lint:** `cd backend && cargo fmt --check && cargo clippy -- -D warnings`
 2. **Backend tests:** `cd backend && cargo test` — integration tests run against a temporary SQLite database.
@@ -254,11 +253,8 @@ Treat any clippy/eslint/svelte-check error as a failing build — fix it in the 
 - Keep this file as living guidance: no changelogs, no task notes, no "done" lists — git tracks what changed.
 - For deep situational context that spans many prompts, create `.claude/<topic>.md` and add one reference line here; delete it when no longer relevant.
 
-## Toolchain / Setup status
-
-Tracked here because the project is greenfield. Update as setup progresses.
+## Toolchain
 
 - **Installed:** Rust 1.96 (cargo, clippy, rustfmt, **rust-analyzer**) via rustup; `sqlx-cli` 0.8.6 (sqlite/rustls) via `cargo install`; Node 22 + npm 10; `typescript-language-server` 5.3 + `tsc` 6.0 in `~/.local/bin` (npm user prefix set to `~/.local`, which is on PATH); Docker 29.
-- **Claude skills/plugins enabled** (user scope, load next session): `rust-analyzer-lsp`, `typescript-lsp`, `frontend-design`, `claude-md-management`.
-- **Progress & build order:** see **[ROADMAP.md](./ROADMAP.md)** — the per-slice checklist of what's built and what's next (the first unchecked box is the next job). Skeleton + Labels are done; **Tasks + Inbox** is next.
+- **Claude plugins enabled** (user scope): `rust-analyzer-lsp`, `typescript-lsp`, `frontend-design`, `claude-md-management`.
 - **SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details in ARCHITECTURE.md §8).

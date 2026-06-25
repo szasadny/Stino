@@ -87,8 +87,6 @@ Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`. Foreign keys
 
 `Content-Type: application/json`. Dates/times are the local-text formats above.
 
-**Implemented**
-
 | Method | Path | Returns |
 | --- | --- | --- |
 | GET | `/api/health` | `{ "status": "ok", "db": true }` |
@@ -135,9 +133,6 @@ filtered list (the Inbox or a day's untimed tasks) is meaningful, so reassigning
 safe. `PATCH /api/tasks/reorder` rewrites `sort_order` = position for the given ids in one
 transaction; the client sends only untimed task ids (timed/recurring tasks keep their time-sort). An
 empty list is a no-op; an unknown id rolls the whole batch back as a `404`.
-
-**Planned** — none; every planned endpoint above is implemented. New endpoints get added here
-first when a future slice needs them.
 
 ## 6. TickTick import mapping
 
@@ -259,13 +254,9 @@ Behaviours that matter:
   `cargo sqlx prepare`, and commit the updated `.sqlx/` JSON. CI can assert the cache is current
   with `cargo sqlx prepare --check`.
 
-## 9. Open decisions (revisit when their slice arrives)
+## 9. Open decisions
 
 - **Multi-label per task:** single `label_id` now; add a `task_label` join table (new additive
   migration) if needed — don't overload existing columns.
 - **Search:** shipped as a case-insensitive `LIKE` over `title`/`notes` (§5). Add an FTS5 virtual
   table only if it ever feels slow at personal scale.
-- **Dark mode:** shipped (slice 12). Defaults to the OS via `prefers-color-scheme`, with a Settings →
-  Appearance toggle (System / Light / Dark) that overrides it via a `data-theme` attribute (`theme.ts`).
-  The chrome tokens are CSS variables flipped in `src/app.css`, so no per-component `dark:` classes and
-  label colors stay fixed. See CLAUDE.md § Design Language.
