@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"\n           FROM label\n           WHERE id = ?",
+  "query": "SELECT id AS \"id!\", name AS \"name!\", color AS \"color!\", emoji, sort_order AS \"sort_order!\"\n           FROM label\n           WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -19,8 +19,13 @@
         "type_info": "Text"
       },
       {
-        "name": "sort_order!",
+        "name": "emoji",
         "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 4,
         "type_info": "Integer"
       }
     ],
@@ -31,8 +36,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "e851cffe6edd2e9cb48fefe4b646b698649257f8fe64396339d91dc1b5b459f3"
+  "hash": "27e47f4553d7e001e123a3ab4bcd1461f272bda3117811394a05a4a299950301"
 }

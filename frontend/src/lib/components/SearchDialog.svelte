@@ -1,0 +1,337 @@
+<script lang="ts">
+  // Search lives here, not in a tab: the header's search icon opens this overlay
+  // with the field already focused, so you type straight away. The query is
+  // debounced client-side and hits GET /api/search; results are TaskRows you can
+  // complete like anywhere else, and each row shows its planned day since results
+  // span every date. Recurring tasks show as their series row — search is about
+  // finding the task, not a specific occurrence. Tapping a row opens the editor
+  // inline (swapping the result list, like the day sheet) so we never stack a
+  // second modal on this one. The native <dialog> gives us top layer + Escape.
+  import { onDestroy } from 'svelte'
+  import { api, type TaskInput } from '../api'
+  import type { Label, Task } from '../types'
+  import { taskToDraft } from '../composer'
+  import { SEARCH_DEBOUNCE_MS } from '../constants'
+  import { formatShortDate, fromISODate } from '../date'
+  import { errorMessage } from '../errors'
+  import { labelLookup } from '../labels'
+  import { replaceOccurrence, toggleCompletion } from '../task-actions'
+  import ErrorAlert from './ErrorAlert.svelte'
+  import TaskRow from './TaskRow.svelte'
+  import TaskComposer from './TaskComposer.svelte'
+  import EmptyState from './EmptyState.svelte'
+
+  let { open, onClose }: { open: boolean; onClose: () => void } = $props()
+
+  let dialogEl = $state<HTMLDialogElement | null>(null)
+  let inputEl = $state<HTMLInputElement | null>(null)
+
+  let query = $state('')
+  let tasks = $state<Task[]>([])
+  let labels = $state<Label[]>([])
+  let loading = $state(false)
+  let error = $state<string | null>(null)
+  let busy = $state(false)
+  // True once a search has run for the current term, so we can tell "haven't
+  // typed yet" (prompt) apart from "searched, found nothing" (no results).
+  let searched = $state(false)
+  // The task being edited inline, or null while browsing results. Editing swaps
+  // the result list for the composer (no stacked modal); saving/deleting re-runs
+  // the search so the list stays consistent with the query.
+  let editing = $state<Task | null>(null)
+
+  const labelFor = $derived(labelLookup(labels))
+
+  // Each result spans a different day, so label every row with its planned date
+  // (or "Inbox" for an unscheduled task) — context can't imply it here.
+  function dateLabelFor(task: Task): string {
+    return task.due_date ? formatShortDate(fromISODate(task.due_date)) : 'Inbox'
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // A monotonic token bumped on every keystroke; a slow earlier response whose
+  // token no longer matches is dropped, so results can't arrive out of order.
+  let token = 0
+
+  $effect(() => {
+    if (!dialogEl) return
+    if (open) {
+      if (!dialogEl.open) {
+        dialogEl.showModal()
+        onOpen()
+      }
+    } else if (dialogEl.open) {
+      dialogEl.close()
+    }
+  })
+
+  onDestroy(() => clearTimeout(timer))
+
+  function onOpen() {
+    // Start fresh each time, then focus the field so you can type immediately.
+    reset()
+    inputEl?.focus()
+    void loadLabels()
+  }
+
+  function reset() {
+    clearTimeout(timer)
+    token++ // drop any in-flight request from a previous open
+    query = ''
+    tasks = []
+    loading = false
+    error = null
+    searched = false
+    editing = null
+  }
+
+  async function loadLabels() {
+    try {
+      labels = await api.labels.list()
+    } catch {
+      // Labels are only decorative here (chips); a failure shouldn't block search.
+    }
+  }
+
+  function onInput(event: Event) {
+    query = (event.target as HTMLInputElement).value
+    clearTimeout(timer)
+    const current = ++token // invalidate any pending or in-flight request
+    const term = query.trim()
+    if (!term) {
+      tasks = []
+      searched = false
+      loading = false
+      error = null
+      return
+    }
+    loading = true
+    timer = setTimeout(() => runSearch(term, current), SEARCH_DEBOUNCE_MS)
+  }
+
+  async function runSearch(term: string, mine: number) {
+    error = null
+    try {
+      const found = await api.search(term)
+      if (mine !== token) return // a newer keystroke superseded this query
+      tasks = found
+      searched = true
+    } catch (err) {
+      if (mine !== token) return
+      error = errorMessage(err, 'Could not run the search')
+    } finally {
+      if (mine === token) loading = false
+    }
+  }
+
+  // One in-flight guard for every mutation here (toggle / inline save / delete), routing
+  // failures to `error`. This overlay isn't one of the standing views, so it doesn't bind a
+  // TaskCore — but the busy/error scaffolding lives in one place instead of per handler.
+  async function run(fn: () => Promise<void>, failMsg: string) {
+    if (busy) return
+    busy = true
+    error = null
+    try {
+      await fn()
+    } catch (err) {
+      error = errorMessage(err, failMsg)
+    } finally {
+      busy = false
+    }
+  }
+
+  function toggle(task: Task) {
+    return run(async () => {
+      tasks = replaceOccurrence(tasks, await toggleCompletion(task))
+    }, 'Could not update the task')
+  }
+
+  // Re-run the current search to refresh results after an edit/delete, so a
+  // renamed/rescheduled task shows its new state (or drops if it no longer
+  // matches). Only reachable from a result, so the query term is non-empty.
+  function refresh() {
+    const term = query.trim()
+    if (term) void runSearch(term, ++token)
+  }
+
+  function saveEdit(input: TaskInput) {
+    const target = editing
+    if (!target) return
+    return run(async () => {
+      await api.tasks.update(target.id, input)
+      editing = null
+      refresh()
+    }, 'Could not save the task')
+  }
+
+  function deleteEdit() {
+    const target = editing
+    if (!target) return
+    return run(async () => {
+      await api.tasks.remove(target.id)
+      editing = null
+      refresh()
+    }, 'Could not delete the task')
+  }
+</script>
+
+<dialog
+  bind:this={dialogEl}
+  onclose={onClose}
+  class="mx-auto mt-[8vh] max-h-[84vh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl border border-lichen bg-surface p-0 text-ink shadow-xl"
+>
+  <div class="flex max-h-[84vh] flex-col">
+    {#if editing}
+      <!-- Editing a result: a back-to-results header replaces the search box -->
+      <div class="flex items-center gap-2 border-b border-lichen px-4 py-3">
+        <button
+          type="button"
+          onclick={() => (editing = null)}
+          aria-label="Back to results"
+          class="-ml-1 shrink-0 rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h2 class="min-w-0 flex-1 truncate text-base font-semibold text-pine-deep">Edit task</h2>
+        <button
+          type="button"
+          onclick={onClose}
+          aria-label="Close search"
+          class="-mr-1 shrink-0 rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+    {:else}
+      <!-- Search box doubles as the dialog header -->
+      <div class="flex items-center gap-2 border-b border-lichen px-4">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-5 w-5 shrink-0 text-sage"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M21 21l-3.5-3.5" />
+        </svg>
+        <input
+          bind:this={inputEl}
+          value={query}
+          oninput={onInput}
+          type="search"
+          placeholder="Search tasks…"
+          autocomplete="off"
+          aria-label="Search tasks"
+          class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage"
+        />
+        <button
+          type="button"
+          onclick={onClose}
+          aria-label="Close search"
+          class="-mr-1 shrink-0 rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+    {/if}
+
+    <ErrorAlert {error} class="mx-4 mt-4" />
+
+    <!-- Body: the inline editor when a result is open, otherwise the results -->
+    <div class="flex-1 overflow-y-auto px-4 py-4">
+      {#if editing}
+        <TaskComposer
+          {labels}
+          {busy}
+          initial={taskToDraft(editing)}
+          submitLabel="Save"
+          onSubmit={saveEdit}
+          onDelete={deleteEdit}
+          onCancel={() => (editing = null)}
+        />
+      {:else if loading}
+        <p class="py-8 text-center text-sm text-sage">Searching…</p>
+      {:else if !query.trim()}
+        <EmptyState message="Start typing to search across all your tasks." />
+      {:else if searched && tasks.length === 0}
+        <EmptyState message={`No tasks match “${query.trim()}”.`} />
+      {:else}
+        <ul class="space-y-2">
+          {#each tasks as task (`${task.id}:${task.occurrence_date ?? ''}`)}
+            <li>
+              <TaskRow
+                {task}
+                label={labelFor(task)}
+                dateLabel={dateLabelFor(task)}
+                onToggle={() => toggle(task)}
+                onEdit={() => (editing = task)}
+              />
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  </div>
+</dialog>
+
+<style>
+  dialog::backdrop {
+    /* `--scrim` is the one chrome token kept fixed across themes (see app.css). */
+    background: rgb(var(--scrim) / 0.32);
+    backdrop-filter: blur(2px);
+  }
+  dialog[open] {
+    animation: search-in 160ms ease-out;
+  }
+  @keyframes search-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[open] {
+      animation: none;
+    }
+  }
+</style>

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO completion (task_id, occurrence_date)\n               SELECT t.id, t.due_date FROM task t\n               WHERE t.id = ?\n                 AND NOT EXISTS (\n                     SELECT 1 FROM completion c\n                     WHERE c.task_id = t.id AND c.occurrence_date IS t.due_date\n                 )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d60cf208d918eff23bf44e408e0a344564de94bfe9c0a6a8bb29c125be7bc8ef"
+}

@@ -13,3 +13,33 @@ export function labelLookup(labels: Label[]): (task: Task) => Label | undefined 
   const index = new Map(labels.map((l) => [l.id, l]))
   return (task) => (task.label_id == null ? undefined : index.get(task.label_id))
 }
+
+/**
+ * Fold a reordering of a *subset* of labels back into the full label order. The
+ * grouped day view only shows sections for labels that have tasks that day, so a
+ * drag there reorders just those visible labels — but `sort_order` is global. We
+ * keep every other label pinned in its current slot and drop the reordered visible
+ * labels into the slots they collectively occupied, in their new order.
+ * `allLabels` is the full list in current (sort_order) order; `visibleOrder` is the
+ * new order of the visible label ids. Returns the full id order for
+ * `api.labels.reorder`.
+ */
+export function mergeLabelOrder(allLabels: Label[], visibleOrder: number[]): number[] {
+  const visible = new Set(visibleOrder)
+  const queue = [...visibleOrder]
+  return allLabels.map((l) => (visible.has(l.id) ? (queue.shift() as number) : l.id))
+}
+
+/**
+ * Reorder `labels` to match the id sequence `ids`, patching each `sort_order` to
+ * its new index so a re-group (which sorts by `sort_order`) reflects it at once —
+ * the optimistic mirror of `api.labels.reorder`. Ids not in `labels` are skipped;
+ * any labels missing from `ids` keep their relative order at the end.
+ */
+export function applyLabelOrder(labels: Label[], ids: number[]): Label[] {
+  const byId = new Map(labels.map((l) => [l.id, l]))
+  const ordered = ids.map((id) => byId.get(id)).filter((l): l is Label => l != null)
+  const placed = new Set(ordered.map((l) => l.id))
+  const rest = labels.filter((l) => !placed.has(l.id))
+  return [...ordered, ...rest].map((l, i) => ({ ...l, sort_order: i }))
+}

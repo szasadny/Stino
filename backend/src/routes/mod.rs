@@ -11,6 +11,7 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
+use serde::{Deserialize, Deserializer};
 use sqlx::SqlitePool;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -28,16 +29,26 @@ pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
     let api = Router::new()
         .route("/health", get(health::health))
         .route("/labels", get(labels::list).post(labels::create))
+        // Literal `/labels/reorder` sits beside the `/labels/{id}` param route;
+        // matchit gives the literal segment priority, so they never collide (same
+        // story as `/tasks/reorder`).
+        .route("/labels/reorder", patch(labels::reorder))
         .route("/labels/{id}", patch(labels::update).delete(labels::delete))
         .route("/tasks", get(tasks::list).post(tasks::create))
         // Static `/tasks/reorder` is registered alongside the `/tasks/{id}` param
         // route; matchit gives the literal segment priority, so it never collides.
         .route("/tasks/reorder", patch(tasks::reorder))
+        // Same literal-vs-param story as `/tasks/reorder`: the static `batch`
+        // segment wins over `/tasks/{id}`, so the two never collide.
+        .route("/tasks/batch", post(tasks::batch))
         .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
         .route(
             "/tasks/{id}/completions",
             post(tasks::complete).delete(tasks::uncomplete),
         )
+        // Detach a single recurring occurrence onto another day (drag one instance of a
+        // repeating task). Literal segment under `{id}`, like `completions`.
+        .route("/tasks/{id}/move_occurrence", post(tasks::move_occurrence))
         .route("/search", get(search::list))
         .route("/import/ticktick", post(import::ticktick))
         // Unknown /api/* paths return a JSON 404 instead of falling through to
@@ -55,6 +66,18 @@ pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
         .nest("/api", api)
         .fallback_service(spa)
         .layer(TraceLayer::new_for_http())
+}
+
+/// Deserialize so a present JSON `null` becomes `Some(None)` (clear) rather than
+/// `None` (absent) — serde's default collapses both to `None`. Paired with
+/// `#[serde(default)]`, an omitted field stays `None`. Shared by the `tasks` and
+/// `labels` PATCH bodies, which both distinguish "clear" from "leave unchanged".
+pub(super) fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 async fn api_not_found() -> (StatusCode, Json<serde_json::Value>) {

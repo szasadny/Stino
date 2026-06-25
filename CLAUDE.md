@@ -43,7 +43,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 - **Color labels** — create labels with colors; tasks carry one (or more) labels.
 - **Today** tab — everything due today.
 - **Inbox** tab — captured-but-not-yet-scheduled tasks (no due date yet).
-- **Recurring tasks** — daily, weekly, and custom intervals (every N days/weeks, specific weekdays).
+- **Recurring tasks** — daily, weekly (specific weekdays), monthly (by date incl. the last day, or by the Nth weekday incl. last), and custom intervals (every N days/weeks).
 - **Times on tasks** — a task may have a time, not just a date.
 - **Search** — find tasks by title / notes.
 - **Group by label** when viewing a single day.
@@ -78,6 +78,8 @@ Browser (Svelte SPA)  ──HTTP/JSON──▶  Axum  ──▶  services  ─�
 - **All HTTP goes through `lib/api.ts`** — typed functions, one per endpoint. Components never call `fetch` directly.
 - **Shared types live in `lib/types.ts`** — mirror the API contract; single source of truth.
 - **Reusable UI** (calendar cell, task row, label chip, day sheet) lives in `lib/components/`; views compose them, never re-implement them.
+- **Shared view orchestration lives in `lib/controllers/` (rune factories, `*.svelte.ts`).** `createTaskCore()` owns the task/label state + the load/toggle/reorder/remove/save actions (plus a throwing `dayCrud(reload)` the Month/Week day-sheet binds — same lock, reloads the range, rethrows so the sheet shows its own error) behind ONE in-flight lock and a uniform optimistic-then-revert update; `createCalendarBoard(core, keys, reload)` adds the month/week drop zones; `createGridComposer(core, reload)` owns the month/week add/edit dialog (state + create/update/delete through the lock, exposing the dialog's derived props). Every standing view (Today/Month/Week/Inbox) binds to a core instead of re-implementing CRUD — don't fork this logic back into a view.
+- **Drag-and-drop uses flat, non-nested `svelte-dnd-action` zones only.** A drop list is owned `$state`, mutated solely by `consider`/`finalize`, and re-projected from source data only while no gesture is live (guard the `$effect` with a `dragging` flag read via `untrack`). Never nest one zone inside another (it breaks the inner drag — see DayAgenda: tasks reorder by drag, label sections reorder by up/down controls). Pure drag logic (e.g. a cross-day move) lives in `lib/move.ts`, unit-tested.
 - **Constants** (label palette, view names, layout sizes) live in `lib/constants.ts`.
 
 **One source of truth per concern.** If you write the same block in a second place, lift it into the shared module first.
@@ -122,10 +124,11 @@ The single source of truth for the schema is the SQLx migrations in `migrations/
   - `recurrence_rule` (RRULE string, nullable) — present ⇒ recurring; `due_date` is the series start (DTSTART)
   - `sort_order` (integer) — manual drag order for untimed tasks within a day/list
   - `created_at`, `updated_at`
-- **label** — `id`, `name`, `color` (hex from the fixed palette), `sort_order`.
+- **label** — `id`, `name`, `color` (hex from the fixed palette), `emoji` (nullable; an optional single glyph shown beside the color dot), `sort_order`.
 - **completion** — records a done occurrence: `task_id`, `occurrence_date`, `completed_at`.
   - A non-recurring task is "done" when a completion row exists for it.
   - A recurring task is done **for a specific date** when a completion exists for `(task_id, occurrence_date)`; other occurrences stay open. This is how completing one instance of a daily task doesn't complete them all.
+- **task_exception** — records a recurring occurrence that has been **detached** by a single-instance move: `task_id`, `occurrence_date`. Expansion skips these dates, so dragging one instance of a repeating task to another day moves *only that instance* (it becomes its own one-off on the new day) while the series keeps repeating. Same per-occurrence keying as `completion`; cascades on task delete.
 
 **Inbox = `due_date IS NULL`.** Scheduling a task (giving it a date) moves it out of the Inbox and onto the calendar — exactly TickTick's behaviour.
 
@@ -141,7 +144,8 @@ This is the easiest area to introduce subtle bugs. Rules:
 - **`due_time` is a local wall-clock time.** Combine with `due_date` only at the edges (display, sorting) using the configured timezone.
 - **Sorting within a view:** timed tasks first, ordered by `due_time` ascending; untimed tasks after, ordered by `sort_order`. This is the "time has to be sorted" requirement.
 - **Recurrence is stored as one task with an RRULE**, not as materialized rows. To render the calendar, **expand the rule with the `rrule` crate over the visible date range** (the month/week window) and overlay completion state per occurrence. Completing an occurrence writes a `completion` row keyed by `(task_id, occurrence_date)`; it does not mutate the task. The range/date queries return **one `Task` per expanded occurrence** carrying a derived **`occurrence_date`** (the instance; `due_date` stays the series start) — so clients key rows by `(id, occurrence_date)`, not `id` alone. See [ARCHITECTURE.md](./ARCHITECTURE.md) §4–§5.
-- **Custom intervals** map to RRULE (`FREQ=DAILY;INTERVAL=n`, `FREQ=WEEKLY;INTERVAL=n;BYDAY=MO,WE`). Keep the UI's recurrence options as: Daily, Weekly (pick weekdays), and Custom (every N days/weeks) — and translate to/from RRULE in the service layer.
+- **Moving a single occurrence** (drag one instance of a recurring task to another day) detaches just that instance via `POST /api/tasks/{id}/move_occurrence`: it writes a `task_exception` for the old date and creates a one-off on the new day (series keeps repeating). A same-day drop of a recurring instance is a no-op (pinned to its day). The grid drag also handles plain moves (cross-day reschedule) and same-cell untimed reordering — the classification is pure logic in `frontend/src/lib/move.ts` (`dropKind`), unit-tested.
+- **Recurrence options** map to RRULE in `frontend/src/lib/recurrence.ts`: Daily (`FREQ=DAILY`), Weekly (pick weekdays: `FREQ=WEEKLY;BYDAY=…`), Monthly (by date `FREQ=MONTHLY;BYMONTHDAY=n`, `n=-1` ⇒ last day; or by the Nth weekday `FREQ=MONTHLY;BYDAY=xx;BYSETPOS=n`, `n=-1` ⇒ last), and Custom (every N days/weeks: `FREQ=DAILY|WEEKLY;INTERVAL=n`). Quick-add also recognizes these as typed phrases ("first Monday of every month", "the 15th of every month") client-side via `parseRecurrencePhrase` — rule-based, not chrono. Quick-add also takes an inline `#tag` (TickTick-style) as the task's label — picked from a suggestion menu or created on the fly with the next palette color (see ARCHITECTURE.md `parseQuickAdd`).
 
 ## Import from TickTick
 
@@ -180,9 +184,12 @@ frontend/
     lib/
       api.ts           # the ONLY place that talks HTTP
       types.ts         # shared types mirroring the API contract
-      constants.ts     # label palette, view names, layout sizes
-      components/       # calendar cell, task row, label chip, day sheet, quick-add
-    views/             # MonthView, WeekView, DayView, Today, Inbox, Search
+      palette.js       # the fixed label palette — one source, imported by constants.ts AND tailwind.config.js
+      constants.ts     # view names, layout sizes, durations, INPUT_CLASS; re-exports the palette
+      controllers/      # rune factories (*.svelte.ts): task-core (shared CRUD + lock), calendar-board (month/week drag), calendar-selection (month/week day-select + label preload), grid-composer (month/week add/edit dialog)
+      move.ts          # pure cross-day-move logic (dropKind / applyMove), unit-tested
+      components/       # calendar cell, task row, label chip, day sheet, quick-add, search dialog
+    views/             # MonthView, WeekView, Today, Inbox (day zoom = DaySheet overlay; search is an overlay, not a tab)
     app.css            # Tailwind entry + theme tokens
   index.html, vite.config.ts, tailwind.config.*
 
@@ -217,7 +224,7 @@ The feel is a quiet morning in a pine forest: soft light, mist, stone, evergreen
 
 **Logo / mark:** a simple **cairn** — a small stack of trail stones — rendered as a clean, minimal mark in `pine`. It is the one piece of explicit mountain iconography; keep it to a few stacked stones so it reads at favicon size as well as in the header.
 
-**Principles:** generous whitespace; soft rounded corners (`rounded-lg`/`rounded-xl`); subtle shadows (`shadow-sm`), never heavy; calm, short transitions; one clean readable sans (e.g. Inter) for a professional look; low visual noise so the calendar content is the focus. Motion is gentle (fades, small slides), never bouncy.
+**Principles:** keep the UI **slick and clean** — every view should feel polished and uncluttered, never rough or busy; generous whitespace; soft rounded corners (`rounded-lg`/`rounded-xl`); subtle shadows (`shadow-sm`), never heavy; calm, short transitions; one clean readable sans (e.g. Inter) for a professional look; low visual noise so the calendar content is the focus. Motion is gentle (fades, small slides), never bouncy.
 
 ## Conventions
 

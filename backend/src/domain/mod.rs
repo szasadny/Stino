@@ -7,4 +7,4 @@ mod task;
 
 pub use import::{ImportCreated, ImportSummary};
 pub use label::{Label, LABEL_PALETTE};
-pub use task::{NewTask, Task, TaskPatch};
+pub use task::{BatchOp, NewTask, Task, TaskPatch};

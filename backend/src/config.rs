@@ -8,6 +8,9 @@ use std::path::PathBuf;
 pub const MAX_TITLE_LEN: usize = 200;
 /// Cap label names so the UI chips stay legible; imported names are clamped to it.
 pub const MAX_LABEL_NAME_LEN: usize = 60;
+/// Cap a label's emoji by code-point count — enough for a single glyph including
+/// multi-codepoint ZWJ/flag sequences, while rejecting pasted sentences.
+pub const MAX_LABEL_EMOJI_LEN: usize = 8;
 /// Local calendar-date format (`YYYY-MM-DD`). Stored verbatim, never via UTC
 /// (Hard Rule 7). This is the `chrono` pattern, not the human label.
 pub const DATE_FORMAT: &str = "%Y-%m-%d";

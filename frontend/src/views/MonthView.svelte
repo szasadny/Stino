@@ -1,12 +1,12 @@
 <script lang="ts">
-  // The month calendar — the primary view. A 6×7 Monday-first grid; each
-  // scheduled task shows on its occurrence day (a recurring task appears on every
-  // occurrence the backend expands into the range). Navigate months, jump to
-  // today, and tap a day to zoom into it (the day sheet). Date math lives in
-  // lib/date.ts.
+  // The month calendar — the primary view. A 6×7 Monday-first grid; each scheduled task
+  // shows on its occurrence day (a recurring task appears on every occurrence the backend
+  // expands into the range). Navigate months, jump to today, tap a day to zoom into it
+  // (the day sheet), tap a pill to edit it, tick a pill to complete it, drag a pill to
+  // another day to reschedule it. All task orchestration lives in the shared TaskCore +
+  // calendar board; this view is thin glue + the grid/date markup. Date math: lib/date.ts.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import type { Label, Task } from '../lib/types'
   import {
     WEEKDAYS,
     addMonths,
@@ -15,12 +15,17 @@
     isSameMonth,
     toISODate,
   } from '../lib/date'
-  import { errorMessage } from '../lib/errors'
-  import { groupByDate } from '../lib/grouping'
-  import { labelLookup } from '../lib/labels'
-  import { replaceOccurrence, toggleCompletion } from '../lib/task-actions'
+  import { createTaskCore } from '../lib/controllers/task-core.svelte'
+  import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
+  import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
+  import {
+    createCalendarSelection,
+    preloadLabels,
+  } from '../lib/controllers/calendar-selection.svelte'
   import CalendarCell from '../lib/components/CalendarCell.svelte'
+  import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
+  import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
   const today = new Date()
   const todayKey = toISODate(today)
@@ -28,82 +33,56 @@
   let viewYear = $state(today.getFullYear())
   let viewMonth = $state(today.getMonth())
   const grid = $derived(buildMonthGrid(viewYear, viewMonth))
+  const gridKeys = $derived(grid.map(toISODate))
 
-  let tasks = $state<Task[]>([])
-  let labels = $state<Label[]>([])
-  let loading = $state(true)
-  let error = $state<string | null>(null)
-  let busy = $state(false)
-  let selectedDate = $state<Date | null>(null)
+  const core = createTaskCore()
+  const cal = createCalendarBoard(core, () => gridKeys, loadRange)
+  // The grid add/edit dialog ('add' = header "+", date prefilled; 'edit' = tapped pill).
+  const composer = createGridComposer(core, loadRange)
 
-  const labelFor = $derived(labelLookup(labels))
-
-  // Index the loaded range by occurrence_date so each cell is an O(1) lookup.
-  // (A recurring task lands on every occurrence day, not just its series start.)
-  const tasksByDate = $derived(groupByDate(tasks))
-  function tasksOn(date: Date): Task[] {
-    return tasksByDate.get(toISODate(date)) ?? []
-  }
-  const selectedTasks = $derived(selectedDate ? tasksOn(selectedDate) : [])
+  const sel = createCalendarSelection(core)
+  // The day-zoom sheet's add/edit/delete: throwing CRUD through the shared lock (reloads the
+  // range on success), so the sheet stays serialized with grid toggles/drags. Reuses the same
+  // `loadRange` resync as everything else in this view.
+  const dayCrud = core.dayCrud(loadRange)
 
   onMount(async () => {
-    // Labels are just dot colors here — if they fail the calendar still works.
-    try {
-      labels = await api.labels.list()
-    } catch {
-      labels = []
-    }
+    await preloadLabels(core)
     await loadRange()
   })
 
-  async function loadRange() {
-    loading = true
-    error = null
-    try {
-      tasks = await api.tasks.range(toISODate(grid[0]), toISODate(grid[grid.length - 1]))
-    } catch (err) {
-      error = errorMessage(err, 'Could not load the calendar')
-    } finally {
-      loading = false
-    }
+  function loadRange() {
+    return core.loadWith(
+      async () => ({
+        tasks: await api.tasks.range(toISODate(grid[0]), toISODate(grid[grid.length - 1])),
+      }),
+      'Could not load the calendar',
+    )
   }
 
   function go(delta: number) {
     const next = addMonths(viewYear, viewMonth, delta)
     viewYear = next.year
     viewMonth = next.month
-    selectedDate = null
+    sel.selectedDate = null
     loadRange()
   }
 
   function goToday() {
     viewYear = today.getFullYear()
     viewMonth = today.getMonth()
-    selectedDate = null
+    sel.selectedDate = null
     loadRange()
-  }
-
-  async function toggle(task: Task) {
-    if (busy) return
-    busy = true
-    error = null
-    try {
-      tasks = replaceOccurrence(tasks, await toggleCompletion(task))
-    } catch (err) {
-      error = errorMessage(err, 'Could not update the task')
-    } finally {
-      busy = false
-    }
   }
 </script>
 
-<section class="mx-auto w-full max-w-4xl px-2 py-4 sm:px-4 sm:py-6">
-  <header class="mb-3 flex items-center justify-between gap-2 px-0.5">
+<section class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4">
+  <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
       <h1 class="text-lg font-semibold text-pine-deep sm:text-xl">
         {formatMonthYear(viewYear, viewMonth)}
       </h1>
-      {#if loading}
+      {#if core.loading}
         <span class="text-xs text-sage">Loading…</span>
       {/if}
     </div>
@@ -156,16 +135,9 @@
     </div>
   </header>
 
-  {#if error}
-    <p
-      role="alert"
-      class="mb-3 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-bark"
-    >
-      {error}
-    </p>
-  {/if}
+  <ErrorAlert error={core.error} class="mb-3" />
 
-  <div class="grid grid-cols-7 gap-1 px-0.5 pb-1">
+  <div class="grid shrink-0 grid-cols-7 gap-1.5 px-0.5 pb-1">
     {#each WEEKDAYS as weekday (weekday)}
       <div class="text-center text-[11px] font-medium uppercase tracking-wide text-sage">
         {weekday}
@@ -173,24 +145,49 @@
     {/each}
   </div>
 
-  <div class="grid grid-cols-7 gap-1">
-    {#each grid as date (toISODate(date))}
+  <div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1.5">
+    {#each grid as date, i (gridKeys[i])}
       <CalendarCell
         {date}
-        tasks={tasksOn(date)}
+        dateKey={gridKeys[i]}
+        items={cal.board[gridKeys[i]] ?? []}
         inCurrentMonth={isSameMonth(date, viewMonth)}
-        isToday={toISODate(date) === todayKey}
-        {labelFor}
-        onSelect={() => (selectedDate = date)}
+        isToday={gridKeys[i] === todayKey}
+        pending={core.pending}
+        labelFor={sel.labelFor}
+        onSelect={() => (sel.selectedDate = date)}
+        onAdd={() => composer.add(gridKeys[i])}
+        onEditTask={(task) => composer.edit(task)}
+        onToggle={core.toggle}
+        onConsider={cal.consider}
+        onFinalize={cal.finalize}
       />
     {/each}
   </div>
 </section>
 
 <DaySheet
-  date={selectedDate}
-  tasks={selectedTasks}
-  {labels}
-  onToggle={toggle}
-  onClose={() => (selectedDate = null)}
+  date={sel.selectedDate}
+  tasks={sel.selectedTasks}
+  labels={core.labels}
+  pending={core.pending}
+  onToggle={core.toggle}
+  onReorder={core.reorder}
+  onReorderLabels={core.reorderLabels}
+  onCreate={dayCrud.create}
+  onUpdate={dayCrud.update}
+  onDelete={dayCrud.remove}
+  onClose={() => (sel.selectedDate = null)}
+/>
+
+<TaskComposerDialog
+  open={composer.open}
+  title={composer.title}
+  submitLabel={composer.submitLabel}
+  labels={core.labels}
+  initial={composer.initial}
+  busy={core.pending}
+  onSubmit={composer.submit}
+  onDelete={composer.onDelete}
+  onClose={composer.close}
 />

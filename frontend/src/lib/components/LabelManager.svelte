@@ -4,9 +4,17 @@
   // create/edit forms. Loads its list and focuses the name field each time it
   // opens (via Modal's onOpen).
   import { api, type LabelInput } from '../api'
-  import { LABEL_NAME_MAX_LENGTH, LABEL_PALETTE } from '../constants'
+  import {
+    INPUT_CLASS,
+    LABEL_EMOJI_MAX_LENGTH,
+    LABEL_EMOJI_SUGGESTIONS,
+    LABEL_NAME_MAX_LENGTH,
+    LABEL_PALETTE,
+  } from '../constants'
   import { errorMessage } from '../errors'
   import type { Label } from '../types'
+  import DeleteConfirm from './DeleteConfirm.svelte'
+  import ErrorAlert from './ErrorAlert.svelte'
   import LabelChip from './LabelChip.svelte'
   import Modal from './Modal.svelte'
 
@@ -22,12 +30,14 @@
   // Create draft.
   let newName = $state('')
   let newColor = $state<string>(LABEL_PALETTE[0].hex)
+  let newEmoji = $state('')
 
-  // Inline edit / delete-confirm state (one row at a time).
+  // Inline edit state (one row at a time). The delete-confirm is owned by each
+  // row's DeleteConfirm component, so no per-row confirm state lives here.
   let editingId = $state<number | null>(null)
   let editName = $state('')
   let editColor = $state('')
-  let confirmingId = $state<number | null>(null)
+  let editEmoji = $state('')
 
   function onOpen() {
     void load()
@@ -52,10 +62,15 @@
     busy = true
     error = null
     try {
-      const created = await api.labels.create({ name, color: newColor })
+      const created = await api.labels.create({
+        name,
+        color: newColor,
+        emoji: newEmoji.trim() || null,
+      })
       labels = [...labels, created]
       newName = ''
       newColor = LABEL_PALETTE[0].hex
+      newEmoji = ''
       nameInput?.focus()
     } catch (e) {
       error = errorMessage(e, 'Could not create label')
@@ -68,7 +83,7 @@
     editingId = label.id
     editName = label.name
     editColor = label.color
-    confirmingId = null
+    editEmoji = label.emoji ?? ''
     error = null
   }
 
@@ -78,7 +93,11 @@
     busy = true
     error = null
     try {
-      const patch: Partial<LabelInput> = { name, color: editColor }
+      const patch: Partial<LabelInput> = {
+        name,
+        color: editColor,
+        emoji: editEmoji.trim() || null,
+      }
       const updated = await api.labels.update(id, patch)
       labels = labels.map((l) => (l.id === id ? updated : l))
       editingId = null
@@ -96,7 +115,6 @@
     try {
       await api.labels.remove(id)
       labels = labels.filter((l) => l.id !== id)
-      confirmingId = null
     } catch (e) {
       error = errorMessage(e, 'Could not delete label')
     } finally {
@@ -124,6 +142,49 @@
   </div>
 {/snippet}
 
+{#snippet emojiField(value: string, onset: (emoji: string) => void)}
+  <div>
+    <span class="block text-xs font-medium text-sage"
+      >Emoji <span class="font-normal">(optional)</span></span
+    >
+    <div class="mt-1.5 flex items-start gap-2">
+      <input
+        type="text"
+        {value}
+        oninput={(e) => onset(e.currentTarget.value)}
+        maxlength={LABEL_EMOJI_MAX_LENGTH}
+        placeholder="🙂"
+        aria-label="Label emoji"
+        class="h-9 w-12 shrink-0 rounded-lg border border-lichen bg-fog text-center text-lg outline-none transition focus:border-pine focus:bg-surface"
+      />
+      <div class="grid flex-1 grid-cols-6 gap-1" role="group" aria-label="Emoji suggestions">
+        {#each LABEL_EMOJI_SUGGESTIONS as suggestion (suggestion)}
+          <button
+            type="button"
+            onclick={() => onset(suggestion)}
+            aria-label={suggestion}
+            aria-pressed={value === suggestion}
+            class="grid h-9 place-items-center rounded-lg text-lg transition {value === suggestion
+              ? 'bg-pine/10 ring-1 ring-pine'
+              : 'hover:bg-pine/5'}"
+          >
+            {suggestion}
+          </button>
+        {/each}
+      </div>
+      {#if value}
+        <button
+          type="button"
+          onclick={() => onset('')}
+          class="h-9 shrink-0 self-start rounded-lg px-2 text-xs font-medium text-sage transition hover:text-pine-deep"
+        >
+          Clear
+        </button>
+      {/if}
+    </div>
+  </div>
+{/snippet}
+
 <Modal
   {open}
   {onClose}
@@ -133,14 +194,7 @@
   panelClass="m-auto max-h-[85vh] w-[min(34rem,calc(100vw-1.5rem))] rounded-2xl"
   containerClass="max-h-[85vh]"
 >
-  {#if error}
-    <p
-      role="alert"
-      class="mx-5 mt-4 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-bark"
-    >
-      {error}
-    </p>
-  {/if}
+  <ErrorAlert {error} class="mx-5 mt-4" />
 
   <!-- Create a new label -->
   <form
@@ -160,7 +214,7 @@
         placeholder="e.g. Home"
         maxlength={LABEL_NAME_MAX_LENGTH}
         autocomplete="off"
-        class="min-w-0 flex-1 rounded-lg border border-lichen bg-fog px-3 py-2 text-sm text-ink outline-none transition placeholder:text-sage focus:border-pine focus:bg-surface"
+        class="min-w-0 flex-1 {INPUT_CLASS}"
       />
       <button
         type="submit"
@@ -172,6 +226,9 @@
     </div>
     <div class="mt-3">
       {@render swatches(newColor, (hex) => (newColor = hex))}
+    </div>
+    <div class="mt-3">
+      {@render emojiField(newEmoji, (emoji) => (newEmoji = emoji))}
     </div>
   </form>
 
@@ -213,46 +270,21 @@
               <div class="mt-3">
                 {@render swatches(editColor, (hex) => (editColor = hex))}
               </div>
+              <div class="mt-3">
+                {@render emojiField(editEmoji, (emoji) => (editEmoji = emoji))}
+              </div>
             {:else}
               <div class="flex items-center justify-between gap-3">
-                <LabelChip name={label.name} color={label.color} />
+                <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
                 <div class="flex shrink-0 items-center gap-1">
-                  {#if confirmingId === label.id}
-                    <span class="text-xs text-sage">Delete?</span>
-                    <button
-                      type="button"
-                      onclick={() => remove(label.id)}
-                      disabled={busy}
-                      class="rounded-lg px-2 py-1 text-xs font-medium text-bark transition hover:bg-bark/10 disabled:opacity-40"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => (confirmingId = null)}
-                      class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:text-pine-deep"
-                    >
-                      No
-                    </button>
-                  {:else}
-                    <button
-                      type="button"
-                      onclick={() => startEdit(label)}
-                      class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => {
-                        confirmingId = label.id
-                        error = null
-                      }}
-                      class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark"
-                    >
-                      Delete
-                    </button>
-                  {/if}
+                  <button
+                    type="button"
+                    onclick={() => startEdit(label)}
+                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+                  >
+                    Edit
+                  </button>
+                  <DeleteConfirm onConfirm={() => remove(label.id)} {busy} compact />
                 </div>
               </div>
             {/if}

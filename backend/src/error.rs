@@ -23,6 +23,17 @@ pub enum AppError {
 
 pub type AppResult<T> = Result<T, AppError>;
 
+/// The reorder/batch repositories report an unknown id by rolling the whole
+/// transaction back and returning `RowNotFound`; surface that as a `404` while
+/// letting every other database failure fall through as an internal error. The
+/// single place that maps this signal, shared by the reorder/batch services.
+pub fn map_row_not_found(err: sqlx::Error) -> AppError {
+    match err {
+        sqlx::Error::RowNotFound => AppError::NotFound,
+        e => e.into(),
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match &self {

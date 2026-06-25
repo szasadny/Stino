@@ -41,6 +41,21 @@ pub struct NewTask {
     pub recurrence_rule: Option<String>,
 }
 
+/// A bulk operation applied to many tasks at once (the Inbox multi-select).
+/// Each variant maps to one transactional batch in the repository, so the whole
+/// set succeeds or rolls back together.
+#[derive(Debug, Clone)]
+pub enum BatchOp {
+    /// Set the label on every task — or, with `None`, clear it.
+    SetLabel(Option<i64>),
+    /// Give every task a due date, scheduling it out of the Inbox.
+    Schedule(String),
+    /// Mark every task done at its own occurrence (its `due_date`, NULL in the Inbox).
+    Complete,
+    /// Delete every task.
+    Delete,
+}
+
 /// A partial update. Each field uses `Option<Option<T>>` (the nullable ones) to
 /// distinguish three cases the API needs:
 /// `None` ⇒ absent, keep the current value; `Some(None)` ⇒ explicit null, clear

@@ -34,10 +34,43 @@ fn invalid_rule() -> AppError {
 /// Build the rrule set for `rule` starting at `dtstart`, mapping any parse /
 /// validation failure to a UI-safe error.
 fn build(rule: &str, dtstart: NaiveDate) -> AppResult<RRuleSet> {
-    let parsed: RRule<Unvalidated> = rule.trim().parse().map_err(|_| invalid_rule())?;
+    let normalized = normalize_until(rule.trim());
+    let parsed: RRule<Unvalidated> = normalized.parse().map_err(|_| invalid_rule())?;
     parsed
         .build(at_midnight(dtstart))
         .map_err(|_| invalid_rule())
+}
+
+/// TickTick writes a recurrence end date as a bare `UNTIL=YYYYMMDD` (an RFC-5545
+/// DATE value), but we anchor DTSTART at UTC midnight — a DATE-TIME — and the
+/// `rrule` crate rejects a rule whose `UNTIL` value type differs from DTSTART's.
+/// Left unfixed, every "repeat until <date>" task silently loses its recurrence
+/// on import. Promote a date-only `UNTIL` to the matching UTC DATE-TIME
+/// (`…T000000Z`); the end date stays inclusive because every occurrence also
+/// lands at UTC midnight. A rule without `UNTIL`, or one already carrying a UTC
+/// time, is returned unchanged.
+fn normalize_until(rule: &str) -> String {
+    rule.split(';')
+        .map(|part| match part.split_once('=') {
+            Some((key, value)) if key.eq_ignore_ascii_case("UNTIL") => {
+                format!("{key}={}", normalize_until_value(value.trim()))
+            }
+            _ => part.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(";")
+}
+
+fn normalize_until_value(value: &str) -> String {
+    if value.len() == 8 && value.bytes().all(|b| b.is_ascii_digit()) {
+        // DATE form (YYYYMMDD) → UTC midnight DATE-TIME, matching DTSTART.
+        format!("{value}T000000Z")
+    } else if value.contains('T') && !value.ends_with('Z') {
+        // A local DATE-TIME → UTC (`rrule` requires UNTIL be in UTC).
+        format!("{value}Z")
+    } else {
+        value.to_string()
+    }
 }
 
 /// Validate that `rule` is a usable RRULE for a task starting on `dtstart`.
@@ -169,5 +202,145 @@ mod tests {
     fn an_invalid_rule_is_a_validation_error() {
         assert!(validate("FREQ=NONSENSE", date("2026-06-01")).is_err());
         assert!(validate("totally not a rule", date("2026-06-01")).is_err());
+    }
+
+    #[test]
+    fn until_end_date_is_honored_and_inclusive() {
+        // TickTick exports the end date as a bare `UNTIL=YYYYMMDD` (DATE form).
+        // Daily from Jun 1 ending Jun 3 must yield exactly Jun 1, 2, 3 — the
+        // UNTIL date itself included — not run on to the end of the window.
+        let got = expand(
+            "FREQ=DAILY;UNTIL=20260603;INTERVAL=1",
+            date("2026-06-01"),
+            date("2026-06-01"),
+            date("2026-06-30"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-06-01"), date("2026-06-02"), date("2026-06-03")]
+        );
+    }
+
+    #[test]
+    fn a_series_that_ended_before_the_window_validates_but_yields_nothing() {
+        // The reported bug: a real TickTick "repeat until" rule whose end date is
+        // in the past must still *validate* (so the recurrence imports rather than
+        // being silently dropped) yet produce no occurrences in a future window.
+        let rule = "FREQ=WEEKLY;WKST=MO;UNTIL=20240623;INTERVAL=1;BYDAY=MO";
+        assert!(validate(rule, date("2024-01-01")).is_ok());
+        let got = expand(
+            rule,
+            date("2024-01-01"),
+            date("2026-06-01"),
+            date("2026-06-30"),
+        )
+        .unwrap();
+        assert!(got.is_empty());
+    }
+
+    #[test]
+    fn monthly_byday_bysetpos_first_monday_crosses_months() {
+        // The first Monday of each month, Jan–Mar 2026 (Jan 1 is a Thursday).
+        let got = expand(
+            "FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-03-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-01-05"), date("2026-02-02"), date("2026-03-02")]
+        );
+    }
+
+    #[test]
+    fn monthly_last_friday() {
+        // The last Friday of Jan and Feb 2026.
+        let got = expand(
+            "FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-02-28"),
+        )
+        .unwrap();
+        assert_eq!(got, vec![date("2026-01-30"), date("2026-02-27")]);
+    }
+
+    #[test]
+    fn monthly_bymonthday_fixed() {
+        let got = expand(
+            "FREQ=MONTHLY;BYMONTHDAY=15",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-02-28"),
+        )
+        .unwrap();
+        assert_eq!(got, vec![date("2026-01-15"), date("2026-02-15")]);
+    }
+
+    #[test]
+    fn monthly_bymonthday_last_day_handles_short_months() {
+        // -1 = the actual last day, so it tracks 31/28/31 across months.
+        let got = expand(
+            "FREQ=MONTHLY;BYMONTHDAY=-1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-03-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-01-31"), date("2026-02-28"), date("2026-03-31")]
+        );
+    }
+
+    #[test]
+    fn monthly_bymonthday_31_skips_months_without_it() {
+        // Only Jan and Mar have a 31st in this window; Feb and Apr are skipped.
+        let got = expand(
+            "FREQ=MONTHLY;BYMONTHDAY=31",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-04-30"),
+        )
+        .unwrap();
+        assert_eq!(got, vec![date("2026-01-31"), date("2026-03-31")]);
+    }
+
+    #[test]
+    fn monthly_fifth_weekday_skips_months_without_one() {
+        // Only March 2026 has a fifth Monday (Mar 30) in Jan–Mar; Jan and Feb don't.
+        let got = expand(
+            "FREQ=MONTHLY;BYDAY=MO;BYSETPOS=5",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-03-31"),
+        )
+        .unwrap();
+        assert_eq!(got, vec![date("2026-03-30")]);
+    }
+
+    #[test]
+    fn weekly_first_and_last_day_of_week() {
+        // Monday-first: first day = Monday, last day = Sunday.
+        let first = expand(
+            "FREQ=WEEKLY;BYDAY=MO",
+            date("2026-06-01"),
+            date("2026-06-01"),
+            date("2026-06-07"),
+        )
+        .unwrap();
+        assert_eq!(first, vec![date("2026-06-01")]);
+
+        let last = expand(
+            "FREQ=WEEKLY;BYDAY=SU",
+            date("2026-06-01"),
+            date("2026-06-01"),
+            date("2026-06-07"),
+        )
+        .unwrap();
+        assert_eq!(last, vec![date("2026-06-07")]);
     }
 }

@@ -41,10 +41,12 @@ Dependencies point downward only. See CLAUDE.md § Architecture for the binding 
 
 ## 3. Data model
 
-Source of truth is `backend/migrations/`. `0001_init.sql` defines:
+Source of truth is `backend/migrations/`. `0001_init.sql` + `0002_label_emoji.sql` +
+`0003_task_exception.sql` define:
 
-- **label** `(id, name, color, sort_order, created_at, updated_at)` — `color` is a hex from the
-  fixed nature-derived palette (see `frontend/src/lib/constants.ts`).
+- **label** `(id, name, color, emoji?, sort_order, created_at, updated_at)` — `color` is a hex from
+  the fixed nature-derived palette (defined once in `frontend/src/lib/palette.js` — see §10);
+  `emoji` (added in `0002`) is an optional single glyph, NULL ⇒ color-only.
 - **task** `(id, title, notes?, label_id?→label, due_date?, due_time?, recurrence_rule?,
   sort_order, created_at, updated_at)`.
   - `due_date` NULL ⇒ **Inbox** (unscheduled). `due_time` NULL ⇒ untimed.
@@ -57,9 +59,15 @@ Source of truth is `backend/migrations/`. `0001_init.sql` defines:
   occurrence_date)` — one row per completed occurrence. A one-off is done when a row exists for
   its `due_date`; a recurring task is done **for that date only**, so completing one instance
   never completes the rest.
+- **task_exception** `(id, task_id→task, occurrence_date, created_at)`, `UNIQUE(task_id,
+  occurrence_date)` (added in `0003`) — one row per recurring occurrence that has been **detached**
+  by a single-instance move (drag one instance of a repeating task to another day). Expansion
+  skips these dates, so the series keeps repeating everywhere else while the moved instance lives
+  on as its own one-off task on the new day. Same per-occurrence keying as `completion`.
 
-Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`. Foreign keys are enforced
-(`PRAGMA foreign_keys = ON` set per connection).
+Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`.
+Foreign keys are enforced (`PRAGMA foreign_keys = ON` set per connection); a deleted task cascades
+its `completion` **and** `task_exception` rows.
 
 ## 4. Time, dates & recurrence
 
@@ -76,12 +84,21 @@ Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`. Foreign keys
   instance. Completing an occurrence writes a `completion` row for `(task_id, occurrence_date)`; it
   never mutates the task, so other occurrences stay open. To keep occurrences from being counted
   twice, the one-off range/date queries exclude `recurrence_rule IS NOT NULL`.
+- **Moving a single occurrence** (drag one instance of a recurring task to another day) detaches
+  *just that instance*, TickTick-style: the service records a `task_exception` for the original
+  `(task_id, occurrence_date)` and creates a **new one-off task** on the target day copying the
+  series' title/notes/label/time (no recurrence). Expansion skips excepted dates, so the series
+  keeps repeating everywhere else. A same-day drop of a recurring instance is a no-op (it's pinned
+  to its day); only a cross-day drop detaches it.
 - Recurrence dates are treated as **calendar dates**: expansion anchors DTSTART at UTC midnight and
   reads back each occurrence's date, so no timezone conversion can shift a day (Hard Rule 7).
-- UI recurrence options map to RRULE — Daily (`FREQ=DAILY`), Weekly (`FREQ=WEEKLY;BYDAY=…`), Custom
-  (every N days/weeks: `FREQ=DAILY|WEEKLY;INTERVAL=n`). The option⇄RRULE mapping is a presentation
-  concern in `frontend/src/lib/recurrence.ts`; the canonical wire/storage form is the RRULE string,
-  which the service is the source of truth for validating and expanding.
+- UI recurrence options map to RRULE — Daily (`FREQ=DAILY`), Weekly (`FREQ=WEEKLY;BYDAY=…`), Monthly
+  (by date `FREQ=MONTHLY;BYMONTHDAY=n`, `n=-1` ⇒ the last day; or by the Nth weekday
+  `FREQ=MONTHLY;BYDAY=xx;BYSETPOS=n`, `n=-1` ⇒ last), Custom (every N days/weeks:
+  `FREQ=DAILY|WEEKLY;INTERVAL=n`). The option⇄RRULE mapping is a presentation concern in
+  `frontend/src/lib/recurrence.ts`; the canonical wire/storage form is the RRULE string, which the
+  service is the source of truth for validating and expanding. Months that lack a chosen day (a 31st,
+  a fifth Monday) are simply skipped by the `rrule` crate.
 
 ## 5. API contract
 
@@ -90,9 +107,10 @@ Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`. Foreign keys
 | Method | Path | Returns |
 | --- | --- | --- |
 | GET | `/api/health` | `{ "status": "ok", "db": true }` |
-| GET | `/api/labels` | `[{ id, name, color, sort_order }]`, ordered by `sort_order`, then `id` |
-| POST | `/api/labels` | body `{ name, color }` → `201` Label |
-| PATCH | `/api/labels/{id}` | partial body `{ name?, color? }` → Label (`404` if unknown) |
+| GET | `/api/labels` | `[{ id, name, color, emoji, sort_order }]`, ordered by `sort_order`, then `id` |
+| POST | `/api/labels` | body `{ name, color, emoji? }` → `201` Label |
+| PATCH | `/api/labels/reorder` | body `{ ids: [...] }` (the full ordered list of label ids) → `204`; sets each label's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes). Drives the grouped day view's section order and the Labels manager. Registered before `/api/labels/{id}`; matchit gives the literal segment priority |
+| PATCH | `/api/labels/{id}` | partial body `{ name?, color?, emoji? }` → Label (`404` if unknown); an explicit `emoji: null` clears it, an omitted key leaves it unchanged |
 | DELETE | `/api/labels/{id}` | `204`; tasks survive but lose the label (`ON DELETE SET NULL`) |
 | GET | `/api/tasks?inbox=true` | Inbox: unscheduled tasks (`due_date IS NULL`), by `sort_order` |
 | GET | `/api/tasks?date=YYYY-MM-DD` | tasks on that local day, timed-first then by `sort_order` |
@@ -101,8 +119,10 @@ Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`. Foreign keys
 | PATCH | `/api/tasks/{id}` | partial body (same fields) → Task (`404` if unknown) |
 | DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` rows |
 | PATCH | `/api/tasks/reorder` | body `{ ids: [...] }` (the full ordered list of untimed task ids) → `204`; sets each task's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes) |
+| POST | `/api/tasks/batch` | bulk edit (Inbox multi-select): body `{ ids: [...], op }` where `op` is a `type`-tagged action — `{type:"label", label_id}` (null clears), `{type:"schedule", due_date}` (moves them out of the Inbox), `{type:"complete"}`, or `{type:"delete"}` → `204`. Atomic per op (`404` if any id is unknown, then nothing changes); empty `ids` is a no-op |
 | POST | `/api/tasks/{id}/completions` | mark done → Task (`completed:true`); idempotent |
 | DELETE | `/api/tasks/{id}/completions` | reopen → Task (`completed:false`) |
+| POST | `/api/tasks/{id}/move_occurrence` | move ONE occurrence of a recurring task: body `{ occurrence_date, new_date }` → `201` the new detached one-off Task. Records a `task_exception` for the old date and creates a one-off on the new day (series keeps repeating). `404` unknown id; `400` if not recurring, `occurrence_date` isn't an instance of the series, or it has already been moved |
 | GET | `/api/search?q=` | tasks whose `title`/`notes` match `q` (`LIKE`, case-insensitive, the term's `%`/`_` escaped); Inbox + scheduled, recurring as their series row; by `due_date` (nulls last) then `title`. Blank/missing `q` ⇒ `[]` |
 | POST | `/api/import/ticktick` | body is the **raw CSV file** (not JSON/multipart — the SPA sends the picked `File` directly); imports a TickTick backup. Returns `{ created: { tasks, labels, completions }, skipped }`. Add-only; per-row tolerant (see §6) |
 
@@ -174,18 +194,31 @@ Behaviours that matter:
 
 - `src/lib/api.ts` — the only HTTP client; one typed function per endpoint.
 - `src/lib/types.ts` — types mirroring the API contract (single source of truth).
-- `src/lib/constants.ts` — view list, the fixed label palette (mirrors `tailwind.config.js`), the
-  input length caps (`TITLE_MAX_LENGTH` / `LABEL_NAME_MAX_LENGTH`, mirroring the backend
-  `config.rs`), and the calendar-cell overflow thresholds (`MONTH_CELL_MAX_TITLES` / `…MAX_DOTS` /
-  `WEEK_CELL_MAX_TITLES`).
+- `src/lib/palette.js` — the fixed label palette, defined **once** as plain JS data so both
+  `constants.ts` and `tailwind.config.js` import it (Tailwind is loaded outside the TS pipeline, so
+  the source has to be importable from a plain config). The one frontend home for the label colors;
+  the backend keeps a guarded mirror (§10).
+- `src/lib/constants.ts` — view list, the input length caps (`TITLE_MAX_LENGTH` /
+  `LABEL_NAME_MAX_LENGTH`, mirroring the backend `config.rs`), the calendar-cell overflow thresholds
+  (`MONTH_CELL_MAX_TITLES` / `…MAX_DOTS` / `WEEK_CELL_MAX_TITLES`), the drag-FLIP and search-debounce
+  durations (`DND_FLIP_MS` / `SEARCH_DEBOUNCE_MS`), and the shared input class (`INPUT_CLASS`). Also
+  re-exports `LABEL_PALETTE` from `palette.js` so the rest of the UI still imports it from here.
+- `src/lib/controllers/calendar-selection.svelte.ts` — `createCalendarSelection(core)` (the
+  `labelFor` + per-day index + selected-day state the Month and Week views share) and
+  `preloadLabels(core)` (the graceful label load for the calendar's color dots), so neither view
+  re-derives that block.
 - `src/lib/errors.ts` — `errorMessage(err, fallback)`: the single place that turns a thrown value
   into a UI string (every view used to re-declare it).
 - `src/lib/labels.ts` — `labelLookup(labels) → (task) => Label | undefined`: the id→label lookup
-  (handling no/deleted label) shared by the views that decorate task rows.
+  (handling no/deleted label) shared by the views that decorate task rows. Also the label-reorder
+  pair used when dragging label sections in the day view: `mergeLabelOrder(allLabels, visibleOrder)`
+  folds a reordering of the day's *visible* labels back into the full global order, and
+  `applyLabelOrder(labels, ids)` reorders + renumbers `sort_order` locally (the optimistic mirror of
+  `api.labels.reorder`).
 - `src/lib/task-actions.ts` — `toggleCompletion(task)` (complete/reopen the occurrence via the API)
   + `replaceOccurrence(tasks, updated)` (swap the `(id, occurrence_date)` row): the complete-toggle
-  flow shared by Inbox / Today / Month / Week / Search, so each view keeps only its own busy/error
-  state.
+  primitives the shared `task-core` controller (and the Search overlay) build on, so the flow lives in
+  one place.
 - `src/lib/date.ts` — all calendar date math (month-grid builder, month nav, week helpers —
   `startOfWeek` / `buildWeekGrid` / `addWeeks` / `formatWeekRange` — and formatters). Treats dates as
   **local** calendar dates — never serializes through `toISOString()` (UTC), per Hard Rule 7.
@@ -196,51 +229,97 @@ Behaviours that matter:
   `groupByDate(tasks) → Map<occurrence_date, Task[]>` — the per-day index the month and week grids
   share. Grouping is a **client-side presentation concern** — no SQL/endpoint does it.
 - `src/lib/recurrence.ts` — the option⇄RRULE mapping (`buildRRule` / `parseRRule` / `summarize`): the
-  single place that turns the small set of UI repeat options (Daily / Weekly+weekdays / Custom every-N)
-  into an RRULE string and back. Presentation only — the backend validates/expands the rule.
-- `src/lib/quickadd.ts` — `parseQuickAdd(input) → { title, due_date?, due_time? }`: natural-language
-  capture parsed **client-side** with `chrono-node` (per "External Solutions First" — never on the
-  server). Takes chrono's first match, strips its phrase (and a dangling `on`/`by`) from the title, and
-  formats the date/time as **local** `YYYY-MM-DD` / `HH:MM` (Hard Rule 7) — a time only when the hour is
-  certain. `describeDraft` renders the compact capture hint. Pure given a reference date.
+  single place that turns the UI repeat options (Daily / Weekly+weekdays / Monthly by-date or
+  Nth-weekday / Custom every-N) into an RRULE string and back. Also `parseRecurrencePhrase(text)` —
+  rule-based extraction of a recurrence from quick-add typing ("first Monday of every month"), returning
+  the RRULE and the matched substring to strip. Presentation only — the backend validates/expands.
+- `src/lib/quickadd.ts` — `parseQuickAdd(input) → { title, label?, due_date?, due_time?, recurrence_rule? }`:
+  natural-language capture parsed **client-side**. First pulls a recurrence phrase via
+  `parseRecurrencePhrase` and strips it (so a weekday inside it isn't read as a one-off date), then a
+  `#tag` (TickTick-style inline label — a single non-space token; the **first** of several becomes the
+  one label, all are stripped from the title), then `chrono-node` (per "External Solutions First" —
+  never on the server) takes the date/time off the rest, formatted as **local** `YYYY-MM-DD` / `HH:MM`
+  (Hard Rule 7) — a time only when the hour is certain. A recurrence with no explicit date defaults its
+  DTSTART to the reference date. `describeDraft` renders the compact capture hint (date + repeat
+  summary). `activeLabelToken(text, caret)` / `removeActiveToken(text, caret)` back the Inbox `#tag`
+  suggestion menu (the tag under the cursor, and cutting it once picked). Pure given a reference date.
 - `src/lib/theme.ts` — theme preference (System / Light / Dark). System follows `prefers-color-scheme`;
   Light/Dark set a `data-theme` override on `<html>` (the CSS vars in `app.css` key off it) and persist
   in `localStorage`. `normalizeThemePref` / `getThemePref` / `setThemePref`.
-- Pure helpers above are unit-tested with **Vitest** (`*.test.ts` beside each; `npm test`).
+- `src/lib/move.ts` — pure cross-day-move logic for the month/week grid drag: `dropKind` classifies a
+  drop (same-cell untimed reorder / plain reschedule / single recurring-occurrence detach / no-op) and
+  `applyMove` projects the optimistic result. No state, no HTTP — unit-tested.
+- `src/lib/ordering.ts` — `applyUntimedOrder(tasks, ids)`: renumber the untimed `sort_order` to match a
+  dragged id list (the optimistic mirror of `api.tasks.reorder`), timed/recurring rows untouched.
+- `src/lib/composer.ts` — `taskToDraft` / draft types for the add/edit dialog: the pure shape that maps a
+  `Task` to/from the editable form fields, shared by the Inbox and grid composers.
+- `src/lib/controllers/` — **rune factories** (`*.svelte.ts`) holding the shared view orchestration so no
+  view re-implements CRUD. `task-core.svelte.ts` (`createTaskCore`) owns the task/label state + load /
+  toggle / reorder / reorderLabels / remove / save behind ONE `pending` lock with a uniform
+  optimistic-then-revert update — plus `dayCrud(reload)`, the throwing create/update/delete the Month/Week
+  `DaySheet` binds (same lock, reloads the range on success, rethrows so the sheet renders its own inline
+  error over the grid) so neither grid view forks day-zoom CRUD; `calendar-board.svelte.ts` (`createCalendarBoard`) adds the month/week
+  drop zones (live drop list as owned `$state`, re-projected only when no gesture is live — see
+  `calendar-board.ts` for the pure projection it builds on); `grid-composer.svelte.ts`
+  (`createGridComposer`) owns the month/week add/edit dialog (create/update/delete through the lock,
+  exposing the dialog's derived props). Every standing view (Today/Month/Week/Inbox) binds to a core.
+- Pure helpers above are unit-tested with **Vitest** (`*.test.ts` beside each — incl. `move`, `ordering`,
+  `composer`, `calendar-board`; `npm test`).
 - `src/lib/components/` — reusable UI. `Modal` is the shared dialog shell (native `<dialog>`,
   standard header + close button, backdrop + sheet-in animation, the open/close effect, and an
   `onOpen` hook for dialogs that load/reset on open) that **DaySheet, SettingsDialog, ImportDialog,
   and LabelManager** all build on, so none re-implements dialog scaffolding; `TaskDot` (the calendar
-  label-color dot) and `EmptyState` (the dashed "nothing here" panel) are shared the same way.
+  label-color dot), `EmptyState` (the dashed "nothing here" panel), `ErrorAlert` (the bark-toned
+  error banner every view/dialog shows, callers passing only margins), and `DeleteConfirm` (the
+  two-step "Delete? Yes/No" affordance, used by the task editor and the Labels manager) are shared
+  the same way.
   Then: `Cairn` mark, `LabelChip`, `LabelManager`,
   `TaskRow` (complete-toggle + title + time + a repeat affordance for recurring tasks + chip, with a
   `trailing` snippet for view actions and an optional `leading` snippet before the checkbox — e.g. a
   drag handle), `RecurrencePicker` (the repeat control in the task edit panel:
-  None / Daily / Weekly+weekdays / Custom every-N; emits an RRULE),
+  None / Daily / Weekly+weekdays / Monthly by-date or Nth-weekday / Custom every-N; emits an RRULE),
+  `LabelSelect` (the inline label dropdown), `TaskPill` (a compact calendar-grid task chip with its
+  label dot), `TaskComposer` + `TaskComposerDialog` (the shared add/edit form and its modal shell, used
+  by the Inbox details editor and the month/week grid composer), `QuickAddButton` (the grid cell's add
+  affordance), `SearchDialog` (the search overlay — see views below),
   `CalendarCell` (a month-grid day: titles on wide screens, dots on a phone), `WeekDayCell` (a week
   day: weekday+date header + a few task titles with label dots + "+N more"; a column at `sm`+, a
   full-width section when stacked on a phone), `DayAgenda` (a day's tasks grouped by label via
-  `groupByLabel` — chip section headers + `TaskRow` rows + empty state), `DaySheet` (the day-zoom
+  `groupByLabel` — chip section headers + `TaskRow` rows + empty state; untimed tasks reorder within a
+  group by a handle-scoped drag (`onReorder` → `api.tasks.reorder`), while the labeled sections
+  themselves reorder by **up/down controls** on the chip header (`onReorderLabels` → `api.labels.reorder`)
+  — not a drag, since nesting a section-drag zone inside the per-group task-drag zone would break the
+  inner drag (Rule 4); the "No label" group pinned last), `DaySheet` (the day-zoom
   dialog: renders `DayAgenda` for the tapped day; driven by a `date` prop), `ImportDialog` (the
   TickTick CSV import: file picker → `api.import.ticktick(file)` → a friendly created/skipped
   summary), `ThemeToggle` (the segmented System / Light / Dark control), and `SettingsDialog`
   (groups Appearance = `ThemeToggle` and Data = an Import launcher; opened from the header gear).
-- `src/views/` — `Inbox` (**natural-language capture** — the title box parses a date/time via
-  `parseQuickAdd` and shows a live "Scheduling for …" hint; a parsed date schedules the task straight
+- `src/views/` — `Inbox` (**natural-language capture** — the title box parses a date/time *and a
+  recurrence phrase* *and a `#tag` label* via `parseQuickAdd` and shows a live "Scheduling for …" hint
+  plus the label chip; a `#tag` opens a suggestion menu of matching labels (or "Create …", which adds
+  the label on the fly with the next palette color, like the importer) — picking one shows it as a chip,
+  else a typed `#tag` is resolved/created on submit; a parsed date or
+  recurrence schedules the task straight
   out of the Inbox / complete / edit / schedule / **set recurrence** / **drag to
-  reorder** the untimed list via `svelte-dnd-action`'s `dragHandleZone`/`dragHandle`, persisted with
-  `api.tasks.reorder`), `Month`
+  reorder** the untimed list via `svelte-dnd-action`'s `dragHandleZone`/`dragHandle` (a locally-owned
+  `$state` drop list, persisted through the shared `task-core`'s `reorder` under its lock), and
+  **multi-select / bulk edit** — a "Select" toggle turns rows into
+  checkboxes and a sticky bar applies one `api.tasks.batch` op to all selected: set label, schedule,
+  complete, or delete; `TaskRow` renders the selection checkbox in its `selectable` mode), `Month`
   (the 6×7 grid with month nav + the grouped day sheet; recurring tasks shown on every occurrence),
   `Week` (Monday-first seven-day layout over the range query;
   prev/next-week + "This week" nav; seven columns reflow to a stacked column on a phone; taps open
   the shared day sheet), and `Today` (everything due today over the `?date=` query, grouped by label
   via `DayAgenda` rendered inline — a standing view, not a dialog; full-date header + task count +
-  "Nothing due today." empty state), and `Search` (a debounced `?q=` box over `api.search`; a flat
-  `TaskRow` results list with complete-toggle; prompt / searching / no-results states; recurring
-  tasks shown as their series row) are live. `App.svelte` is the shell: header + nav (desktop pills /
-  mobile bottom bar) + the active view + a connection indicator, plus a **Labels** button and a
-  **Settings** gear (icon-only) that open `LabelManager` / `SettingsDialog` (the gear groups the theme
-  toggle and the TickTick import).
+  "Nothing due today." empty state) are the four standing views. **Search is an overlay, not a tab**:
+  `SearchDialog` (a debounced `?q=` box over `api.search`; a flat `TaskRow` results list — each row
+  complete-toggles and shows its planned day, or "Inbox" when unscheduled, since results span every
+  date; tapping a row opens the editor inline, swapping the list like the day sheet so no second modal
+  stacks, and saving/deleting re-runs the search; prompt / searching / no-results states; recurring
+  tasks shown as their series row), opened from the header. `App.svelte` is the shell: header + nav
+  (desktop pills / mobile bottom bar) + the active view + a connection indicator, plus a **Labels**
+  button, a **Search** launcher, and a **Settings** gear (icon-only) that open `LabelManager` /
+  `SearchDialog` / `SettingsDialog` (the gear groups the theme toggle and the TickTick import).
 
 ## 8. Build & run
 
@@ -260,3 +339,18 @@ Behaviours that matter:
   migration) if needed — don't overload existing columns.
 - **Search:** shipped as a case-insensitive `LIKE` over `title`/`notes` (§5). Add an FTS5 virtual
   table only if it ever feels slow at personal scale.
+
+## 10. Mirrored constants
+
+A few facts necessarily live in more than one place because they span the language boundary (no
+shared codegen). Each is centralized to ONE home per side; the pairs below can only drift by a manual
+edit, so change them together.
+
+| Value | Frontend home | Backend home | Drift guard |
+| --- | --- | --- | --- |
+| Label palette (8 hexes) | `src/lib/palette.js` (imported by `constants.ts` + `tailwind.config.js`) | `domain/label.rs` `LABEL_PALETTE` | `palette_is_unchanged` test in `domain/label.rs` pins the backend list |
+| Title / label-name / emoji caps | `src/lib/constants.ts` (`TITLE_MAX_LENGTH`, …) | `config.rs` (`MAX_TITLE_LEN`, …) | comments on both sides; UI bounds input, service re-validates |
+| Local date/time formats (`YYYY-MM-DD` / `HH:MM`) | `src/lib/date.ts` (string building) | `config.rs` (`DATE_FORMAT` / `TIME_FORMAT`) | documented in §4; both treat dates as local text |
+
+Within each side the value has a single source — the work above collapsed the palette's two frontend
+copies (constants + Tailwind) into `palette.js`. The cross-language copy is the irreducible one.

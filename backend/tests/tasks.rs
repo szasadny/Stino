@@ -1,69 +1,12 @@
 //! Integration tests for the task API, driven through the real router against a
 //! fresh in-memory SQLite database (migrations applied per test for isolation).
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use axum::Router;
-use http_body_util::BodyExt;
 use serde_json::{json, Value};
-use sqlx::sqlite::SqlitePoolOptions;
-use std::path::Path;
-use tower::ServiceExt;
 
-use stino_backend::routes;
-
-async fn test_app() -> Router {
-    // max_connections(1) keeps the single in-memory DB alive for the whole test;
-    // min_connections(1) stops it being reaped between requests.
-    let pool = SqlitePoolOptions::new()
-        .min_connections(1)
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .expect("open in-memory sqlite");
-    sqlx::migrate!().run(&pool).await.expect("run migrations");
-    routes::router(pool, Path::new("."))
-}
-
-/// Send a request through a clone of the router and decode the JSON body (empty
-/// bodies, e.g. 204, decode to `Value::Null`).
-async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
-    let res = app.clone().oneshot(req).await.expect("router response");
-    let status = res.status();
-    let bytes = res
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes();
-    let body = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).expect("json body")
-    };
-    (status, body)
-}
-
-fn json_req(method: &str, uri: &str, body: Value) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header("content-type", "application/json")
-        .body(Body::from(body.to_string()))
-        .expect("build request")
-}
-
-fn empty_req(method: &str, uri: &str) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .body(Body::empty())
-        .expect("build request")
-}
-
-fn get(uri: &str) -> Request<Body> {
-    empty_req("GET", uri)
-}
+mod common;
+use common::*;
 
 async fn create_task(app: &Router, body: Value) -> Value {
     let (status, task) = send(app, json_req("POST", "/api/tasks", body)).await;
@@ -189,6 +132,48 @@ async fn complete_and_uncomplete_toggle_without_mutating_the_task() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(reopened["completed"], false);
+}
+
+#[tokio::test]
+async fn rescheduling_a_completed_task_keeps_it_completed() {
+    let app = test_app().await;
+
+    // Complete a task on its due day, then drag it to another day.
+    let task = create_task(&app, json!({"title":"Chop wood","due_date":"2026-07-01"})).await;
+    let id = task["id"].as_i64().expect("id");
+    send(
+        &app,
+        empty_req("POST", &format!("/api/tasks/{id}/completions")),
+    )
+    .await;
+
+    let (status, moved) = send(
+        &app,
+        json_req(
+            "PATCH",
+            &format!("/api/tasks/{id}"),
+            json!({"due_date":"2026-07-08"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(moved["due_date"], "2026-07-08");
+    assert_eq!(
+        moved["completed"], true,
+        "the completion follows the task to its new day"
+    );
+
+    // It is done on the new day and absent from the old one.
+    let (_, new_day) = send(&app, get("/api/tasks?date=2026-07-08")).await;
+    let new_day = new_day.as_array().expect("array");
+    assert_eq!(new_day.len(), 1);
+    assert_eq!(new_day[0]["completed"], true);
+
+    let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
+    assert!(
+        old_day.as_array().expect("array").is_empty(),
+        "the task no longer lives on the old day"
+    );
 }
 
 #[tokio::test]
@@ -421,6 +406,221 @@ async fn completing_one_occurrence_leaves_the_others_open() {
 }
 
 #[tokio::test]
+async fn moving_one_occurrence_detaches_it_and_leaves_the_series_repeating() {
+    let app = test_app().await;
+
+    // A labeled, weekly-on-Mondays series from Jun 1 2026 (a Monday): Jun 1, 8, 15, 22, 29.
+    let (status, label) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/labels",
+            json!({"name":"Work","color":"#2F5D50"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "label create failed: {label}");
+    let label_id = label["id"].as_i64().expect("label id");
+
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","label_id":label_id,"recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    // Drag the Jun 8 instance to Jun 10 (a Wednesday — not itself an occurrence).
+    let (status, moved) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-08","new_date":"2026-06-10"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "move failed: {moved}");
+    let new_id = moved["id"].as_i64().expect("new id");
+    assert_ne!(
+        new_id, id,
+        "the moved instance becomes its own one-off task"
+    );
+    assert_eq!(moved["title"], "Standup");
+    assert_eq!(moved["due_date"], "2026-06-10");
+    assert_eq!(
+        moved["label_id"].as_i64(),
+        Some(label_id),
+        "the detached copy carries the series' label"
+    );
+    assert_eq!(
+        moved["recurrence_rule"],
+        Value::Null,
+        "the detached copy does not repeat"
+    );
+
+    // The series still repeats every other Monday; only Jun 8 is gone.
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
+    let days = range.as_array().expect("array");
+    let series_dates: Vec<&str> = days
+        .iter()
+        .filter(|d| d["id"].as_i64() == Some(id))
+        .map(|d| d["occurrence_date"].as_str().expect("occurrence_date"))
+        .collect();
+    assert_eq!(
+        series_dates,
+        ["2026-06-01", "2026-06-15"],
+        "Jun 8 detached; the rest keep repeating"
+    );
+
+    // Jun 10 now carries the detached one-off, and nothing else.
+    let detached: Vec<&Value> = days
+        .iter()
+        .filter(|d| d["occurrence_date"] == "2026-06-10")
+        .collect();
+    assert_eq!(detached.len(), 1);
+    assert_eq!(detached[0]["id"].as_i64(), Some(new_id));
+    assert_eq!(detached[0]["recurrence_rule"], Value::Null);
+}
+
+#[tokio::test]
+async fn moving_an_occurrence_of_a_non_recurring_task_is_rejected() {
+    let app = test_app().await;
+    let task = create_task(&app, json!({"title":"One-off","due_date":"2026-06-01"})).await;
+    let id = task["id"].as_i64().expect("id");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-01","new_date":"2026-06-02"}),
+        ),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "only a recurring task's occurrence can be moved"
+    );
+}
+
+#[tokio::test]
+async fn moving_a_date_that_is_not_an_occurrence_is_rejected() {
+    let app = test_app().await;
+
+    // Weekly on Mondays from Jun 1; Jun 3 2026 is a Wednesday — not an occurrence.
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-03","new_date":"2026-06-10"}),
+        ),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "Jun 3 is not a Monday occurrence of the series"
+    );
+}
+
+#[tokio::test]
+async fn moving_an_occurrence_to_its_own_day_changes_nothing() {
+    let app = test_app().await;
+
+    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    // Moving Jun 8 onto Jun 8 is a no-op: no exception, no detached one-off.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-08","new_date":"2026-06-08"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
+    let days = range.as_array().expect("array");
+    assert_eq!(
+        days.len(),
+        3,
+        "the series still lands on all three Mondays; nothing was detached"
+    );
+    assert!(
+        days.iter().all(|d| d["id"].as_i64() == Some(id)),
+        "every row is still the series — no one-off copy was created"
+    );
+}
+
+#[tokio::test]
+async fn moving_the_same_occurrence_twice_is_rejected() {
+    let app = test_app().await;
+
+    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    // First move detaches Jun 8 onto Jun 10.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-08","new_date":"2026-06-10"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Re-moving the now-detached Jun 8 must be rejected, not create a second one-off.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-08","new_date":"2026-06-12"}),
+        ),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "Jun 8 was already detached; re-moving it must not orphan a duplicate one-off"
+    );
+
+    // Exactly one detached one-off exists (on Jun 10); Jun 12 has nothing.
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
+    let days = range.as_array().expect("array");
+    let detached: Vec<&Value> = days
+        .iter()
+        .filter(|d| d["id"].as_i64() != Some(id))
+        .collect();
+    assert_eq!(detached.len(), 1, "only the first move's one-off exists");
+    assert_eq!(detached[0]["due_date"], "2026-06-10");
+}
+
+#[tokio::test]
 async fn weekly_byday_only_lands_on_chosen_weekdays() {
     let app = test_app().await;
 
@@ -439,6 +639,98 @@ async fn weekly_byday_only_lands_on_chosen_weekdays() {
         .map(|d| d["occurrence_date"].as_str().expect("occurrence_date"))
         .collect();
     assert_eq!(dates, ["2026-06-01", "2026-06-03"]);
+}
+
+#[tokio::test]
+async fn a_monthly_ordinal_weekday_task_expands_across_a_range() {
+    let app = test_app().await;
+
+    // First Monday of every month; series starts Jan 1 2026 (a Thursday).
+    let task = create_task(
+        &app,
+        json!({"title":"Pay rent","due_date":"2026-01-01","recurrence_rule":"FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    let (status, range) = send(&app, get("/api/tasks?from=2026-01-01&to=2026-03-31")).await;
+    assert_eq!(status, StatusCode::OK);
+    let days = range.as_array().expect("array");
+    let dates: Vec<&str> = days
+        .iter()
+        .map(|d| d["occurrence_date"].as_str().expect("occurrence_date"))
+        .collect();
+    assert_eq!(dates, ["2026-01-05", "2026-02-02", "2026-03-02"]);
+    for d in days {
+        assert_eq!(d["id"].as_i64(), Some(id));
+        assert_eq!(d["due_date"], "2026-01-01", "due_date stays the DTSTART");
+    }
+}
+
+#[tokio::test]
+async fn completing_one_monthly_occurrence_leaves_the_others_open() {
+    let app = test_app().await;
+
+    let task = create_task(
+        &app,
+        json!({"title":"Report","due_date":"2026-01-01","recurrence_rule":"FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    // Complete only the Feb 2 occurrence.
+    let (status, done) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{id}/completions?occurrence_date=2026-02-02"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(done["completed"], true);
+
+    let (_, range) = send(&app, get("/api/tasks?from=2026-01-01&to=2026-03-31")).await;
+    let done_for: Vec<bool> = range
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|d| d["completed"].as_bool().expect("completed"))
+        .collect();
+    assert_eq!(done_for, [false, true, false]);
+
+    // Reopen Feb 2.
+    let (status, reopened) = send(
+        &app,
+        empty_req(
+            "DELETE",
+            &format!("/api/tasks/{id}/completions?occurrence_date=2026-02-02"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(reopened["completed"], false);
+}
+
+#[tokio::test]
+async fn a_monthly_last_day_task_tracks_short_months() {
+    let app = test_app().await;
+
+    // BYMONTHDAY=-1 must validate and yield the real last day of each month.
+    create_task(
+        &app,
+        json!({"title":"Close books","due_date":"2026-01-01","recurrence_rule":"FREQ=MONTHLY;BYMONTHDAY=-1"}),
+    )
+    .await;
+
+    let (_, range) = send(&app, get("/api/tasks?from=2026-01-01&to=2026-03-31")).await;
+    let dates: Vec<&str> = range
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|d| d["occurrence_date"].as_str().expect("occurrence_date"))
+        .collect();
+    assert_eq!(dates, ["2026-01-31", "2026-02-28", "2026-03-31"]);
 }
 
 #[tokio::test]
@@ -712,4 +1004,276 @@ async fn search_with_blank_or_missing_query_is_an_empty_list() {
             "{uri} should return no rows"
         );
     }
+}
+
+// --- Bulk edit (Inbox multi-select) ---
+
+async fn create_label(app: &Router, name: &str, color: &str) -> i64 {
+    let (status, label) = send(
+        app,
+        json_req("POST", "/api/labels", json!({"name": name, "color": color})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create label failed: {label}");
+    label["id"].as_i64().expect("label id")
+}
+
+#[tokio::test]
+async fn batch_sets_a_label_on_many_tasks_and_clears_it_again() {
+    let app = test_app().await;
+    let label = create_label(&app, "Errands", "#6F8F6B").await;
+
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let b = create_task(&app, json!({"title":"B"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let c = create_task(&app, json!({"title":"C"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    // Label A and B (leave C untouched).
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"label","label_id":label}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    let label_of = |id: i64| -> Value {
+        inbox
+            .as_array()
+            .expect("array")
+            .iter()
+            .find(|t| t["id"].as_i64() == Some(id))
+            .expect("task present")["label_id"]
+            .clone()
+    };
+    assert_eq!(label_of(a), json!(label));
+    assert_eq!(label_of(b), json!(label));
+    assert_eq!(label_of(c), Value::Null, "C was not in the batch");
+
+    // A null label clears it on the selected tasks.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"label","label_id":null}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    for t in inbox.as_array().expect("array") {
+        assert_eq!(t["label_id"], Value::Null, "all labels cleared");
+    }
+}
+
+#[tokio::test]
+async fn batch_schedule_moves_tasks_out_of_the_inbox_onto_a_day() {
+    let app = test_app().await;
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let b = create_task(&app, json!({"title":"B"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"schedule","due_date":"2026-07-04"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Both gone from the Inbox, both on their new day.
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(inbox.as_array().expect("array").len(), 0);
+    let (_, day) = send(&app, get("/api/tasks?date=2026-07-04")).await;
+    assert_eq!(day.as_array().expect("array").len(), 2);
+}
+
+#[tokio::test]
+async fn batch_complete_marks_every_selected_task_done() {
+    let app = test_app().await;
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let b = create_task(&app, json!({"title":"B"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"complete"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Completed Inbox tasks stay in the list, but flagged done.
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    for t in inbox.as_array().expect("array") {
+        assert_eq!(t["completed"], true);
+    }
+
+    // Re-completing is idempotent (the guarded insert is a no-op).
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"complete"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn batch_delete_removes_every_selected_task() {
+    let app = test_app().await;
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let b = create_task(&app, json!({"title":"B"})).await["id"]
+        .as_i64()
+        .expect("id");
+    create_task(&app, json!({"title":"Keep"})).await;
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, b], "op":{"type":"delete"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    let titles: Vec<&str> = inbox
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|t| t["title"].as_str().expect("title"))
+        .collect();
+    assert_eq!(titles, ["Keep"], "only the unselected task remains");
+}
+
+#[tokio::test]
+async fn batch_with_an_unknown_id_rolls_the_whole_batch_back() {
+    let app = test_app().await;
+    let label = create_label(&app, "Tag", "#6F8F6B").await;
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    // One real id and one bogus id: the batch must 404 and change nothing.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, 9999], "op":{"type":"label","label_id":label}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(
+        inbox.as_array().expect("array")[0]["label_id"],
+        Value::Null,
+        "the failed batch left A unlabeled"
+    );
+
+    // Same atomicity for delete: A survives a batch that references a bad id.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a, 9999], "op":{"type":"delete"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(
+        inbox.as_array().expect("array").len(),
+        1,
+        "A was not deleted"
+    );
+}
+
+#[tokio::test]
+async fn batch_rejects_a_bad_date_or_an_unknown_label() {
+    let app = test_app().await;
+    let a = create_task(&app, json!({"title":"A"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a], "op":{"type":"schedule","due_date":"2026-13-40"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "impossible date");
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[a], "op":{"type":"label","label_id":999}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "unknown label");
+
+    // The rejected ops left A unchanged in the Inbox.
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    let task = &inbox.as_array().expect("array")[0];
+    assert_eq!(task["due_date"], Value::Null);
+    assert_eq!(task["label_id"], Value::Null);
+}
+
+#[tokio::test]
+async fn batch_with_no_ids_is_a_harmless_no_op() {
+    let app = test_app().await;
+    create_task(&app, json!({"title":"A"})).await;
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[], "op":{"type":"delete"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(inbox.as_array().expect("array").len(), 1, "nothing deleted");
 }

@@ -10,9 +10,10 @@ pub mod routes;
 pub mod services;
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Context;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use tracing_subscriber::EnvFilter;
 
 /// Boot the server: configure logging, open the pool, run migrations, serve.
@@ -36,7 +37,18 @@ pub async fn run() -> anyhow::Result<()> {
         None => SqliteConnectOptions::new().filename(cfg.data_dir.join("stino.db")),
     }
     .create_if_missing(true)
-    .foreign_keys(true);
+    .foreign_keys(true)
+    // WAL + NORMAL: commits append to the write-ahead log and defer fsync to
+    // checkpoint instead of fsync-ing on every autocommit (the default
+    // DELETE/FULL). A bulk import is thousands of single-row inserts; under the
+    // default that's thousands of fsyncs (minutes), under WAL it's a handful.
+    // Durable across app/OS crashes; only a power loss mid-checkpoint risks the
+    // last commits — fine for a single-user personal app (Hard Rule 8 holds).
+    .journal_mode(SqliteJournalMode::Wal)
+    .synchronous(SqliteSynchronous::Normal)
+    // With up to 5 pooled connections one writer can hold the lock; wait for it
+    // rather than failing the request with SQLITE_BUSY.
+    .busy_timeout(Duration::from_secs(5));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)

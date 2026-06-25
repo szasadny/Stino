@@ -1,65 +1,11 @@
 //! Integration tests for the label API, driven through the real router against a
 //! fresh in-memory SQLite database (migrations applied per test for isolation).
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use axum::Router;
-use http_body_util::BodyExt;
+use axum::http::StatusCode;
 use serde_json::{json, Value};
-use sqlx::sqlite::SqlitePoolOptions;
-use std::path::Path;
-use tower::ServiceExt;
 
-use stino_backend::routes;
-
-async fn test_app() -> Router {
-    // max_connections(1) keeps the single in-memory DB alive for the whole test;
-    // min_connections(1) stops it being reaped between requests.
-    let pool = SqlitePoolOptions::new()
-        .min_connections(1)
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .expect("open in-memory sqlite");
-    sqlx::migrate!().run(&pool).await.expect("run migrations");
-    routes::router(pool, Path::new("."))
-}
-
-/// Send a request through a clone of the router and decode the JSON body (empty
-/// bodies, e.g. 204, decode to `Value::Null`).
-async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
-    let res = app.clone().oneshot(req).await.expect("router response");
-    let status = res.status();
-    let bytes = res
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes();
-    let body = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).expect("json body")
-    };
-    (status, body)
-}
-
-fn json_req(method: &str, uri: &str, body: Value) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header("content-type", "application/json")
-        .body(Body::from(body.to_string()))
-        .expect("build request")
-}
-
-fn get(uri: &str) -> Request<Body> {
-    Request::builder()
-        .method("GET")
-        .uri(uri)
-        .body(Body::empty())
-        .expect("build request")
-}
+mod common;
+use common::*;
 
 #[tokio::test]
 async fn create_list_update_delete_lifecycle() {
@@ -109,6 +55,70 @@ async fn create_list_update_delete_lifecycle() {
 
     let (_, list) = send(&app, get("/api/labels")).await;
     assert_eq!(list.as_array().expect("array").len(), 0);
+}
+
+#[tokio::test]
+async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
+    let app = test_app().await;
+
+    // Absent emoji on create ⇒ null.
+    let (status, plain) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/labels",
+            json!({"name":"Plain","color":"#2F5D50"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(plain["emoji"], Value::Null);
+
+    // Emoji on create round-trips, and is trimmed.
+    let (status, home) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/labels",
+            json!({"name":"Home","color":"#6F8F6B","emoji":" 🏠 "}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(home["emoji"], "🏠");
+    let id = home["id"].as_i64().expect("id");
+
+    // A PATCH that omits emoji leaves it unchanged.
+    let (_, kept) = send(
+        &app,
+        json_req(
+            "PATCH",
+            &format!("/api/labels/{id}"),
+            json!({"name":"House"}),
+        ),
+    )
+    .await;
+    assert_eq!(kept["emoji"], "🏠", "omitted emoji must be left unchanged");
+
+    // An explicit null clears it.
+    let (_, cleared) = send(
+        &app,
+        json_req("PATCH", &format!("/api/labels/{id}"), json!({"emoji":null})),
+    )
+    .await;
+    assert_eq!(cleared["emoji"], Value::Null, "null emoji must clear it");
+
+    // A pasted multi-glyph string is rejected.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/labels",
+            json!({"name":"Too long","color":"#2F5D50","emoji":"way too many characters"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -164,6 +174,64 @@ async fn sort_order_appends_in_creation_order() {
     let arr = list.as_array().expect("array");
     assert_eq!(arr[0]["name"], "A");
     assert_eq!(arr[1]["name"], "B");
+}
+
+#[tokio::test]
+async fn reorder_persists_a_new_label_order_and_rolls_back_unknown_ids() {
+    let app = test_app().await;
+
+    // Three labels, created A, B, C (sort_order 0, 1, 2).
+    let id = |v: &Value| v["id"].as_i64().expect("id");
+    let (_, a) = send(
+        &app,
+        json_req("POST", "/api/labels", json!({"name":"A","color":"#2F5D50"})),
+    )
+    .await;
+    let (_, b) = send(
+        &app,
+        json_req("POST", "/api/labels", json!({"name":"B","color":"#6F8F6B"})),
+    )
+    .await;
+    let (_, c) = send(
+        &app,
+        json_req("POST", "/api/labels", json!({"name":"C","color":"#4F7A4A"})),
+    )
+    .await;
+    let (a, b, c) = (id(&a), id(&b), id(&c));
+
+    let names = |list: &Value| -> Vec<String> {
+        list.as_array()
+            .expect("array")
+            .iter()
+            .map(|l| l["name"].as_str().expect("name").to_string())
+            .collect()
+    };
+
+    // Drag C to the front: C, A, B.
+    let (status, _) = send(
+        &app,
+        json_req("PATCH", "/api/labels/reorder", json!({"ids":[c, a, b]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (_, list) = send(&app, get("/api/labels")).await;
+    assert_eq!(names(&list), ["C", "A", "B"]);
+
+    // An unknown id 404s and the whole batch rolls back (order unchanged).
+    let (status, _) = send(
+        &app,
+        json_req("PATCH", "/api/labels/reorder", json!({"ids":[a, 9999]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (_, list) = send(&app, get("/api/labels")).await;
+    assert_eq!(
+        names(&list),
+        ["C", "A", "B"],
+        "the failed reorder changed nothing"
+    );
 }
 
 #[tokio::test]

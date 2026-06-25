@@ -1,6 +1,6 @@
 // The ONE place the app talks HTTP. Every endpoint gets a typed function here;
 // components import from this module and never call fetch directly.
-import type { Health, ImportSummary, Label, Task } from './types'
+import type { BatchOp, Health, ImportSummary, Label, Task } from './types'
 
 const BASE = '/api'
 
@@ -33,9 +33,12 @@ async function errorMessage(res: Response, path: string, init?: RequestInit): Pr
   return `${init?.method ?? 'GET'} ${path} failed: ${res.status}`
 }
 
+// For an update, `emoji` set to `null` clears it while an omitted key leaves it
+// unchanged — the backend distinguishes the two (like the task fields below).
 export interface LabelInput {
   name: string
   color: string
+  emoji: string | null
 }
 
 // Task create/update payloads. For an update, a field set to `null` clears it
@@ -68,6 +71,11 @@ export const api = {
     update: (id: number, input: Partial<LabelInput>) =>
       http<Label>(`/labels/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     remove: (id: number) => http<void>(`/labels/${id}`, { method: 'DELETE' }),
+    // Persist a manual label order: `ids` is the full ordered list of label ids,
+    // and each label's sort_order becomes its position. Drives the day view's
+    // label-section order and the Labels manager.
+    reorder: (ids: number[]) =>
+      http<void>('/labels/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
   },
   tasks: {
     // Inbox = unscheduled tasks; `forDate` = everything on one local day;
@@ -80,11 +88,24 @@ export const api = {
     update: (id: number, input: Partial<TaskInput>) =>
       http<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     remove: (id: number) => http<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    // Detach ONE occurrence of a recurring task onto another day: the series keeps
+    // repeating elsewhere, and this instance becomes its own one-off task on `newDate`.
+    // Returns the new detached task.
+    moveOccurrence: (id: number, occurrenceDate: string, newDate: string) =>
+      http<Task>(`/tasks/${id}/move_occurrence`, {
+        method: 'POST',
+        body: JSON.stringify({ occurrence_date: occurrenceDate, new_date: newDate }),
+      }),
     // Persist a manual order for untimed tasks: `ids` is the full ordered list,
     // and each task's sort_order becomes its position. Timed/recurring tasks keep
     // their time-sort, so only untimed ids are sent.
     reorder: (ids: number[]) =>
       http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+    // Apply one bulk operation (set label, schedule, complete, delete) to many
+    // tasks at once — the Inbox multi-select. Atomic on the server: an unknown
+    // id fails the whole batch.
+    batch: (ids: number[], op: BatchOp) =>
+      http<void>('/tasks/batch', { method: 'POST', body: JSON.stringify({ ids, op }) }),
     // Completing/reopening targets a single occurrence (see `occurrenceQuery`).
     // The response is that occurrence, so the caller updates exactly its row.
     complete: (id: number, occurrenceDate?: string | null) =>

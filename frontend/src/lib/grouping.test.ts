@@ -6,6 +6,7 @@ const label = (id: number, sort_order: number): Label => ({
   id,
   name: `L${id}`,
   color: '#000000',
+  emoji: null,
   sort_order,
 })
 

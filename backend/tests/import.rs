@@ -3,50 +3,10 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use axum::Router;
-use http_body_util::BodyExt;
 use serde_json::Value;
-use sqlx::sqlite::SqlitePoolOptions;
-use std::path::Path;
-use tower::ServiceExt;
 
-use stino_backend::routes;
-
-async fn test_app() -> Router {
-    let pool = SqlitePoolOptions::new()
-        .min_connections(1)
-        .max_connections(1)
-        .connect("sqlite::memory:")
-        .await
-        .expect("open in-memory sqlite");
-    sqlx::migrate!().run(&pool).await.expect("run migrations");
-    routes::router(pool, Path::new("."))
-}
-
-async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
-    let res = app.clone().oneshot(req).await.expect("router response");
-    let status = res.status();
-    let bytes = res
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes();
-    let body = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).expect("json body")
-    };
-    (status, body)
-}
-
-fn get(uri: &str) -> Request<Body> {
-    Request::builder()
-        .method("GET")
-        .uri(uri)
-        .body(Body::empty())
-        .expect("build request")
-}
+mod common;
+use common::*;
 
 /// POST a raw CSV body to the import endpoint, exactly as the SPA uploads a file.
 fn import_req(csv: &str) -> Request<Body> {
@@ -149,6 +109,36 @@ async fn recurring_task_expands_across_the_window() {
         "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"
     );
     assert_eq!(standups[0]["due_time"], "09:00");
+}
+
+#[tokio::test]
+async fn a_recurrence_with_an_until_end_date_imports_and_stops_on_time() {
+    // Regression: TickTick exports a recurrence end date as a bare `UNTIL=YYYYMMDD`
+    // (an RFC-5545 DATE value). Before the fix, the `rrule` build rejected it
+    // against our UTC-midnight DATE-TIME DTSTART, so every "repeat until" task
+    // silently lost its recurrence on import. It must now import and expand, with
+    // occurrences stopping on (and including) the UNTIL date.
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","Sprint","","","false","","2026-06-29T09:00:00+0000","","RRULE:FREQ=WEEKLY;WKST=MO;UNTIL=20260713;INTERVAL=1;BYDAY=MO","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"#;
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+    assert_eq!(summary["created"]["tasks"], 1);
+
+    // The recurrence survived import (the rule is stored, not dropped)...
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-29&to=2026-08-31")).await;
+    let sprints = titled(&range, "Sprint");
+    // ...and stops on its UNTIL date: three Mondays (29 Jun, 6 + 13 Jul), no more.
+    assert_eq!(sprints.len(), 3, "expected the series to stop at UNTIL");
+    assert_eq!(sprints[0]["occurrence_date"], "2026-06-29");
+    assert_eq!(sprints[2]["occurrence_date"], "2026-07-13");
+    assert_eq!(
+        sprints[0]["recurrence_rule"],
+        "FREQ=WEEKLY;WKST=MO;UNTIL=20260713;INTERVAL=1;BYDAY=MO"
+    );
 }
 
 #[tokio::test]

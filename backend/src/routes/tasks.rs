@@ -5,10 +5,10 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
-use super::AppState;
-use crate::domain::{NewTask, TaskPatch};
+use super::{double_option, AppState};
+use crate::domain::{BatchOp, NewTask, TaskPatch};
 use crate::error::{AppError, AppResult};
 use crate::services::task_service;
 
@@ -55,6 +55,14 @@ pub struct CompletionParams {
     pub occurrence_date: Option<String>,
 }
 
+/// Move one occurrence of a recurring task: `occurrence_date` is the instance to
+/// detach, `new_date` the day it moves to. The series keeps repeating elsewhere.
+#[derive(Deserialize)]
+pub struct MoveOccurrence {
+    pub occurrence_date: String,
+    pub new_date: String,
+}
+
 /// Reorder payload: the full ordered list of (untimed) task ids for a list/day.
 /// Each task's `sort_order` becomes its position in this list.
 #[derive(Deserialize)]
@@ -62,15 +70,28 @@ pub struct ReorderTasks {
     pub ids: Vec<i64>,
 }
 
-/// Deserialize so that a present `null` becomes `Some(None)` (clear) rather than
-/// `None` (absent) — serde's default collapses both to `None`. Combined with
-/// `#[serde(default)]`, an omitted field stays `None`.
-fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
-where
-    T: Deserialize<'de>,
-    D: Deserializer<'de>,
-{
-    Option::<T>::deserialize(deserializer).map(Some)
+/// Bulk-edit payload (Inbox multi-select): the target `ids` and one `op` to apply
+/// to all of them.
+#[derive(Deserialize)]
+pub struct BatchTasks {
+    pub ids: Vec<i64>,
+    pub op: BatchOpBody,
+}
+
+/// The wire form of a [`BatchOp`], tagged by `type`. `label_id` is nullable
+/// (a `null`/absent label clears it); `schedule` carries the date to set.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BatchOpBody {
+    Label {
+        #[serde(default)]
+        label_id: Option<i64>,
+    },
+    Schedule {
+        due_date: String,
+    },
+    Complete,
+    Delete,
 }
 
 pub async fn list(
@@ -144,6 +165,30 @@ pub async fn reorder(
 ) -> AppResult<impl IntoResponse> {
     task_service::reorder(&state.pool, &body.ids).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn batch(
+    State(state): State<AppState>,
+    Json(body): Json<BatchTasks>,
+) -> AppResult<impl IntoResponse> {
+    let op = match body.op {
+        BatchOpBody::Label { label_id } => BatchOp::SetLabel(label_id),
+        BatchOpBody::Schedule { due_date } => BatchOp::Schedule(due_date),
+        BatchOpBody::Complete => BatchOp::Complete,
+        BatchOpBody::Delete => BatchOp::Delete,
+    };
+    task_service::batch(&state.pool, &body.ids, op).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn move_occurrence(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<MoveOccurrence>,
+) -> AppResult<impl IntoResponse> {
+    let task =
+        task_service::move_occurrence(&state.pool, id, body.occurrence_date, body.new_date).await?;
+    Ok((StatusCode::CREATED, Json(task)))
 }
 
 pub async fn complete(

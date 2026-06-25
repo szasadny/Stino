@@ -1,85 +1,123 @@
 <script lang="ts">
-  // One day in the month grid: the day number plus a compact preview of that
-  // day's tasks. Wide screens show up to three titles with a colored dot and a
-  // "+N more" overflow; narrow screens collapse to a row of dots so the month
-  // stays legible on a phone. The whole cell is the tap target (opens the day).
+  // One day in the month grid: a wide "open day" header (the day number) plus that
+  // day's tasks as label-colored pills. The pills live in a svelte-dnd-action zone,
+  // so a non-recurring task can be dragged to another day's cell (the parent persists
+  // the new date); a plain tap on a pill opens the day sheet. On a phone the pills
+  // collapse to slim colored bars so the month stays legible.
+  //
+  // The zone must render EVERY item (svelte-dnd-action needs child↔item parity, or a
+  // dropped task could vanish), so we never slice — the list is clipped with
+  // overflow-hidden and a "+N more" footer hints at the rest.
+  //
+  // Tapping the day number (or "+N more") opens the day sheet via `onSelect`;
+  // tapping a task pill edits that task via `onEditTask`.
+  import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
+  import type { CellItem } from '../calendar-board'
   import { formatDayFull } from '../date'
-  import { MONTH_CELL_MAX_DOTS, MONTH_CELL_MAX_TITLES } from '../constants'
-  import TaskDot from './TaskDot.svelte'
-
-  type Decorated = { task: Task; label: Label | undefined }
+  import { DND_FLIP_MS, MONTH_CELL_MAX_TITLES } from '../constants'
+  import TaskPill from './TaskPill.svelte'
+  import QuickAddButton from './QuickAddButton.svelte'
 
   let {
     date,
-    tasks,
+    dateKey,
+    items,
     inCurrentMonth,
     isToday,
+    pending = false,
     labelFor,
     onSelect,
+    onAdd,
+    onEditTask,
+    onToggle,
+    onConsider,
+    onFinalize,
   }: {
     date: Date
-    tasks: Task[]
+    dateKey: string
+    items: CellItem[]
     inCurrentMonth: boolean
     isToday: boolean
+    // While a mutation is in flight, lock drag-start so a move can't race it.
+    pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
+    // Add a task straight onto this day (the header "+"), skipping the day sheet.
+    onAdd: () => void
+    onEditTask: (task: Task) => void
+    onToggle: (task: Task) => void
+    onConsider: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
+    onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  const decorated = $derived<Decorated[]>(tasks.map((task) => ({ task, label: labelFor(task) })))
-  const titles = $derived(decorated.slice(0, MONTH_CELL_MAX_TITLES))
-  const titleOverflow = $derived(decorated.length - titles.length)
-  const dots = $derived(decorated.slice(0, MONTH_CELL_MAX_DOTS))
-  const dotOverflow = $derived(decorated.length - dots.length)
-
-  const label = $derived(
-    `${formatDayFull(date)}, ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}`,
+  const overflow = $derived(items.length - MONTH_CELL_MAX_TITLES)
+  const ariaLabel = $derived(
+    `${formatDayFull(date)}, ${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
   )
 </script>
 
-<button
-  type="button"
-  onclick={onSelect}
-  aria-label={label}
-  class="flex h-full min-h-[4.25rem] w-full flex-col gap-1 rounded-lg border p-1 text-left transition hover:border-pine/60 hover:bg-pine/5 sm:min-h-[6.5rem] sm:p-1.5
+<div
+  class="group flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden rounded-lg border p-1 sm:p-1.5
     {inCurrentMonth ? 'bg-surface' : 'bg-fog/40'}
     {isToday ? 'border-pine/40' : 'border-lichen'}"
 >
-  <span
-    class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums
-      {isToday ? 'bg-pine text-surface' : inCurrentMonth ? 'text-ink' : 'text-sage/60'}"
+  <div class="flex shrink-0 items-center justify-between">
+    <button
+      type="button"
+      onclick={onSelect}
+      aria-label={ariaLabel}
+      class="grid h-6 w-6 place-items-center rounded-full text-xs font-semibold tabular-nums transition
+        {isToday
+        ? 'bg-pine text-surface hover:bg-pine-deep'
+        : inCurrentMonth
+          ? 'text-ink hover:bg-pine/10 hover:text-pine-deep'
+          : 'text-sage/60 hover:bg-pine/10 hover:text-pine-deep'}"
+    >
+      {date.getDate()}
+    </button>
+
+    <!-- Quick-add straight onto this day. Desktop: revealed on cell hover/focus so the grid
+         stays calm. Hidden on a phone here (the month cells are tiny) — tap the day to open
+         its sheet, which has its own "Add a task". -->
+    <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" />
+  </div>
+
+  <ul
+    class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
+    use:dragHandleZone={{
+      items,
+      type: 'calendar',
+      flipDurationMs: DND_FLIP_MS,
+      delayTouchStart: 150,
+      dragDisabled: pending,
+      dropTargetStyle: {},
+      dropTargetClasses: ['rounded-md', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
+    }}
+    onconsider={(e) => onConsider(dateKey, e)}
+    onfinalize={(e) => onFinalize(dateKey, e)}
   >
-    {date.getDate()}
-  </span>
-
-  <!-- Wide screens: a few titles + overflow count -->
-  <span class="hidden min-h-0 flex-1 flex-col gap-0.5 sm:flex">
-    {#each titles as item (`${item.task.id}:${item.task.occurrence_date ?? ''}`)}
-      <span class="flex items-center gap-1">
-        <TaskDot task={item.task} label={item.label} />
-        <span
-          class="truncate text-[11px] leading-tight {item.task.completed
-            ? 'text-sage line-through'
-            : 'text-ink'}"
-        >
-          {item.task.title}
-        </span>
-      </span>
+    {#each items as item (item.id)}
+      <li>
+        <TaskPill
+          task={item.task}
+          label={labelFor(item.task)}
+          density="auto"
+          draggable={true}
+          onOpen={() => onEditTask(item.task)}
+          {onToggle}
+        />
+      </li>
     {/each}
-    {#if titleOverflow > 0}
-      <span class="pl-2.5 text-[11px] leading-tight text-sage">+{titleOverflow} more</span>
-    {/if}
-  </span>
+  </ul>
 
-  <!-- Narrow screens: dots only -->
-  {#if tasks.length > 0}
-    <span class="flex flex-wrap items-center gap-1 sm:hidden">
-      {#each dots as item (`${item.task.id}:${item.task.occurrence_date ?? ''}`)}
-        <TaskDot task={item.task} label={item.label} />
-      {/each}
-      {#if dotOverflow > 0}
-        <span class="text-[10px] leading-none text-sage">+{dotOverflow}</span>
-      {/if}
-    </span>
+  {#if overflow > 0}
+    <button
+      type="button"
+      onclick={onSelect}
+      class="shrink-0 pl-0.5 text-left text-[11px] leading-tight text-sage transition hover:text-pine-deep"
+    >
+      +{overflow} more
+    </button>
   {/if}
-</button>
+</div>

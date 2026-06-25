@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT occurrence_date AS \"occurrence_date!\"\n           FROM task_exception\n           WHERE task_id = ? AND occurrence_date BETWEEN ? AND ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "occurrence_date!",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "41e54438d5a2d011238aac288464ae27f4935f7b58eac4ed8d237afce34f3679"
+}

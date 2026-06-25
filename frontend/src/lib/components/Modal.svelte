@@ -36,6 +36,10 @@
     if (!dialogEl) return
     if (open) {
       if (!dialogEl.open) {
+        // `closedby="any"` gives native light-dismiss (backdrop click) where
+        // supported; set imperatively so it isn't fought by Svelte's attribute
+        // typing. `handleBackdropClick` is the fallback for browsers without it.
+        dialogEl.setAttribute('closedby', 'any')
         dialogEl.showModal()
         onOpen?.()
       }
@@ -43,11 +47,27 @@
       dialogEl.close()
     }
   })
+
+  // Fallback light-dismiss for browsers lacking `closedby` (notably Safari):
+  // a click whose target is the <dialog> itself and lands outside its content
+  // box is a backdrop click, so close.
+  function handleBackdropClick(event: MouseEvent) {
+    if (!dialogEl || 'closedBy' in HTMLDialogElement.prototype) return
+    if (event.target !== dialogEl) return
+    const rect = dialogEl.getBoundingClientRect()
+    const insideContent =
+      rect.top <= event.clientY &&
+      event.clientY <= rect.top + rect.height &&
+      rect.left <= event.clientX &&
+      event.clientX <= rect.left + rect.width
+    if (!insideContent) onClose()
+  }
 </script>
 
 <dialog
   bind:this={dialogEl}
   onclose={onClose}
+  onclick={handleBackdropClick}
   class="border border-lichen bg-surface p-0 text-ink shadow-xl {panelClass}"
 >
   <div class="flex flex-col {containerClass}">

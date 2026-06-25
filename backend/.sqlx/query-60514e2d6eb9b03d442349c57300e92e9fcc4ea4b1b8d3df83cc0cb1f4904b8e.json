@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"\n           FROM label\n           WHERE name = ? COLLATE NOCASE",
+  "query": "UPDATE label\n           SET name = ?, color = ?, emoji = ?, updated_at = datetime('now')\n           WHERE id = ?\n           RETURNING id AS \"id!\", name AS \"name!\", color AS \"color!\", emoji, sort_order AS \"sort_order!\"",
   "describe": {
     "columns": [
       {
@@ -19,20 +19,26 @@
         "type_info": "Text"
       },
       {
-        "name": "sort_order!",
+        "name": "emoji",
         "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 4,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "85a84080c5100e387032326f15e6d2707eb951dc4da40314fdfcf50a8a9a5888"
+  "hash": "60514e2d6eb9b03d442349c57300e92e9fcc4ea4b1b8d3df83cc0cb1f4904b8e"
 }

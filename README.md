@@ -1,12 +1,12 @@
 # Stinō
 
-A personal, self-hosted, open-source replacement for TickTick.
+A self-hosted, open-source replacement for TickTick.
 
-I know, I know. There are already a million todo apps out there, but for some reason every free, open-source alternative falls short of what I want. 
+I know, I know. There are already a million todo apps out there, but for some reason every free, open-source alternative falls short of what I want. So to resolve this, I vibecode this project as a TickTick alternative that I keep up-to-date through leftover tokens.
 
-To resolve this, I made this project as a totally vibecoded TickTick alternative that I keep up-to-date through leftover tokens.
+It's purely made for my personal use: no auth (I connect through Tailscale) and I only built the features I actually used within TickTick, while adding some personal tweaks to it.
 
-It's made for my purely personal use: no auth (I host through Tailscale) and I only built the features I actually use within TickTick with some personal tweaks that I wanted. If something you need is missing, feel free to fork it and use it as your own.
+Feel free to fork it and use it as your own!
 
 ## Stack
 
@@ -17,7 +17,8 @@ the contract.
 ## Run it
 
 ```bash
-docker compose up --build
+git clone https://github.com/szasadny/Stino.git && cd Stino
+docker compose up -d --build
 # → http://localhost:8080   (data persists in ./data/stino.db)
 ```
 

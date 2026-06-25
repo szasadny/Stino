@@ -4,12 +4,13 @@
 
 use sqlx::SqlitePool;
 
+use super::assert_affected;
 use crate::domain::Label;
 
 pub async fn list(pool: &SqlitePool) -> Result<Vec<Label>, sqlx::Error> {
     sqlx::query_as!(
         Label,
-        r#"SELECT id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!"
+        r#"SELECT id AS "id!", name AS "name!", color AS "color!", emoji, sort_order AS "sort_order!"
            FROM label
            ORDER BY sort_order, id"#
     )
@@ -20,7 +21,7 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Label>, sqlx::Error> {
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Label>, sqlx::Error> {
     sqlx::query_as!(
         Label,
-        r#"SELECT id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!"
+        r#"SELECT id AS "id!", name AS "name!", color AS "color!", emoji, sort_order AS "sort_order!"
            FROM label
            WHERE id = ?"#,
         id
@@ -35,7 +36,7 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Label>, sqlx::Erro
 pub async fn find_by_name(pool: &SqlitePool, name: &str) -> Result<Option<Label>, sqlx::Error> {
     sqlx::query_as!(
         Label,
-        r#"SELECT id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!"
+        r#"SELECT id AS "id!", name AS "name!", color AS "color!", emoji, sort_order AS "sort_order!"
            FROM label
            WHERE name = ? COLLATE NOCASE"#,
         name
@@ -55,40 +56,67 @@ pub async fn insert(
     pool: &SqlitePool,
     name: &str,
     color: &str,
+    emoji: Option<&str>,
     sort_order: i64,
 ) -> Result<Label, sqlx::Error> {
     sqlx::query_as!(
         Label,
-        r#"INSERT INTO label (name, color, sort_order)
-           VALUES (?, ?, ?)
-           RETURNING id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!""#,
+        r#"INSERT INTO label (name, color, emoji, sort_order)
+           VALUES (?, ?, ?, ?)
+           RETURNING id AS "id!", name AS "name!", color AS "color!", emoji, sort_order AS "sort_order!""#,
         name,
         color,
+        emoji,
         sort_order
     )
     .fetch_one(pool)
     .await
 }
 
-/// Update name and color; returns `None` if no label has that id.
+/// Update name, color, and emoji; returns `None` if no label has that id.
 pub async fn update(
     pool: &SqlitePool,
     id: i64,
     name: &str,
     color: &str,
+    emoji: Option<&str>,
 ) -> Result<Option<Label>, sqlx::Error> {
     sqlx::query_as!(
         Label,
         r#"UPDATE label
-           SET name = ?, color = ?, updated_at = datetime('now')
+           SET name = ?, color = ?, emoji = ?, updated_at = datetime('now')
            WHERE id = ?
-           RETURNING id AS "id!", name AS "name!", color AS "color!", sort_order AS "sort_order!""#,
+           RETURNING id AS "id!", name AS "name!", color AS "color!", emoji, sort_order AS "sort_order!""#,
         name,
         color,
+        emoji,
         id
     )
     .fetch_optional(pool)
     .await
+}
+
+/// Persist a new label order: set each label's `sort_order` to its position in
+/// `ids` (0-based) in one transaction, so the list reorders atomically. Returns
+/// `RowNotFound` — rolling the whole batch back — if any id doesn't exist. Mirrors
+/// `task::reorder`; the label `sort_order` drives both the Labels manager and the
+/// grouped day view's section order.
+pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    for (index, id) in ids.iter().enumerate() {
+        let position = index as i64;
+        let affected = sqlx::query!(
+            "UPDATE label SET sort_order = ?, updated_at = datetime('now') WHERE id = ?",
+            position,
+            id
+        )
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        assert_affected(affected)?;
+    }
+    tx.commit().await?;
+    Ok(())
 }
 
 /// Returns `true` if a row was deleted, `false` if no label had that id.

@@ -5,6 +5,7 @@
   import { api } from '../api'
   import type { ImportSummary } from '../types'
   import { errorMessage } from '../errors'
+  import ErrorAlert from './ErrorAlert.svelte'
   import Modal from './Modal.svelte'
 
   let { open, onClose }: { open: boolean; onClose: () => void } = $props()
@@ -66,14 +67,7 @@
   title="Import from TickTick"
   subtitle="Bring in a CSV backup. Only adds — never deletes."
 >
-  {#if error}
-    <p
-      role="alert"
-      class="mx-5 mt-4 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-bark"
-    >
-      {error}
-    </p>
-  {/if}
+  <ErrorAlert {error} class="mx-5 mt-4" />
 
   <div class="px-5 py-5">
     {#if summary}

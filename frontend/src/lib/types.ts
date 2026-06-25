@@ -9,6 +9,7 @@ export interface Label {
   id: number
   name: string
   color: string
+  emoji: string | null // optional glyph shown beside the color dot; null => color-only
   sort_order: number
 }
 
@@ -19,6 +20,16 @@ export interface ImportSummary {
   created: { tasks: number; labels: number; completions: number }
   skipped: number
 }
+
+// A bulk operation applied to many tasks at once (Inbox multi-select), sent to
+// POST /tasks/batch. Mirrors the backend `BatchOpBody` tagged enum: `type` is
+// the discriminator. `label_id: null` clears the label; `schedule` moves the
+// tasks out of the Inbox onto `due_date`.
+export type BatchOp =
+  | { type: 'label'; label_id: number | null }
+  | { type: 'schedule'; due_date: string }
+  | { type: 'complete' }
+  | { type: 'delete' }
 
 export interface Task {
   id: number

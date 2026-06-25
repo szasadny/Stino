@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE label\n           SET name = ?, color = ?, updated_at = datetime('now')\n           WHERE id = ?\n           RETURNING id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"",
+  "query": "INSERT INTO label (name, color, emoji, sort_order)\n           VALUES (?, ?, ?, ?)\n           RETURNING id AS \"id!\", name AS \"name!\", color AS \"color!\", emoji, sort_order AS \"sort_order!\"",
   "describe": {
     "columns": [
       {
@@ -19,20 +19,26 @@
         "type_info": "Text"
       },
       {
-        "name": "sort_order!",
+        "name": "emoji",
         "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 4,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 4
     },
     "nullable": [
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "17be7c37e61204b08bee15b4e6766940aabd7363fd958642f07cf2efaf275a99"
+  "hash": "75bf7901825390db48403167972df0c3a193105bca4f44d1b3690185d3b1f75a"
 }

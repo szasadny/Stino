@@ -8,8 +8,8 @@ use sqlx::SqlitePool;
 
 use crate::config;
 use crate::db;
-use crate::domain::{NewTask, Task, TaskPatch};
-use crate::error::{AppError, AppResult};
+use crate::domain::{BatchOp, NewTask, Task, TaskPatch};
+use crate::error::{map_row_not_found, AppError, AppResult};
 use crate::services::recurrence;
 use crate::services::validation::{
     clean_optional, non_empty_capped, parse_date, validate_date, validate_time,
@@ -74,6 +74,10 @@ pub async fn create(pool: &SqlitePool, input: NewTask) -> AppResult<Task> {
 /// clears a nullable field (see [`TaskPatch`]). 404 if the id is unknown.
 pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<Task> {
     let current = db::task::get(pool, id).await?.ok_or(AppError::NotFound)?;
+    // Capture the pre-update date/recurrence before the merge below consumes
+    // `current`; the completion migration after the write needs the old values.
+    let prev_due_date = current.due_date.clone();
+    let was_recurring = current.recurrence_rule.is_some();
 
     let title = match patch.title {
         Some(t) => non_empty_capped(&t, "task title", config::MAX_TITLE_LEN)?,
@@ -108,7 +112,14 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<T
     require_date_for_time(due_date.as_deref(), due_time.as_deref())?;
     validate_recurrence(recurrence_rule.as_deref(), due_date.as_deref())?;
 
-    db::task::update(
+    // A non-recurring task's completion is keyed to its `due_date`
+    // (`completed` = a completion exists at `occurrence_date IS due_date`), so
+    // rescheduling it to another day would otherwise strand that completion and
+    // reopen the task. Carry the completion across with the move. Recurring
+    // tasks key completions per instance date, so theirs are left untouched.
+    let reschedules = !was_recurring && recurrence_rule.is_none() && prev_due_date != due_date;
+
+    let task = db::task::update(
         pool,
         id,
         &title,
@@ -119,7 +130,15 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<T
         recurrence_rule.as_deref(),
     )
     .await?
-    .ok_or(AppError::NotFound)
+    .ok_or(AppError::NotFound)?;
+
+    if reschedules {
+        db::task::migrate_completion(pool, id, prev_due_date.as_deref(), due_date.as_deref())
+            .await?;
+        // Re-fetch so the returned `completed` reflects the migrated completion.
+        return db::task::get(pool, id).await?.ok_or(AppError::NotFound);
+    }
+    Ok(task)
 }
 
 pub async fn delete(pool: &SqlitePool, id: i64) -> AppResult<()> {
@@ -128,6 +147,56 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> AppResult<()> {
     } else {
         Err(AppError::NotFound)
     }
+}
+
+/// Move a SINGLE occurrence of a recurring task to another day, TickTick-style: the
+/// series keeps repeating, but the chosen instance is detached into its own one-off
+/// task on `new_date` (copying title/notes/label/time, no recurrence) while the series
+/// skips the original date via a `task_exception`. Validates that the task is recurring
+/// and that `occurrence_date` is a real instance of the series that hasn't already been
+/// detached (re-detaching it would orphan a second one-off). A same-day move is a
+/// no-op. 404 if the id is unknown; 400 if it isn't a recurring task, the date isn't an
+/// occurrence, or it has already been moved.
+pub async fn move_occurrence(
+    pool: &SqlitePool,
+    id: i64,
+    occurrence_date: String,
+    new_date: String,
+) -> AppResult<Task> {
+    let occurrence_date = validate_date(&occurrence_date)?;
+    let new_date = validate_date(&new_date)?;
+    let task = db::task::get(pool, id).await?.ok_or(AppError::NotFound)?;
+    let (Some(rule), Some(start)) = (task.recurrence_rule.as_deref(), task.due_date.as_deref())
+    else {
+        return Err(AppError::Validation(
+            "only a recurring task's occurrence can be moved".into(),
+        ));
+    };
+    // The date must actually be an instance of the series, or there is nothing to detach.
+    let on_that_day = recurrence::expand(
+        rule,
+        parse_date(start)?,
+        parse_date(&occurrence_date)?,
+        parse_date(&occurrence_date)?,
+    )?;
+    if on_that_day.is_empty() {
+        return Err(AppError::Validation(
+            "that date is not an occurrence of the series".into(),
+        ));
+    }
+    if new_date == occurrence_date {
+        return Ok(task); // a no-op move — keep the series untouched
+    }
+    // Already detached? The `task_exception` insert is idempotent, but creating the one-off
+    // is not — a second move of the same instance would orphan a duplicate. Reject it.
+    let already_detached =
+        db::task::excepted_occurrences(pool, id, &occurrence_date, &occurrence_date).await?;
+    if !already_detached.is_empty() {
+        return Err(AppError::Validation(
+            "that occurrence has already been moved".into(),
+        ));
+    }
+    Ok(db::task::move_occurrence(pool, id, &occurrence_date, &new_date).await?)
 }
 
 /// Persist a new manual order: `ids` is the full ordered list for a list/day,
@@ -139,11 +208,34 @@ pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     if ids.is_empty() {
         return Ok(());
     }
-    match db::task::reorder(pool, ids).await {
-        Ok(()) => Ok(()),
-        Err(sqlx::Error::RowNotFound) => Err(AppError::NotFound),
-        Err(e) => Err(e.into()),
+    db::task::reorder(pool, ids)
+        .await
+        .map_err(map_row_not_found)
+}
+
+/// Apply one bulk operation to many tasks (the Inbox multi-select). Validation
+/// happens once up front — the same label/date applies to every id — then the
+/// repository runs the change in a single transaction. Atomic: an unknown id is
+/// a 404 and changes nothing. An empty id list is a no-op.
+pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()> {
+    if ids.is_empty() {
+        return Ok(());
     }
+    let result = match op {
+        BatchOp::SetLabel(label_id) => {
+            if let Some(label_id) = label_id {
+                ensure_label(pool, label_id).await?;
+            }
+            db::task::batch_set_label(pool, ids, label_id).await
+        }
+        BatchOp::Schedule(due_date) => {
+            let due_date = validate_date(&due_date)?;
+            db::task::batch_set_due_date(pool, ids, &due_date).await
+        }
+        BatchOp::Complete => db::task::batch_complete(pool, ids).await,
+        BatchOp::Delete => db::task::batch_delete(pool, ids).await,
+    };
+    result.map_err(map_row_not_found)
 }
 
 /// Mark a task done for an occurrence. `occurrence_date` defaults to the task's
@@ -199,8 +291,17 @@ async fn append_recurring(
             .await?
             .into_iter()
             .collect();
+        // Occurrences detached by a single-instance move: the series skips these dates
+        // (the moved instance now lives as its own one-off task on the new day).
+        let detached: HashSet<String> = db::task::excepted_occurrences(pool, task.id, from, to)
+            .await?
+            .into_iter()
+            .collect();
         for date in dates {
             let occurrence = date.format(config::DATE_FORMAT).to_string();
+            if detached.contains(&occurrence) {
+                continue;
+            }
             out.push(Task {
                 completed: done.contains(&occurrence),
                 occurrence_date: Some(occurrence),

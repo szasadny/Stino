@@ -265,7 +265,7 @@ async fn resolve_label(
     }
     let sort_order = db::label::next_sort_order(pool).await?;
     let color = LABEL_PALETTE[(sort_order as usize) % LABEL_PALETTE.len()];
-    let label = db::label::insert(pool, &name, color, sort_order).await?;
+    let label = db::label::insert(pool, &name, color, None, sort_order).await?;
     created.labels += 1;
     label_ids.insert(key, label.id);
     Ok(label.id)

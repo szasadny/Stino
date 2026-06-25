@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO task (title, notes, label_id, due_date, due_time, recurrence_rule, sort_order)\n           SELECT title, notes, label_id, ?, due_time, NULL, ? FROM task WHERE id = ?\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "390f8cc47e1789d8953ad95df75296b545e753809a849fafce4eb2ce54c90ec6"
+}

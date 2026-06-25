@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO label (name, color, sort_order)\n           VALUES (?, ?, ?)\n           RETURNING id AS \"id!\", name AS \"name!\", color AS \"color!\", sort_order AS \"sort_order!\"",
+  "query": "SELECT id AS \"id!\", name AS \"name!\", color AS \"color!\", emoji, sort_order AS \"sort_order!\"\n           FROM label\n           ORDER BY sort_order, id",
   "describe": {
     "columns": [
       {
@@ -19,20 +19,26 @@
         "type_info": "Text"
       },
       {
-        "name": "sort_order!",
+        "name": "emoji",
         "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!",
+        "ordinal": 4,
         "type_info": "Integer"
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 0
     },
     "nullable": [
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "acc15a8e1071cfeaa4513163cf510ed53f3371ba5d778d6ae87140a4d406e11c"
+  "hash": "430b542b4e4b7277bcaa4b4c437c945a1cd81610ff93253783e70eb04e650c03"
 }
