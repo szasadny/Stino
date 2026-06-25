@@ -6,16 +6,17 @@
 //! tasks are add-only (the export carries no id we trust), so a re-run appends.
 //!
 //! Dates/times honour the export's timezone (Hard Rule 7 — our stored local date
-//! must match what the user saw, never slip a day). TickTick writes a **timed**
-//! task's Due Date as a **UTC instant** (`…+0000`) plus a `Timezone` column (e.g.
-//! `Europe/Amsterdam`) and displays it converted into that zone — so we convert
-//! the instant into the task's timezone before reading its local date + time.
-//! Reading the UTC string literally was the "imported a day too soon" bug: an
-//! early-morning local time (e.g. `00:30` Amsterdam) is stored as the *previous*
-//! UTC day, so the literal date was a day early and the clock off by the offset.
-//! **All-day** tasks carry a floating calendar date (UTC midnight) and **floating**
-//! tasks a zone-independent wall-clock — both are kept literally, never converted
-//! (converting UTC midnight into a western zone would itself slip a day).
+//! must match what the user saw, never slip a day). TickTick writes a Due Date as
+//! a **UTC instant** (`…+0000`) plus a `Timezone` column (e.g. `Europe/Amsterdam`)
+//! and displays it converted into that zone — so we convert the instant into the
+//! task's timezone before reading its local date (and time, when timed). This
+//! holds for **all-day** tasks too: TickTick stores those as *local midnight in
+//! UTC* (e.g. `2026-06-17T22:00:00+0000` is midnight 18 Jun in Amsterdam), so a
+//! literal read of the UTC date was the "imported a day too soon" bug — every
+//! all-day task landed on the previous day. **Floating** tasks (`Is Floating`)
+//! carry a zone-independent wall-clock and are kept literally; we also fall back
+//! to a literal read when the timezone is missing/unknown or the instant won't
+//! parse, degrading rather than losing the task.
 //!
 //! Validation and ordering are not duplicated here: each mapped row is created
 //! through [`task_service::create`], the one place that enforces the task rules.
@@ -217,27 +218,32 @@ fn parse_due(
         return (None, None);
     };
 
-    // All-day: a floating calendar date — keep it literally, no time, no convert.
-    if all_day {
-        return (Some(fmt_date(literal_date)), None);
-    }
-
-    // Timed and zoned: convert the UTC instant into the task's own timezone.
+    // A non-floating Due Date is a UTC instant TickTick shows in its `timezone`
+    // zone — and that includes ALL-DAY tasks, which it stores as **local midnight
+    // expressed in UTC** (e.g. `2026-06-17T22:00:00+0000` is midnight 18 Jun in
+    // Amsterdam). So convert the instant into the zone before reading the date,
+    // then drop the time for all-day. Reading the literal UTC date put these a day
+    // too soon (the import bug).
     if !floating {
         if let Some((date, time)) = timezone
             .and_then(|name| name.parse::<Tz>().ok())
             .and_then(|tz| to_local(raw, tz))
         {
-            return (Some(fmt_date(date)), Some(fmt_time(time)));
+            let due_time = (!all_day).then(|| fmt_time(time));
+            return (Some(fmt_date(date)), due_time);
         }
     }
 
-    // Floating, or no usable timezone: read the leading HH:MM wall-clock literally
-    // (ignore seconds and offset).
-    let due_time = time_part
-        .and_then(|t| t.get(0..5))
-        .and_then(|hhmm| NaiveTime::parse_from_str(hhmm, config::TIME_FORMAT).ok())
-        .map(fmt_time);
+    // Floating, or no usable timezone: read the literal wall-clock (no convert) —
+    // the leading HH:MM, ignoring seconds and offset; all-day drops the time.
+    let due_time = if all_day {
+        None
+    } else {
+        time_part
+            .and_then(|t| t.get(0..5))
+            .and_then(|hhmm| NaiveTime::parse_from_str(hhmm, config::TIME_FORMAT).ok())
+            .map(fmt_time)
+    };
     (Some(fmt_date(literal_date)), due_time)
 }
 
@@ -373,19 +379,26 @@ mod tests {
     }
 
     #[test]
-    fn all_day_and_floating_tasks_are_read_literally_not_converted() {
-        // All-day is a floating UTC-midnight date — keep the literal day (never
-        // convert; UTC midnight in a western zone would slip to the day before).
+    fn all_day_task_converts_its_local_midnight_instant_to_the_right_day() {
+        // The real bug from the user's export: TickTick stores an all-day task as
+        // LOCAL midnight expressed in UTC — `2026-06-17T22:00:00+0000` is midnight
+        // 18 Jun in Amsterdam (CEST). A literal read gave 17 Jun (a day too soon);
+        // converting into the zone must yield 18 Jun, with no time.
         assert_eq!(
             parse_due(
-                Some("2026-06-24T00:00:00+0000"),
+                Some("2026-06-17T22:00:00+0000"),
                 true,
-                Some("America/New_York"),
+                Some("Europe/Amsterdam"),
                 false
             ),
-            (Some("2026-06-24".into()), None)
+            (Some("2026-06-18".into()), None)
         );
-        // A floating task's wall-clock is zone-independent — kept literally.
+    }
+
+    #[test]
+    fn floating_tasks_keep_their_literal_wall_clock() {
+        // A floating task's wall-clock is zone-independent — kept literally, no
+        // conversion (date and time both as written).
         assert_eq!(
             parse_due(
                 Some("2026-06-27T07:30:00+0000"),
@@ -394,6 +407,11 @@ mod tests {
                 true
             ),
             (Some("2026-06-27".into()), Some("07:30".into()))
+        );
+        // A floating all-day task keeps its literal date and drops the time.
+        assert_eq!(
+            parse_due(Some("2026-06-27T00:00:00+0000"), true, None, true),
+            (Some("2026-06-27".into()), None)
         );
     }
 

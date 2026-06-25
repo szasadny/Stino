@@ -27,7 +27,7 @@ const FIXTURE: &str = r#""Date: 2026-06-25+0000"
 "Status: 0 Normal, 1 Completed, 2 Archived"
 
 "Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
-"","Inbox","Buy boots","gear","Need new boots","false","","2026-06-26T00:00:00+0000","","","0","0","2026-06-20T10:00:00+0000","","1","Europe/Amsterdam","true","false"
+"","Inbox","Buy boots","gear","Need new boots","false","","2026-06-25T22:00:00+0000","","","0","0","2026-06-20T10:00:00+0000","","1","Europe/Amsterdam","true","false"
 "","Health","Stretch","health","","false","","2026-06-27T07:30:00+0000","","","0","1","2026-06-21T08:00:00+0000","2026-06-27T07:35:00+0000","2","Europe/Amsterdam","false","false"
 "","Work","Standup","","","false","","2026-06-29T09:00:00+0000","","RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","0","0","2026-06-21T08:00:00+0000","","3","Europe/Amsterdam","false","false"
 "","Work","","","","false","","","","","0","0","","","4","Europe/Amsterdam","false","false"
@@ -78,7 +78,9 @@ async fn all_day_keeps_its_date_and_timed_tasks_convert_into_the_export_timezone
     let app = test_app().await;
     send(&app, import_req(FIXTURE)).await;
 
-    // All-day task: the date is kept literally, with no time and not shifted.
+    // All-day task: TickTick stores it as local midnight in UTC
+    // (2026-06-25T22:00+0000 = midnight 26 Jun Amsterdam); converting into the zone
+    // lands it on 26 Jun (a literal read of the UTC date would be a day too soon).
     let (_, june26) = send(&app, get("/api/tasks?date=2026-06-26")).await;
     let boots = titled(&june26, "Buy boots");
     assert_eq!(boots.len(), 1);

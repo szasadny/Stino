@@ -176,15 +176,16 @@ Behaviours that matter:
   line) before the real header. The parser scans for the first row that has a `Title` column and
   treats everything after it as data — so the preamble is ignored and column **order doesn't
   matter** (cells are read by name, case-insensitively).
-- **Dates honour the export's timezone (Hard Rule 7).** TickTick stores a **timed** task's Due Date
-  as a **UTC instant** (`…+0000`) and shows it in its `Timezone` column's zone (e.g.
-  `Europe/Amsterdam`). We convert the instant into that zone before reading the local date + `HH:MM`,
-  so the stored day/time match what the user saw — reading the UTC string literally put early-morning
-  local times on the **previous** day (the "imported a day too soon" bug) and the clock off by the
-  offset. **All-day** tasks (a floating UTC-midnight date) and **floating** tasks (a zone-independent
-  wall-clock, `Is Floating=true`) are kept **literally** — converting them could itself slip a day.
-  If the `Timezone` is missing/unrecognised or the instant won't parse, we fall back to the literal
-  read (degrade, never lose the task). `Is All Day` drops the time.
+- **Dates honour the export's timezone (Hard Rule 7).** TickTick stores every Due Date as a **UTC
+  instant** (`…+0000`) and shows it in its `Timezone` column's zone (e.g. `Europe/Amsterdam`). We
+  convert the instant into that zone before reading the local date + `HH:MM`, so the stored day/time
+  match what the user saw. This includes **all-day** tasks: TickTick stores those as *local midnight
+  expressed in UTC* (`2026-06-17T22:00:00+0000` = midnight 18 Jun in Amsterdam), so a literal read of
+  the UTC date put **every** all-day task on the previous day (the "imported a day too soon" bug);
+  conversion recovers the right day, and `Is All Day` then drops the time. **Floating** tasks
+  (`Is Floating=true`) carry a zone-independent wall-clock and are kept **literally**. If the
+  `Timezone` is missing/unrecognised or the instant won't parse, we fall back to the literal read
+  (degrade, never lose the task).
 - **Recurrence.** A leading `RRULE:` is stripped to our bare stored form; the rule is kept only if it
   parses against the task's start date — otherwise it's dropped and the task is still imported (we
   degrade, never lose the task).
