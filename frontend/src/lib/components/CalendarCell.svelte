@@ -11,11 +11,15 @@
   //
   // Tapping the day number (or "+N more") opens the day sheet via `onSelect`;
   // tapping a task pill edits that task via `onEditTask`.
+  //
+  // While this day's floating DayPanel is open (`open`), the cell FREEZES: it renders its
+  // pills statically with no drag zone, because the panel is now the live `calendar` zone
+  // for this day and two zones sharing one day's items would corrupt svelte-dnd-action.
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { formatDayFull } from '../date'
-  import { DND_FLIP_MS, MONTH_CELL_MAX_TITLES } from '../constants'
+  import { DND_FLIP_MS, DND_GRID_TOUCH_HOLD_MS, MONTH_CELL_MAX_TITLES } from '../constants'
   import TaskPill from './TaskPill.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
 
@@ -25,6 +29,7 @@
     items,
     inCurrentMonth,
     isToday,
+    open = false,
     pending = false,
     labelFor,
     onSelect,
@@ -39,6 +44,8 @@
     items: CellItem[]
     inCurrentMonth: boolean
     isToday: boolean
+    // True while this day's floating DayPanel is open: the cell freezes (no drag zone).
+    open?: boolean
     // While a mutation is in flight, lock drag-start so a move can't race it.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
@@ -58,12 +65,14 @@
 </script>
 
 <div
+  data-day-cell={dateKey}
   class="group flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden rounded-lg border p-1 transition sm:p-1.5
     {isToday
     ? 'border-pine/50 bg-pine/[0.07] ring-1 ring-inset ring-pine/15'
     : inCurrentMonth
       ? 'border-lichen bg-cell'
-      : 'border-lichen/70 bg-cell-out'}"
+      : 'border-lichen/70 bg-cell-out'}
+    {open ? 'ring-2 ring-inset ring-pine/50' : ''}"
 >
   <div class="flex shrink-0 items-center justify-between">
     <button
@@ -86,32 +95,43 @@
     <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" />
   </div>
 
-  <ul
-    class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
-    use:dragHandleZone={{
-      items,
-      type: 'calendar',
-      flipDurationMs: DND_FLIP_MS,
-      delayTouchStart: 150,
-      dragDisabled: pending,
-      dropTargetStyle: {},
-      dropTargetClasses: ['rounded-md', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
-    }}
-    onconsider={(e) => onConsider(dateKey, e)}
-    onfinalize={(e) => onFinalize(dateKey, e)}
-  >
+  {#snippet pills(canDrag: boolean)}
     {#each items as item (item.id)}
       <li>
         <TaskPill
           task={item.task}
           label={labelFor(item.task)}
-          draggable={true}
+          draggable={canDrag}
           onOpen={() => onEditTask(item.task)}
           {onToggle}
         />
       </li>
     {/each}
-  </ul>
+  {/snippet}
+
+  {#if open}
+    <!-- Frozen: the floating DayPanel owns this day's drag zone; render pills statically. -->
+    <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+      {@render pills(false)}
+    </ul>
+  {:else}
+    <ul
+      class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
+      use:dragHandleZone={{
+        items,
+        type: 'calendar',
+        flipDurationMs: DND_FLIP_MS,
+        delayTouchStart: DND_GRID_TOUCH_HOLD_MS,
+        dragDisabled: pending,
+        dropTargetStyle: {},
+        dropTargetClasses: ['rounded-md', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
+      }}
+      onconsider={(e) => onConsider(dateKey, e)}
+      onfinalize={(e) => onFinalize(dateKey, e)}
+    >
+      {@render pills(true)}
+    </ul>
+  {/if}
 
   {#if overflow > 0}
     <button

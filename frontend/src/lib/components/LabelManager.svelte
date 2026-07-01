@@ -3,8 +3,10 @@
   // close, backdrop, open/close) lives in Modal; this owns the list and the
   // create/edit forms. Loads its list and focuses the name field each time it
   // opens (via Modal's onOpen).
+  import { dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import { api, type LabelInput } from '../api'
   import {
+    DND_FLIP_MS,
     INPUT_CLASS,
     LABEL_EMOJI_MAX_LENGTH,
     LABEL_EMOJI_SUGGESTIONS,
@@ -122,6 +124,39 @@
       busy = false
     }
   }
+
+  // Drag-to-reorder the label list — this order IS the global label `sort_order`, the
+  // default that drives the grouped day view's section order. The `labels` list is the
+  // owned dnd source (mutated only by consider/finalize during a gesture), so no separate
+  // re-projection is needed. Reordering only makes sense with more than one label, and is
+  // locked while editing a row or a request is in flight. `#tag` in quick-add and the
+  // suggestion menu read the same order.
+  const reorderable = $derived(labels.length > 1 && editingId === null && !busy)
+  let preDrag: Label[] = []
+
+  function considerOrder(e: CustomEvent<DndEvent<Label>>) {
+    if (preDrag.length === 0) preDrag = [...labels]
+    labels = e.detail.items
+  }
+
+  async function finalizeOrder(e: CustomEvent<DndEvent<Label>>) {
+    const before = preDrag
+    preDrag = []
+    labels = e.detail.items
+    const ids = labels.map((l) => l.id)
+    // A drop in the same spot needs no write.
+    if (ids.join() === before.map((l) => l.id).join()) return
+    busy = true
+    error = null
+    try {
+      await api.labels.reorder(ids)
+    } catch (err) {
+      labels = before // revert to the pre-drag order
+      error = errorMessage(err, 'Could not save the label order')
+    } finally {
+      busy = false
+    }
+  }
 </script>
 
 {#snippet swatches(selected: string, onpick: (hex: string) => void)}
@@ -186,6 +221,24 @@
   </div>
 {/snippet}
 
+{#snippet grip()}
+  <div
+    use:dragHandle
+    title="Drag to reorder"
+    aria-label="Drag to reorder"
+    class="grid h-6 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
+  >
+    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.4" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="9" cy="18" r="1.4" />
+      <circle cx="15" cy="6" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <circle cx="15" cy="18" r="1.4" />
+    </svg>
+  </div>
+{/snippet}
+
 <Modal
   {open}
   {onClose}
@@ -240,7 +293,17 @@
     {:else if labels.length === 0}
       <p class="py-6 text-center text-sm text-sage">No labels yet — create your first above.</p>
     {:else}
-      <ul class="space-y-2">
+      <ul
+        class="space-y-2"
+        use:dragHandleZone={{
+          items: labels,
+          flipDurationMs: DND_FLIP_MS,
+          dropTargetStyle: {},
+          dragDisabled: !reorderable,
+        }}
+        onconsider={considerOrder}
+        onfinalize={finalizeOrder}
+      >
         {#each labels as label (label.id)}
           <li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
             {#if editingId === label.id}
@@ -276,7 +339,12 @@
               </div>
             {:else}
               <div class="flex items-center justify-between gap-3">
-                <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
+                <div class="flex min-w-0 items-center gap-2">
+                  {#if reorderable}
+                    {@render grip()}
+                  {/if}
+                  <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
+                </div>
                 <div class="flex shrink-0 items-center gap-1">
                   <button
                     type="button"

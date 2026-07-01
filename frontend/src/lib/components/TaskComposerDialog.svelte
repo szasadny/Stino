@@ -1,9 +1,10 @@
 <script lang="ts">
-  // The task editor in a modal — a bottom sheet on a phone, a centered card on
-  // wider screens (same shell as the day sheet). Used wherever the editor opens
-  // outside an existing dialog: Inbox (add details / edit a row), Today, and a
-  // task tapped on the month/week grid. The day sheet embeds the bare TaskComposer
-  // inline instead, to avoid stacking one dialog on another.
+  // The task editor in a modal — full-screen on a phone, a centered card on wider
+  // screens (same shell as the day sheet, so editing looks the same everywhere on
+  // mobile). Used wherever the editor opens outside an existing dialog: Inbox (add
+  // details / edit a row), Today, and a task tapped on the month/week grid. The day
+  // sheet embeds the bare TaskComposer inline instead, to avoid stacking one dialog
+  // on another.
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
   import type { ComposerDraft } from '../composer'
@@ -38,8 +39,8 @@
   {open}
   {onClose}
   {title}
-  panelClass="mx-auto mb-0 mt-auto max-h-[88vh] w-full rounded-t-2xl sm:my-auto sm:w-[min(34rem,calc(100vw-1.5rem))] sm:rounded-2xl"
-  containerClass="max-h-[88vh]"
+  panelClass="m-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(34rem,calc(100vw-1.5rem))] sm:max-w-[min(34rem,calc(100vw-1.5rem))] sm:rounded-2xl"
+  containerClass="h-full sm:h-auto sm:max-h-[85vh]"
 >
   <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
     {#if open}

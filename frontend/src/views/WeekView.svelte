@@ -19,6 +19,7 @@
   import DayListSection from '../lib/components/DayListSection.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
+  import DayPanel from '../lib/components/DayPanel.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
   const today = new Date()
@@ -35,6 +36,9 @@
   const composer = createGridComposer(core, loadRange)
 
   const sel = createCalendarSelection(core)
+  // The ISO key of the zoomed day, or null — drives the desktop DayPanel and freezes the
+  // matching grid cell (so the panel is the only live drag zone for that day).
+  const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
   // The day-zoom sheet's add/edit/delete: throwing CRUD through the shared lock (reloads the
   // range on success), so the sheet stays serialized with grid toggles/drags.
   const dayCrud = core.dayCrud(loadRange)
@@ -129,17 +133,25 @@
 
   {#if isCompact()}
     <!-- Phone: seven narrow columns leave no room for task text, so each day becomes
-         a full-width section with its tasks as readable rows, the whole week scrolling. -->
+         a full-width section with its tasks as readable rows, the whole week scrolling.
+         The rows are a shared `calendar` drag zone (bound to the same board as the desktop
+         grid), so a held task drags from one day to another; tapping a row edits it and
+         tapping a day's header zooms into the day sheet (group-by-label + the grouped view). -->
     <div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       {#each week as date, i (weekKeys[i])}
         <DayListSection
           {date}
+          dateKey={weekKeys[i]}
           items={cal.board[weekKeys[i]] ?? []}
           isToday={weekKeys[i] === todayKey}
+          pending={core.pending}
           labelFor={sel.labelFor}
           onToggle={core.toggle}
           onEditTask={(task) => composer.edit(task)}
+          onSelect={() => (sel.selectedDate = date)}
           onAdd={() => composer.add(weekKeys[i])}
+          onConsider={cal.consider}
+          onFinalize={cal.finalize}
           emptyLabel="Nothing scheduled"
         />
       {/each}
@@ -152,6 +164,7 @@
           dateKey={weekKeys[i]}
           items={cal.board[weekKeys[i]] ?? []}
           isToday={weekKeys[i] === todayKey}
+          open={weekKeys[i] === selectedKey}
           pending={core.pending}
           labelFor={sel.labelFor}
           onSelect={() => (sel.selectedDate = date)}
@@ -166,21 +179,39 @@
   {/if}
 </section>
 
-<!-- Desktop: a tap on a column zooms into the day sheet. On a phone the day's tasks are
-     already readable inline above; the sheet stays available (it just isn't opened there). -->
-<DaySheet
-  date={sel.selectedDate}
-  tasks={sel.selectedTasks}
-  labels={core.labels}
-  pending={core.pending}
-  onToggle={core.toggle}
-  onReorder={core.reorder}
-  onReorderLabels={core.reorderLabels}
-  onCreate={dayCrud.create}
-  onUpdate={dayCrud.update}
-  onDelete={dayCrud.remove}
-  onClose={() => (sel.selectedDate = null)}
-/>
+<!-- The day zoom. A phone day-header tap gets the full-screen grouped DaySheet
+     (group-by-label + untimed drag-reorder). A desktop column tap gets the floating,
+     non-modal DayPanel: the grid stays live behind it, so a task can be dragged out of
+     the panel onto another day to reschedule it (via the shared calendar board). -->
+{#if isCompact()}
+  <DaySheet
+    date={sel.selectedDate}
+    tasks={sel.selectedTasks}
+    labels={core.labels}
+    pending={core.pending}
+    onToggle={core.toggle}
+    onReorder={core.reorder}
+    onReorderLabels={core.reorderLabels}
+    onCreate={dayCrud.create}
+    onUpdate={dayCrud.update}
+    onDelete={dayCrud.remove}
+    onClose={() => (sel.selectedDate = null)}
+  />
+{:else if sel.selectedDate && selectedKey}
+  <DayPanel
+    date={sel.selectedDate}
+    dateKey={selectedKey}
+    items={cal.board[selectedKey] ?? []}
+    labelFor={sel.labelFor}
+    pending={core.pending}
+    onConsider={cal.consider}
+    onFinalize={cal.finalize}
+    onToggle={core.toggle}
+    onEditTask={(task) => composer.edit(task)}
+    onAdd={() => composer.add(selectedKey)}
+    onClose={() => (sel.selectedDate = null)}
+  />
+{/if}
 
 <TaskComposerDialog
   open={composer.open}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupByDate, groupByLabel } from './grouping'
+import { dayViewGroups, groupByDate, groupByLabel } from './grouping'
 import type { Label, Task } from './types'
 
 const label = (id: number, sort_order: number): Label => ({
@@ -44,6 +44,29 @@ describe('groupByLabel', () => {
   it('omits a label with no tasks', () => {
     const groups = groupByLabel([task(1, 1)], [label(1, 0), label(2, 1)])
     expect(groups.map((g) => g.label?.id)).toEqual([1])
+  })
+})
+
+describe('dayViewGroups', () => {
+  it('groups by label when grouped', () => {
+    const labels = [label(2, 0), label(1, 1)]
+    const tasks = [task(10, 1), task(11, 2), task(12, null)]
+    const groups = dayViewGroups(tasks, labels, true)
+    expect(groups.map((g) => g.label?.id ?? null)).toEqual([2, 1, null])
+  })
+
+  it('flat mode is a single unlabeled section holding every task in order', () => {
+    const tasks = [task(10, 1), task(11, 2), task(12, null)]
+    const groups = dayViewGroups(tasks, [label(1, 0), label(2, 1)], false)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].label).toBeNull()
+    // Order is preserved exactly — matches what the month/week cells render.
+    expect(groups[0].tasks.map((t) => t.id)).toEqual([10, 11, 12])
+  })
+
+  it('yields no sections for no tasks in either mode', () => {
+    expect(dayViewGroups([], [label(1, 0)], false)).toEqual([])
+    expect(dayViewGroups([], [label(1, 0)], true)).toEqual([])
   })
 })
 

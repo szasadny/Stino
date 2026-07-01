@@ -11,6 +11,14 @@
   // In `selectable` mode (the Inbox multi-select) the round complete-toggle is
   // swapped for a square selection checkbox and the whole row becomes one button
   // that calls `onSelect`; `leading`/`trailing` are omitted by the caller.
+  //
+  // `holdToDrag` adapts the row to be a phone press-and-hold drag target (the day
+  // sheet): (1) the complete-toggle swallows the pointer/touch start so ticking never
+  // arms a drag, and (2) the tap-to-edit surface renders as a `div role=button`, not a
+  // `<button>` — svelte-dnd-action refuses to start a drag from an element with a
+  // defined `.value` (every `<button>` has one), so the whole-row hold only works when
+  // the tap surface is a plain element (the same reason TaskPill is a div). No-op
+  // everywhere else (default false); wide screens keep the grip handle instead.
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
@@ -25,6 +33,7 @@
     selectable = false,
     selected = false,
     onSelect,
+    holdToDrag = false,
     leading,
     trailing,
   }: {
@@ -36,9 +45,24 @@
     selectable?: boolean
     selected?: boolean
     onSelect?: () => void
+    holdToDrag?: boolean
     leading?: Snippet
     trailing?: Snippet
   } = $props()
+
+  // Keep the complete-toggle from arming a press-and-hold drag on the phone day-sheet,
+  // whichever low-level start event the dnd library listens for (mirrors TaskPill).
+  function guardToggleStart(e: Event) {
+    if (holdToDrag) e.stopPropagation()
+  }
+
+  // Open the editor on Enter/Space when the tap surface is a `div role=button`.
+  function editOnKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onEdit?.()
+    }
+  }
 </script>
 
 {#snippet content()}
@@ -144,6 +168,9 @@
     <button
       type="button"
       onclick={onToggle}
+      onpointerdown={guardToggleStart}
+      onmousedown={guardToggleStart}
+      ontouchstart={guardToggleStart}
       role="checkbox"
       aria-checked={task.completed}
       aria-label={task.completed ? 'Mark as not done' : 'Mark as done'}
@@ -165,7 +192,21 @@
       </svg>
     </button>
 
-    {#if onEdit}
+    {#if onEdit && holdToDrag}
+      <!-- Phone hold-to-drag: the tap surface must be a plain element (not a <button>),
+           or svelte-dnd-action won't start a drag from it. role/tabindex/keydown keep it
+           a first-class button for a11y and keyboard. -->
+      <div
+        role="button"
+        tabindex="0"
+        onclick={onEdit}
+        onkeydown={editOnKey}
+        aria-label="Edit task"
+        class="min-w-0 flex-1 cursor-pointer rounded-lg text-left transition hover:opacity-80"
+      >
+        {@render content()}
+      </div>
+    {:else if onEdit}
       <button
         type="button"
         onclick={onEdit}

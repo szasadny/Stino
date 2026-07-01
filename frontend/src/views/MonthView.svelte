@@ -20,6 +20,7 @@
     toISODate,
   } from '../lib/date'
   import { isCompact } from '../lib/viewport.svelte'
+  import { swipe } from '../lib/swipe'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
@@ -31,6 +32,7 @@
   import CalendarCellMobile from '../lib/components/CalendarCellMobile.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import DaySheet from '../lib/components/DaySheet.svelte'
+  import DayPanel from '../lib/components/DayPanel.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
   const today = new Date()
@@ -52,6 +54,9 @@
   const composer = createGridComposer(core, loadRange)
 
   const sel = createCalendarSelection(core)
+  // The ISO key of the zoomed day, or null — drives the desktop DayPanel and freezes the
+  // matching grid cell (so the panel is the only live drag zone for that day).
+  const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
   // The day-zoom sheet's add/edit/delete: throwing CRUD through the shared lock (reloads the
   // range on success), so the sheet stays serialized with grid toggles/drags. Reuses the same
   // `loadRange` resync as everything else in this view.
@@ -159,10 +164,12 @@
   {#if isCompact()}
     <!-- Phone: the same calendar grid, but each cell shows compact readable task lines
          (a colour dot + title) instead of the full pills; tap a day to open its popup.
-         Only the month's actual week-rows render, so the cells get the reclaimed height. -->
+         Only the month's actual week-rows render, so the cells get the reclaimed height.
+         Swipe left/right across the grid to step to the next/previous month. -->
     <div
       class="grid min-h-0 flex-1 grid-cols-7 gap-1"
       style:grid-template-rows="repeat({weeks}, minmax(0, 1fr))"
+      use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
     >
       {#each compactCells as date, i (gridKeys[i])}
         <CalendarCellMobile
@@ -184,6 +191,7 @@
           items={cal.board[gridKeys[i]] ?? []}
           inCurrentMonth={isSameMonth(date, viewMonth)}
           isToday={gridKeys[i] === todayKey}
+          open={gridKeys[i] === selectedKey}
           pending={core.pending}
           labelFor={sel.labelFor}
           onSelect={() => (sel.selectedDate = date)}
@@ -198,22 +206,39 @@
   {/if}
 </section>
 
-<!-- The day popup: tap any day cell (desktop or phone) to zoom in and add / edit /
-     complete / reorder that day's tasks. Only one is ever open, so its single DayAgenda
-     is the only drag zone live at a time. -->
-<DaySheet
-  date={sel.selectedDate}
-  tasks={sel.selectedTasks}
-  labels={core.labels}
-  pending={core.pending}
-  onToggle={core.toggle}
-  onReorder={core.reorder}
-  onReorderLabels={core.reorderLabels}
-  onCreate={dayCrud.create}
-  onUpdate={dayCrud.update}
-  onDelete={dayCrud.remove}
-  onClose={() => (sel.selectedDate = null)}
-/>
+<!-- The day zoom, opened by tapping a day cell. A phone gets the full-screen grouped
+     DaySheet (group-by-label + untimed drag-reorder). A wide screen gets the floating,
+     non-modal DayPanel instead: the grid stays live behind it, so a task can be dragged
+     out of the panel onto another day to reschedule it (via the shared calendar board). -->
+{#if isCompact()}
+  <DaySheet
+    date={sel.selectedDate}
+    tasks={sel.selectedTasks}
+    labels={core.labels}
+    pending={core.pending}
+    onToggle={core.toggle}
+    onReorder={core.reorder}
+    onReorderLabels={core.reorderLabels}
+    onCreate={dayCrud.create}
+    onUpdate={dayCrud.update}
+    onDelete={dayCrud.remove}
+    onClose={() => (sel.selectedDate = null)}
+  />
+{:else if sel.selectedDate && selectedKey}
+  <DayPanel
+    date={sel.selectedDate}
+    dateKey={selectedKey}
+    items={cal.board[selectedKey] ?? []}
+    labelFor={sel.labelFor}
+    pending={core.pending}
+    onConsider={cal.consider}
+    onFinalize={cal.finalize}
+    onToggle={core.toggle}
+    onEditTask={(task) => composer.edit(task)}
+    onAdd={() => composer.add(selectedKey)}
+    onClose={() => (sel.selectedDate = null)}
+  />
+{/if}
 
 <TaskComposerDialog
   open={composer.open}

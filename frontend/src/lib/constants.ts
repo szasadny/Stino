@@ -21,6 +21,25 @@ export const COMPACT_MAX_WIDTH = 639
 // lists — shared by every zone so reordering feels identical across the app.
 export const DND_FLIP_MS = 150
 
+// Press-and-hold (ms) before a touch turns into a drag on the phone day-sheet
+// reorder list (svelte-dnd-action `delayTouchStart`). Long enough that a quick tap
+// still opens/toggles the task and a scroll still scrolls, short enough that a
+// deliberate hold to reorder feels responsive. Touch-only — mouse drag is immediate.
+export const DND_TOUCH_HOLD_MS = 250
+
+// Press-and-hold (ms) before a touch turns into a drag on the month/week calendar
+// pill zones (CalendarCell, WeekDayCell, DayPanel) — shorter than the day-sheet reorder
+// hold because a grid pill has no competing tap action to protect (its tap edits, and a
+// drag reads clearly from the pill). Shared so every calendar `type: 'calendar'` zone
+// arms identically. Touch-only — mouse drag is immediate.
+export const DND_GRID_TOUCH_HOLD_MS = 150
+
+// Window (ms) after a touch tap opens the day-sheet editor during which we swallow the
+// one stray "compatibility" click a phone emits (the dnd delay-touch path fires its own
+// synthetic tap→click AND the browser's native one). Just long enough to catch that
+// phantom, short enough it can never eat a later intentional click. See lib/phantom-click.
+export const GHOST_CLICK_WINDOW_MS = 350
+
 // Debounce (ms) between a search keystroke and firing the request, so typing
 // doesn't spray queries at the API.
 export const SEARCH_DEBOUNCE_MS = 200

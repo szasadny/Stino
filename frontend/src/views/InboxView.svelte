@@ -565,7 +565,7 @@
     {#if core.loading}
       <p class="py-8 text-center text-sm text-sage">Loading…</p>
     {:else if core.tasks.length === 0}
-      <EmptyState message="Your inbox is clear. Add a task above to capture it." />
+      <EmptyState message="Your inbox is clear." />
     {:else if selecting}
       <!-- Sticky bulk-action bar: count + select-all on top, the actions below. Sticks to the
            top of the scrolling list region (top-0, not the header). -->

@@ -35,6 +35,18 @@ export function groupByLabel(tasks: Task[], labels: Label[]): TaskGroup[] {
 }
 
 /**
+ * The day agenda's sections for a given view mode. When `grouped`, the label
+ * sections (`groupByLabel`); otherwise a SINGLE unlabeled section holding every task
+ * in the given order — the default flat list that reads the same as the month/week
+ * cells (callers pass tasks already in the canonical timed-first/`sort_order` sort).
+ * Empty input yields no sections either way, so the caller shows its empty state.
+ */
+export function dayViewGroups(tasks: Task[], labels: Label[], grouped: boolean): TaskGroup[] {
+  if (grouped) return groupByLabel(tasks, labels)
+  return tasks.length > 0 ? [{ label: null, tasks }] : []
+}
+
+/**
  * Index tasks by their `occurrence_date` (`YYYY-MM-DD`) for O(1) per-day lookup
  * in the month and week grids. A recurring task lands on every occurrence day,
  * so the same id can appear under several keys; tasks with no `occurrence_date`
