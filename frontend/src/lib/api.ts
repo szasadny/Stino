@@ -1,6 +1,6 @@
 // The ONE place the app talks HTTP. Every endpoint gets a typed function here;
 // components import from this module and never call fetch directly.
-import type { BatchOp, Health, ImportSummary, Label, Task } from './types'
+import type { BatchOp, ImportSummary, Label, Task } from './types'
 
 const BASE = '/api'
 
@@ -60,7 +60,6 @@ function occurrenceQuery(occurrenceDate?: string | null): string {
 }
 
 export const api = {
-  health: () => http<Health>('/health'),
   // Find tasks by part of their title or notes (LIKE over both). A blank query
   // returns no rows. Recurring tasks come back as their series row, not expanded.
   search: (q: string) => http<Task[]>(`/search?q=${encodeURIComponent(q)}`),

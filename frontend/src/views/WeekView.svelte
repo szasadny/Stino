@@ -6,8 +6,12 @@
   // day) — all via the shared TaskCore + calendar board; this view is thin glue + markup.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import { addWeeks, buildWeekGrid, formatWeekRange, toISODate } from '../lib/date'
+  import { addWeeks, buildWeekGrid, formatWeekRange, startOfWeek, toISODate } from '../lib/date'
   import { isCompact } from '../lib/viewport.svelte'
+  import { onRefresh } from '../lib/refresh.svelte'
+  import { dragEdgeScroll } from '../lib/drag-scroll'
+  import { swipe } from '../lib/swipe'
+  import { navigateWithSlide } from '../lib/nav-transition'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
@@ -43,10 +47,14 @@
   // range on success), so the sheet stays serialized with grid toggles/drags.
   const dayCrud = core.dayCrud(loadRange)
 
-  onMount(async () => {
+  // Mount and overlay-close refresh run the same load pair: a closed Search/Labels/
+  // Import overlay may have changed tasks OR labels (loadWith is token-guarded).
+  const loadAll = async () => {
     await preloadLabels(core)
     await loadRange()
-  })
+  }
+  onMount(loadAll)
+  onRefresh(loadAll)
 
   function loadRange() {
     return core.loadWith(
@@ -57,20 +65,38 @@
     )
   }
 
+  // Both navigations run inside a directional view-transition slide (the week pane
+  // carries `vt-calendar`), awaiting the range fetch so the new week slides in
+  // already populated. Falls back to the plain instant swap (nav-transition.ts).
   function go(delta: number) {
-    anchor = addWeeks(anchor, delta)
-    sel.selectedDate = null
-    loadRange()
+    void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
+      anchor = addWeeks(anchor, delta)
+      sel.selectedDate = null
+      await loadRange()
+    })
   }
 
   function goThisWeek() {
-    anchor = today
-    sel.selectedDate = null
-    loadRange()
+    const targetKey = toISODate(startOfWeek(today))
+    void navigateWithSlide(
+      targetKey > weekKeys[0] ? 'forward' : targetKey < weekKeys[0] ? 'back' : null,
+      async () => {
+        anchor = today
+        sel.selectedDate = null
+        await loadRange()
+      },
+    )
   }
 </script>
 
-<section class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4">
+<!-- The swipe listener lives on the section, NOT on the vt-calendar pane inside it: a
+     captured pane is skipped for hit-testing while its slide runs, so a fast follow-up
+     swipe would be eaten mid-transition. On the section it always lands (touch-only;
+     the action ignores task drags and vertical scrolls). -->
+<section
+  class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
+  use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
+>
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
       <h1 class="font-display text-xl font-semibold tracking-tight text-pine-deep sm:text-2xl">
@@ -136,8 +162,11 @@
          a full-width section with its tasks as readable rows, the whole week scrolling.
          The rows are a shared `calendar` drag zone (bound to the same board as the desktop
          grid), so a held task drags from one day to another; tapping a row edits it and
-         tapping a day's header zooms into the day sheet (group-by-label + the grouped view). -->
-    <div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+         tapping a day's header zooms into the day sheet (group-by-label + the grouped view).
+         dragEdgeScroll auto-scrolls the stack while a held task sits near its top/bottom
+         edge, so a drag can reach days that are off-screen. Swipe left/right anywhere in
+         the view (the section's `swipe` action) to step to the next/previous week. -->
+    <div class="vt-calendar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto" use:dragEdgeScroll>
       {#each week as date, i (weekKeys[i])}
         <DayListSection
           {date}
@@ -157,7 +186,7 @@
       {/each}
     </div>
   {:else}
-    <div class="grid min-h-0 flex-1 grid-cols-7 gap-2">
+    <div class="vt-calendar grid min-h-0 flex-1 grid-cols-7 gap-2">
       {#each week as date, i (weekKeys[i])}
         <WeekDayCell
           {date}

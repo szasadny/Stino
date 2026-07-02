@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, NaiveDate, NaiveTime};
 use chrono_tz::Tz;
-use sqlx::SqlitePool;
+use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::config;
 use crate::db;
@@ -61,7 +61,9 @@ type Headers = HashMap<String, usize>;
 
 /// Import a TickTick CSV backup. Returns the counts created plus how many rows
 /// were skipped. A mapping problem skips one row; only a real database error
-/// aborts the whole import.
+/// aborts the whole import — and because every row runs in ONE transaction, an
+/// abort rolls all of it back, so a failed import leaves the database untouched
+/// (a re-run can't duplicate the rows before the failure).
 pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<ImportSummary> {
     let text = decode(csv_bytes);
     let (headers, records) = parse_csv(&text)?;
@@ -71,6 +73,10 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
     // Lowercased label name → id, so a tag/list seen twice in one file reuses the
     // same label without re-querying.
     let mut label_ids: HashMap<String, i64> = HashMap::new();
+
+    // One transaction for the whole file. Returning an error drops it
+    // uncommitted, so any Db failure rolls every imported row back.
+    let mut tx = pool.begin().await?;
 
     for record in &records {
         // A titleless row is the one thing we can't import — skip it.
@@ -90,7 +96,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
             parse_repeat(field(record, &headers, COL_REPEAT), due_date.as_deref());
 
         let label_id = match pick_label(record, &headers) {
-            Some(name) => Some(resolve_label(pool, &mut label_ids, &mut created, &name).await?),
+            Some(name) => Some(resolve_label(&mut tx, &mut label_ids, &mut created, &name).await?),
             None => None,
         };
 
@@ -103,10 +109,10 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
             recurrence_rule,
         };
 
-        // task_service::create is the single validator; a Validation error means
-        // this row's data is unusable, so skip it. A Db error is infrastructure,
-        // not data, so it aborts.
-        match task_service::create(pool, new_task).await {
+        // task_service::create_on is the single validator; a Validation error
+        // means this row's data is unusable, so skip it. A Db error is
+        // infrastructure, not data, so it aborts (and rolls the import back).
+        match task_service::create_on(&mut tx, new_task).await {
             Ok(task) => {
                 created.tasks += 1;
                 if is_completed(
@@ -115,7 +121,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
                 ) {
                     // Mark the task done for its own occurrence (the series start
                     // for a recurring task; NULL for an undated Inbox task).
-                    db::task::add_completion(pool, task.id, task.due_date.as_deref()).await?;
+                    db::task::add_completion(&mut *tx, task.id, task.due_date.as_deref()).await?;
                     created.completions += 1;
                 }
             }
@@ -124,6 +130,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
         }
     }
 
+    tx.commit().await?;
     Ok(ImportSummary { created, skipped })
 }
 
@@ -307,9 +314,10 @@ fn is_completed(status: Option<&str>, completed_time: Option<&str>) -> bool {
 
 /// Find or create the label for `name`, caching the id. New labels take the next
 /// palette color deterministically (by append position), so colors are stable
-/// for a given starting database.
+/// for a given starting database. Runs on the import's transaction connection so
+/// created labels roll back with the rest of a failed import.
 async fn resolve_label(
-    pool: &SqlitePool,
+    conn: &mut SqliteConnection,
     label_ids: &mut HashMap<String, i64>,
     created: &mut ImportCreated,
     name: &str,
@@ -323,13 +331,13 @@ async fn resolve_label(
     if let Some(id) = label_ids.get(&key) {
         return Ok(*id);
     }
-    if let Some(label) = db::label::find_by_name(pool, &name).await? {
+    if let Some(label) = db::label::find_by_name(&mut *conn, &name).await? {
         label_ids.insert(key, label.id);
         return Ok(label.id);
     }
-    let sort_order = db::label::next_sort_order(pool).await?;
+    let sort_order = db::label::next_sort_order(&mut *conn).await?;
     let color = LABEL_PALETTE[(sort_order as usize) % LABEL_PALETTE.len()];
-    let label = db::label::insert(pool, &name, color, None, sort_order).await?;
+    let label = db::label::insert(&mut *conn, &name, color, None, sort_order).await?;
     created.labels += 1;
     label_ids.insert(key, label.id);
     Ok(label.id)

@@ -19,7 +19,12 @@
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { formatDayFull } from '../date'
-  import { DND_FLIP_MS, DND_GRID_TOUCH_HOLD_MS, MONTH_CELL_MAX_TITLES } from '../constants'
+  import {
+    DND_FLIP_MS,
+    DND_GRID_TOUCH_HOLD_MS,
+    DROP_TARGET_RING_CLASSES,
+    MONTH_CELL_MAX_TITLES,
+  } from '../constants'
   import TaskPill from './TaskPill.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
 
@@ -124,7 +129,7 @@
         delayTouchStart: DND_GRID_TOUCH_HOLD_MS,
         dragDisabled: pending,
         dropTargetStyle: {},
-        dropTargetClasses: ['rounded-md', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
+        dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],
       }}
       onconsider={(e) => onConsider(dateKey, e)}
       onfinalize={(e) => onFinalize(dateKey, e)}

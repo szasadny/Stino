@@ -1259,6 +1259,401 @@ async fn batch_rejects_a_bad_date_or_an_unknown_label() {
 }
 
 #[tokio::test]
+async fn moving_a_completed_occurrence_carries_its_completion_to_the_one_off() {
+    let (app, pool) = test_app_with_pool().await;
+
+    // A daily series; complete only the Jun 2 occurrence, then drag it to Jun 5.
+    let task = create_task(
+        &app,
+        json!({"title":"Water plants","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{id}/completions?occurrence_date=2026-06-02"),
+        ),
+    )
+    .await;
+
+    let (status, moved) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-02","new_date":"2026-06-05"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "move failed: {moved}");
+    let new_id = moved["id"].as_i64().expect("new id");
+    assert_eq!(
+        moved["completed"], true,
+        "the detached one-off keeps the source occurrence's done state"
+    );
+
+    // On the calendar: the one-off is done on Jun 5, the remaining series
+    // occurrences (Jun 1, 3, 4 — Jun 2 detached) stay open.
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-05")).await;
+    let days = range.as_array().expect("array");
+    let series: Vec<(&str, bool)> = days
+        .iter()
+        .filter(|d| d["id"].as_i64() == Some(id))
+        .map(|d| {
+            (
+                d["occurrence_date"].as_str().expect("occurrence_date"),
+                d["completed"].as_bool().expect("completed"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        series,
+        [
+            ("2026-06-01", false),
+            ("2026-06-03", false),
+            ("2026-06-04", false),
+            ("2026-06-05", false),
+        ],
+        "the series keeps repeating, all open"
+    );
+    let one_off: Vec<&Value> = days
+        .iter()
+        .filter(|d| d["id"].as_i64() == Some(new_id))
+        .collect();
+    assert_eq!(one_off.len(), 1);
+    assert_eq!(one_off[0]["occurrence_date"], "2026-06-05");
+    assert_eq!(one_off[0]["completed"], true);
+
+    // Behind the API: the completion row was re-keyed, not copied — nothing is
+    // left pointing at the series' old date.
+    let stale: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM completion WHERE task_id = ? AND occurrence_date = '2026-06-02'",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .expect("count completions");
+    assert_eq!(
+        stale, 0,
+        "no orphan completion remains at (series, old date)"
+    );
+}
+
+#[tokio::test]
+async fn batch_schedule_keeps_completed_tasks_completed() {
+    let app = test_app().await;
+
+    // A completed Inbox task (occurrence NULL) and a completed dated task.
+    let inbox_task = create_task(&app, json!({"title":"Inbox done"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let dated_task = create_task(&app, json!({"title":"Dated done","due_date":"2026-07-01"})).await
+        ["id"]
+        .as_i64()
+        .expect("id");
+    for id in [inbox_task, dated_task] {
+        let (status, _) = send(
+            &app,
+            empty_req("POST", &format!("/api/tasks/{id}/completions")),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[inbox_task, dated_task], "op":{"type":"schedule","due_date":"2026-07-10"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // Both land on the new day still done — bulk Schedule must not reopen them.
+    let (_, day) = send(&app, get("/api/tasks?date=2026-07-10")).await;
+    let day = day.as_array().expect("array");
+    assert_eq!(day.len(), 2);
+    for t in day {
+        assert_eq!(
+            t["completed"], true,
+            "{} was reopened by the batch schedule",
+            t["title"]
+        );
+    }
+}
+
+#[tokio::test]
+async fn batch_schedule_rejects_recurring_tasks() {
+    let app = test_app().await;
+
+    let series = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await["id"]
+        .as_i64()
+        .expect("id");
+    let plain = create_task(&app, json!({"title":"Plain"})).await["id"]
+        .as_i64()
+        .expect("id");
+
+    // Bulk Schedule serves the Inbox; re-dating a series would need its rule
+    // revalidated against the new DTSTART — rejected, and nothing changes.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks/batch",
+            json!({"ids":[plain, series], "op":{"type":"schedule","due_date":"2026-07-10"}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(
+        inbox.as_array().expect("array").len(),
+        1,
+        "the plain task stayed in the Inbox — the rejected batch changed nothing"
+    );
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-08")).await;
+    let mondays: Vec<&Value> = range
+        .as_array()
+        .expect("array")
+        .iter()
+        .filter(|d| d["id"].as_i64() == Some(series))
+        .collect();
+    assert_eq!(mondays.len(), 2, "the series still starts Jun 1, untouched");
+}
+
+#[tokio::test]
+async fn an_hourly_recurrence_rule_is_rejected() {
+    let app = test_app().await;
+
+    // Occurrences are calendar dates — a sub-daily repeat is meaningless.
+    let (status, body) = send(
+        &app,
+        json_req(
+            "POST",
+            "/api/tasks",
+            json!({"title":"Tick","due_date":"2026-06-01","recurrence_rule":"FREQ=HOURLY"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "hourly must be rejected");
+    assert!(
+        body["error"].as_str().expect("error").contains("daily"),
+        "the message explains the daily floor: {body}"
+    );
+}
+
+#[tokio::test]
+async fn completing_a_date_that_is_not_a_real_occurrence_is_rejected() {
+    let app = test_app().await;
+
+    // Weekly on Mondays from Jun 1; Jun 3 2026 is a Wednesday — not an instance.
+    let series = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await["id"]
+        .as_i64()
+        .expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{series}/completions?occurrence_date=2026-06-03"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "not an occurrence");
+
+    // A one-off may only be completed at its own due_date...
+    let one_off = create_task(&app, json!({"title":"One-off","due_date":"2026-06-01"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{one_off}/completions?occurrence_date=2026-06-02"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "mismatched one-off date");
+
+    // ...and an Inbox task (due NULL) never at a date.
+    let inbox = create_task(&app, json!({"title":"Someday"})).await["id"]
+        .as_i64()
+        .expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{inbox}/completions?occurrence_date=2026-06-02"),
+        ),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "an Inbox task has no dated occurrence"
+    );
+
+    // None of the rejected calls wrote an orphan "completed" state.
+    let (_, day) = send(&app, get("/api/tasks?date=2026-06-01")).await;
+    for t in day.as_array().expect("array") {
+        assert_eq!(t["completed"], false);
+    }
+}
+
+#[tokio::test]
+async fn completing_a_detached_occurrence_of_the_series_is_rejected() {
+    let app = test_app().await;
+
+    let series = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await["id"]
+        .as_i64()
+        .expect("id");
+    // Detach Jun 8 onto Jun 10; the series no longer owns Jun 8.
+    let (status, _) = send(
+        &app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{series}/move_occurrence"),
+            json!({"occurrence_date":"2026-06-08","new_date":"2026-06-10"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{series}/completions?occurrence_date=2026-06-08"),
+        ),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "the detached date belongs to the one-off now, not the series"
+    );
+}
+
+#[tokio::test]
+async fn a_series_start_the_rule_does_not_regenerate_still_toggles() {
+    let app = test_app().await;
+
+    // Due a Wednesday, repeating weekly on Mondays: rrule never emits the
+    // non-matching DTSTART, but search shows the canonical row keyed at
+    // `due_date` (and import records completions there), so the start must stay
+    // completable and re-openable.
+    let series = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-03","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await["id"]
+        .as_i64()
+        .expect("id");
+
+    let (status, done) = send(
+        &app,
+        empty_req("POST", &format!("/api/tasks/{series}/completions")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "series start completes: {done}");
+    assert_eq!(done["completed"], true);
+
+    let (status, reopened) = send(
+        &app,
+        empty_req("DELETE", &format!("/api/tasks/{series}/completions")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "series start reopens: {reopened}");
+    assert_eq!(reopened["completed"], false);
+
+    // Any other non-instance date is still rejected.
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{series}/completions?occurrence_date=2026-06-04"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "not an occurrence");
+}
+
+#[tokio::test]
+async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
+    let (app, pool) = test_app_with_pool().await;
+
+    // Legacy data: a rule that predates today's validation gate (sub-daily was
+    // once storable) sits in the DB alongside a healthy task. Simulate it by
+    // corrupting the rule behind the API.
+    let bad = create_task(
+        &app,
+        json!({"title":"Legacy","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await["id"]
+        .as_i64()
+        .expect("id");
+    sqlx::query("UPDATE task SET recurrence_rule = 'FREQ=HOURLY' WHERE id = ?")
+        .bind(bad)
+        .execute(&pool)
+        .await
+        .expect("plant the legacy rule");
+    create_task(&app, json!({"title":"Healthy","due_date":"2026-06-02"})).await;
+
+    // The listing must not 400 because of the one bad row: the unexpandable
+    // series is skipped, everything else still renders.
+    let (status, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-30")).await;
+    assert_eq!(status, StatusCode::OK, "one bad rule must not 400: {range}");
+    let titles: Vec<&str> = range
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|t| t["title"].as_str().expect("title"))
+        .collect();
+    assert_eq!(titles, ["Healthy"], "the bad series is skipped, not fatal");
+
+    // The task itself stays reachable (search shows the series row) for fixing.
+    let (_, found) = send(&app, get("/api/search?q=Legacy")).await;
+    assert_eq!(found.as_array().expect("array").len(), 1);
+}
+
+#[tokio::test]
+async fn unknown_task_list_params_are_rejected_but_the_known_forms_pass() {
+    let app = test_app().await;
+
+    // A typo'd selector must 400, not silently return the Inbox. (Axum's query
+    // rejection is plain text, so check the status only.)
+    let status = status_of(&app, get("/api/tasks?fromm=2026-06-01")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // The three shapes the SPA sends all still work.
+    for uri in [
+        "/api/tasks?inbox=true",
+        "/api/tasks?date=2026-06-01",
+        "/api/tasks?from=2026-06-01&to=2026-06-30",
+        "/api/tasks",
+    ] {
+        let (status, _) = send(&app, get(uri)).await;
+        assert_eq!(status, StatusCode::OK, "{uri} should be OK");
+    }
+}
+
+#[tokio::test]
 async fn batch_with_no_ids_is_a_harmless_no_op() {
     let app = test_app().await;
     create_task(&app, json!({"title":"A"})).await;

@@ -2,12 +2,14 @@
   // The month calendar — the primary view. A 6×7 Monday-first calendar grid on every
   // screen; each scheduled task shows on its occurrence day (a recurring task appears on
   // every occurrence the backend expands into the range). Navigate months, jump to today,
-  // tap a day to zoom into it (the day sheet), tap a pill to edit it, tick a pill to
-  // complete it, drag a pill to another day to reschedule it. On a phone the cells are too
-  // narrow for the full pills, so each shows compact readable task lines (CalendarCellMobile)
-  // — the day's tasks are still legible at a glance and tapping the cell opens the same day
-  // sheet. Task orchestration lives in the shared TaskCore + calendar board; this view is
-  // thin glue + markup. Date math: lib/date.ts.
+  // tap a day to zoom into it, tap a pill to edit it, tick a pill to complete it, drag a
+  // pill to another day to reschedule it. On a phone the cells are too narrow for the full
+  // pills, so each shows compact readable task lines (CalendarCellMobile) and the view is
+  // a TickTick-style SPLIT: the grid on top, the selected day's agenda underneath
+  // (DayListSection — the same `calendar` drag zone the phone Week uses), so a held task
+  // drags from the agenda onto any grid cell to reschedule it. Task orchestration lives in
+  // the shared TaskCore + calendar board; this view is thin glue + markup. Date math:
+  // lib/date.ts.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import {
@@ -19,8 +21,12 @@
     monthWeekCount,
     toISODate,
   } from '../lib/date'
+  import { MONTH_EXPAND_HOLD_MS, MONTH_EXPAND_ZONE_PX } from '../lib/constants'
+  import { createBottomDwell, pointFrom } from '../lib/drag-scroll'
   import { isCompact } from '../lib/viewport.svelte'
+  import { onRefresh } from '../lib/refresh.svelte'
   import { swipe } from '../lib/swipe'
+  import { navigateWithSlide } from '../lib/nav-transition'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
@@ -30,8 +36,8 @@
   } from '../lib/controllers/calendar-selection.svelte'
   import CalendarCell from '../lib/components/CalendarCell.svelte'
   import CalendarCellMobile from '../lib/components/CalendarCellMobile.svelte'
+  import DayListSection from '../lib/components/DayListSection.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
-  import DaySheet from '../lib/components/DaySheet.svelte'
   import DayPanel from '../lib/components/DayPanel.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
@@ -54,18 +60,61 @@
   const composer = createGridComposer(core, loadRange)
 
   const sel = createCalendarSelection(core)
-  // The ISO key of the zoomed day, or null — drives the desktop DayPanel and freezes the
-  // matching grid cell (so the panel is the only live drag zone for that day).
+  // The ISO key of the zoomed day, or null — drives the desktop DayPanel / the phone split
+  // agenda, and freezes the matching grid cell (so the panel/agenda is the only live drag
+  // zone for that day).
   const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
-  // The day-zoom sheet's add/edit/delete: throwing CRUD through the shared lock (reloads the
-  // range on success), so the sheet stays serialized with grid toggles/drags. Reuses the same
-  // `loadRange` resync as everything else in this view.
-  const dayCrud = core.dayCrud(loadRange)
 
-  onMount(async () => {
+  // The phone split layout always shows one day's agenda under the grid: default to today
+  // when viewing today's month, else the 1st. go()/goToday() null the selection, so this
+  // re-fills it for the new month. Desktop keeps tap-to-open (null = no DayPanel).
+  $effect(() => {
+    if (!isCompact() || sel.selectedDate) return
+    sel.selectedDate =
+      viewYear === today.getFullYear() && viewMonth === today.getMonth()
+        ? today
+        : new Date(viewYear, viewMonth, 1)
+  })
+
+  // Compact layout (touch or mouse): while a task held from the agenda dwells near the bottom,
+  // hide the agenda so the WHOLE month grid becomes the drop surface (sticky until the
+  // drop lands — cal.dragging clears — then the agenda returns). The agenda collapses
+  // with `hidden`, never unmounts: its zone must stay registered mid-drag, and
+  // display:none zeroes its rects so it can't phantom-capture the pointer.
+  let gridExpanded = $state(false)
+  let splitEl = $state<HTMLElement | null>(null)
+  $effect(() => {
+    if (!isCompact() || !cal.dragging) {
+      gridExpanded = false
+      return
+    }
+    const dwell = createBottomDwell(
+      MONTH_EXPAND_ZONE_PX,
+      MONTH_EXPAND_HOLD_MS,
+      () => (gridExpanded = true),
+    )
+    const onMove = (e: TouchEvent | MouseEvent) => {
+      const point = pointFrom(e)
+      if (!point) return
+      dwell.move(point.clientY, splitEl?.getBoundingClientRect().bottom ?? window.innerHeight)
+    }
+    window.addEventListener('touchmove', onMove, { passive: true })
+    window.addEventListener('mousemove', onMove, { passive: true })
+    return () => {
+      dwell.cancel()
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('mousemove', onMove)
+    }
+  })
+
+  // Mount and overlay-close refresh run the same load pair: a closed Search/Labels/
+  // Import overlay may have changed tasks OR labels (loadWith is token-guarded).
+  const loadAll = async () => {
     await preloadLabels(core)
     await loadRange()
-  })
+  }
+  onMount(loadAll)
+  onRefresh(loadAll)
 
   function loadRange() {
     return core.loadWith(
@@ -76,23 +125,38 @@
     )
   }
 
+  // Both navigations run inside a directional view-transition slide (the grid pane
+  // carries `vt-calendar`), awaiting the range fetch so the new month slides in
+  // already populated. Falls back to the plain instant swap (nav-transition.ts).
   function go(delta: number) {
-    const next = addMonths(viewYear, viewMonth, delta)
-    viewYear = next.year
-    viewMonth = next.month
-    sel.selectedDate = null
-    loadRange()
+    void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
+      const next = addMonths(viewYear, viewMonth, delta)
+      viewYear = next.year
+      viewMonth = next.month
+      sel.selectedDate = null
+      await loadRange()
+    })
   }
 
   function goToday() {
-    viewYear = today.getFullYear()
-    viewMonth = today.getMonth()
-    sel.selectedDate = null
-    loadRange()
+    const delta = (today.getFullYear() - viewYear) * 12 + (today.getMonth() - viewMonth)
+    void navigateWithSlide(delta > 0 ? 'forward' : delta < 0 ? 'back' : null, async () => {
+      viewYear = today.getFullYear()
+      viewMonth = today.getMonth()
+      sel.selectedDate = null
+      await loadRange()
+    })
   }
 </script>
 
-<section class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4">
+<!-- The swipe listener lives on the section, NOT on the vt-calendar pane inside it: a
+     captured pane is skipped for hit-testing while its slide runs, so a fast follow-up
+     swipe would be eaten mid-transition. On the section it always lands (touch-only;
+     the action ignores task drags and vertical scrolls). -->
+<section
+  class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
+  use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
+>
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
       <h1 class="font-display text-xl font-semibold tracking-tight text-pine-deep sm:text-2xl">
@@ -162,28 +226,61 @@
   </div>
 
   {#if isCompact()}
-    <!-- Phone: the same calendar grid, but each cell shows compact readable task lines
-         (a colour dot + title) instead of the full pills; tap a day to open its popup.
+    <!-- Phone: the TickTick-style split. The same calendar grid on top, each cell showing
+         compact readable task lines (a colour dot + title); tapping a day selects it and
+         its agenda renders underneath as full task rows — a shared `calendar` drag zone,
+         so a held row drops onto any grid cell to reschedule (the selected day's own cell
+         freezes while its agenda is the live zone). While a held task dwells at the very
+         bottom, the agenda hides (`gridExpanded`) so the whole month is the drop surface.
          Only the month's actual week-rows render, so the cells get the reclaimed height.
-         Swipe left/right across the grid to step to the next/previous month. -->
-    <div
-      class="grid min-h-0 flex-1 grid-cols-7 gap-1"
-      style:grid-template-rows="repeat({weeks}, minmax(0, 1fr))"
-      use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
-    >
-      {#each compactCells as date, i (gridKeys[i])}
-        <CalendarCellMobile
-          {date}
-          items={cal.board[gridKeys[i]] ?? []}
-          inCurrentMonth={isSameMonth(date, viewMonth)}
-          isToday={gridKeys[i] === todayKey}
-          labelFor={sel.labelFor}
-          onSelect={() => (sel.selectedDate = date)}
-        />
-      {/each}
+         Swipe left/right anywhere in the view (the section's `swipe` action) to step to
+         the next/previous month — the whole split (grid + agenda) is the `vt-calendar`
+         pane, so both slide together. -->
+    <div bind:this={splitEl} class="vt-calendar flex min-h-0 flex-1 flex-col">
+      <div
+        class="grid min-h-0 flex-[11] grid-cols-7 gap-1"
+        style:grid-template-rows="repeat({weeks}, minmax(0, 1fr))"
+      >
+        {#each compactCells as date, i (gridKeys[i])}
+          <CalendarCellMobile
+            {date}
+            dateKey={gridKeys[i]}
+            items={cal.board[gridKeys[i]] ?? []}
+            inCurrentMonth={isSameMonth(date, viewMonth)}
+            isToday={gridKeys[i] === todayKey}
+            open={gridKeys[i] === selectedKey}
+            labelFor={sel.labelFor}
+            onSelect={() => (sel.selectedDate = date)}
+            onConsider={cal.consider}
+            onFinalize={cal.finalize}
+          />
+        {/each}
+      </div>
+
+      {#if sel.selectedDate && selectedKey}
+        <div
+          class="mt-2 min-h-0 flex-[9] overflow-y-auto border-t border-lichen pt-2
+            {gridExpanded ? 'hidden' : ''}"
+        >
+          <DayListSection
+            date={sel.selectedDate}
+            dateKey={selectedKey}
+            items={cal.board[selectedKey] ?? []}
+            isToday={selectedKey === todayKey}
+            pending={core.pending}
+            labelFor={sel.labelFor}
+            onToggle={core.toggle}
+            onEditTask={(task) => composer.edit(task)}
+            onAdd={() => composer.add(selectedKey)}
+            onConsider={cal.consider}
+            onFinalize={cal.finalize}
+            emptyLabel="Nothing scheduled"
+          />
+        </div>
+      {/if}
     </div>
   {:else}
-    <div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1.5">
+    <div class="vt-calendar grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1.5">
       {#each grid as date, i (gridKeys[i])}
         <CalendarCell
           {date}
@@ -206,25 +303,11 @@
   {/if}
 </section>
 
-<!-- The day zoom, opened by tapping a day cell. A phone gets the full-screen grouped
-     DaySheet (group-by-label + untimed drag-reorder). A wide screen gets the floating,
-     non-modal DayPanel instead: the grid stays live behind it, so a task can be dragged
-     out of the panel onto another day to reschedule it (via the shared calendar board). -->
-{#if isCompact()}
-  <DaySheet
-    date={sel.selectedDate}
-    tasks={sel.selectedTasks}
-    labels={core.labels}
-    pending={core.pending}
-    onToggle={core.toggle}
-    onReorder={core.reorder}
-    onReorderLabels={core.reorderLabels}
-    onCreate={dayCrud.create}
-    onUpdate={dayCrud.update}
-    onDelete={dayCrud.remove}
-    onClose={() => (sel.selectedDate = null)}
-  />
-{:else if sel.selectedDate && selectedKey}
+<!-- The desktop day zoom, opened by tapping a day cell: the floating, non-modal
+     DayPanel — the grid stays live behind it, so a task can be dragged out of the panel
+     onto another day to reschedule it (via the shared calendar board). A phone needs no
+     overlay here: its day zoom is the split view's agenda, rendered above. -->
+{#if !isCompact() && sel.selectedDate && selectedKey}
   <DayPanel
     date={sel.selectedDate}
     dateKey={selectedKey}

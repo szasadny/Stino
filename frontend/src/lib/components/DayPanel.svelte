@@ -18,7 +18,7 @@
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
-  import { DND_FLIP_MS, DND_GRID_TOUCH_HOLD_MS } from '../constants'
+  import { DND_FLIP_MS, DND_GRID_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
   import { formatDayFull } from '../date'
   import { panelPosition } from '../panel-pos'
   import TaskPill from './TaskPill.svelte'
@@ -155,7 +155,7 @@
         delayTouchStart: DND_GRID_TOUCH_HOLD_MS,
         dragDisabled: pending,
         dropTargetStyle: {},
-        dropTargetClasses: ['rounded-md', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
+        dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],
       }}
       onconsider={(e) => onConsider(dateKey, e)}
       onfinalize={(e) => onFinalize(dateKey, e)}

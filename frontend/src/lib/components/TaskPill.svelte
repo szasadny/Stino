@@ -4,7 +4,7 @@
   // shows as a soft color tint so the label reads at a glance across the month — while
   // the title stays on the themed `ink` token, which keeps any
   // chosen color legible on the light OR dark cell ground (same safe approach as
-  // LabelChip / TaskDot, no `dark:` classes).
+  // LabelChip, no `dark:` classes).
   //
   // The pill carries a small round completion checkbox (same affordance as TaskRow), so
   // an occurrence can be ticked off straight from the calendar — `onToggle` runs the same

@@ -19,23 +19,23 @@
   } from '../lib/quickadd'
   import { type ComposerDraft, taskToDraft } from '../lib/composer'
   import {
+    DND_FLIP_MS,
+    INPUT_CLASS,
     LABEL_NAME_MAX_LENGTH,
-    LABEL_PALETTE,
     PRIMARY_BTN_CLASS,
     TITLE_MAX_LENGTH,
   } from '../lib/constants'
   import { errorMessage } from '../lib/errors'
-  import { labelLookup } from '../lib/labels'
+  import { labelLookup, nextPaletteColor } from '../lib/labels'
+  import { onRefresh } from '../lib/refresh.svelte'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import TaskRow from '../lib/components/TaskRow.svelte'
+  import DeleteConfirm from '../lib/components/DeleteConfirm.svelte'
+  import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import LabelChip from '../lib/components/LabelChip.svelte'
   import LabelSelect from '../lib/components/LabelSelect.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
   import EmptyState from '../lib/components/EmptyState.svelte'
-
-  // FLIP animation duration for the drag-reorder list (kept in sync with the dndzone
-  // option below so the placeholder and the moving rows settle together).
-  const FLIP_MS = 150
 
   const core = createTaskCore()
 
@@ -109,9 +109,6 @@
   let composerInitial = $state<Partial<ComposerDraft>>({})
   let composerOpen = $state(false)
 
-  // Two-step delete confirm (inline row).
-  let confirmingId = $state<number | null>(null)
-
   // Multi-select / bulk-edit mode. While `selecting`, rows become checkboxes and a sticky bar
   // applies one action (label, schedule, complete, delete) to every selected task at once.
   // `bulkDate` backs the schedule input; the delete action gets its own two-step confirm.
@@ -125,6 +122,8 @@
   const labelFor = $derived(labelLookup(core.labels))
 
   onMount(load)
+  // Reload after a mutating overlay (Search/Labels/Import) closes over this view.
+  onRefresh(load)
 
   function load() {
     return core.loadWith(async () => {
@@ -154,7 +153,7 @@
     const found = existingLabel(clean)
     if (found) return found
     try {
-      const color = LABEL_PALETTE[core.labels.length % LABEL_PALETTE.length].hex
+      const color = nextPaletteColor(core.labels)
       const created = await api.labels.create({ name: clean, color, emoji: null })
       core.labels = [...core.labels, created]
       return created
@@ -256,7 +255,6 @@
     composerInitial = taskToDraft(task)
     composerMode = task.id
     composerOpen = true
-    confirmingId = null
     core.error = null
   }
 
@@ -281,10 +279,7 @@
   }
 
   async function removeTask(id: number) {
-    if (await core.remove(id)) {
-      confirmingId = null
-      composerOpen = false
-    }
+    if (await core.remove(id)) composerOpen = false
   }
 
   // Delete the task open in the editor (the guard narrows `composerMode` to its id).
@@ -321,7 +316,6 @@
   function enterSelect() {
     selecting = true
     composerOpen = false
-    confirmingId = null
     core.error = null
   }
 
@@ -390,14 +384,7 @@
     <p class="mt-1 text-sm text-sage">Capture now, schedule later.</p>
   </header>
 
-  {#if core.error}
-    <p
-      role="alert"
-      class="mt-4 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-bark"
-    >
-      {core.error}
-    </p>
-  {/if}
+  <ErrorAlert error={core.error} class="mt-4" />
 
   <!-- Capture a new task -->
   <form
@@ -423,7 +410,7 @@
           aria-expanded={menuOpen}
           aria-controls="capture-label-menu"
           aria-autocomplete="list"
-          class="w-full rounded-lg border border-lichen bg-fog px-3 py-2 text-sm text-ink outline-none transition placeholder:text-sage focus:border-pine focus:bg-surface"
+          class="w-full {INPUT_CLASS}"
         />
         {#if menuOpen}
           <ul
@@ -682,7 +669,7 @@
         class="flex flex-col gap-2"
         use:dragHandleZone={{
           items: dragOrder,
-          flipDurationMs: FLIP_MS,
+          flipDurationMs: DND_FLIP_MS,
           dragDisabled: core.pending,
           dropTargetStyle: {},
         }}
@@ -709,42 +696,14 @@
                 </div>
               {/snippet}
               {#snippet trailing()}
-                {#if confirmingId === task.id}
-                  <span class="text-xs text-sage">Delete?</span>
-                  <button
-                    type="button"
-                    onclick={() => removeTask(task.id)}
-                    disabled={core.pending}
-                    class="rounded-lg px-2 py-1 text-xs font-medium text-bark transition hover:bg-bark/10 disabled:opacity-40"
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    onclick={() => (confirmingId = null)}
-                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:text-pine-deep"
-                  >
-                    No
-                  </button>
-                {:else}
-                  <button
-                    type="button"
-                    onclick={() => startEdit(task)}
-                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onclick={() => {
-                      confirmingId = task.id
-                      core.error = null
-                    }}
-                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark"
-                  >
-                    Delete
-                  </button>
-                {/if}
+                <button
+                  type="button"
+                  onclick={() => startEdit(task)}
+                  class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+                >
+                  Edit
+                </button>
+                <DeleteConfirm onConfirm={() => removeTask(task.id)} busy={core.pending} compact />
               {/snippet}
             </TaskRow>
           </li>

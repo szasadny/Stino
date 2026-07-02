@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyLabelOrder, labelLookup, mergeLabelOrder } from './labels'
+import { applyLabelOrder, labelLookup, mergeLabelOrder, nextPaletteColor } from './labels'
+import { LABEL_PALETTE } from './palette.js'
 import type { Label, Task } from './types'
 
 const label = (id: number, sort_order = 0): Label => ({
@@ -54,6 +55,24 @@ describe('mergeLabelOrder', () => {
 
   it('is a no-op when the visible order is unchanged', () => {
     expect(mergeLabelOrder(all, [2, 4])).toEqual([1, 2, 3, 4])
+  })
+})
+
+describe('nextPaletteColor', () => {
+  it('starts at the first palette color with no labels', () => {
+    expect(nextPaletteColor([])).toBe(LABEL_PALETTE[0].hex)
+  })
+
+  it('advances by max sort_order, not list length, matching the backend importer', () => {
+    // Three labels created (sort orders 0..2), then the middle one deleted: the
+    // list has 2 labels but the next sort_order is 3 — length % len would hand
+    // out palette[2] again while the importer would pick palette[3].
+    const afterDelete = [label(1, 0), label(3, 2)]
+    expect(nextPaletteColor(afterDelete)).toBe(LABEL_PALETTE[3].hex)
+  })
+
+  it('wraps around when the palette is exhausted', () => {
+    expect(nextPaletteColor([label(1, LABEL_PALETTE.length - 1)])).toBe(LABEL_PALETTE[0].hex)
   })
 })
 

@@ -64,7 +64,18 @@ export function createCalendarBoard(
       },
       async () => {
         await api.tasks.update(plan.movedId, { due_date: key })
-        if (plan.reorderIds) await api.tasks.reorder(plan.reorderIds)
+        if (!plan.reorderIds) return
+        try {
+          await api.tasks.reorder(plan.reorderIds)
+        } catch (err) {
+          // The date update already landed, so the plain snapshot revert would lie (the
+          // server has the task on the new day). Kick off a range reload BEFORE rethrowing:
+          // it bumps the load token synchronously, so `optimistic`'s catch skips the revert
+          // and the fetched server truth wins. loadWith doesn't take the `pending` lock, so
+          // this can't deadlock. The rethrow still surfaces the move error.
+          void reload()
+          throw err
+        }
       },
       'Could not move the task',
     )

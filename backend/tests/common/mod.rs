@@ -10,16 +10,16 @@ use axum::Router;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::SqlitePool;
 use std::path::Path;
 use tower::ServiceExt;
 
 use stino_backend::routes;
 
-/// The real router over a fresh in-memory database with migrations applied, so
-/// each test runs in full isolation. `max_connections(1)` keeps the single
-/// in-memory DB alive for the whole test; `min_connections(1)` stops it being
-/// reaped between requests.
-pub async fn test_app() -> Router {
+/// A fresh in-memory database with migrations applied, so each test runs in
+/// full isolation. `max_connections(1)` keeps the single in-memory DB alive for
+/// the whole test; `min_connections(1)` stops it being reaped between requests.
+pub async fn test_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
         .min_connections(1)
         .max_connections(1)
@@ -27,7 +27,19 @@ pub async fn test_app() -> Router {
         .await
         .expect("open in-memory sqlite");
     sqlx::migrate!().run(&pool).await.expect("run migrations");
-    routes::router(pool, Path::new("."))
+    pool
+}
+
+/// The real router over a [`test_pool`] database (no Host allowlist).
+pub async fn test_app() -> Router {
+    routes::router(test_pool().await, Path::new("."), None)
+}
+
+/// [`test_app`] plus a handle on its pool, for tests that assert directly on
+/// the rows behind the API (e.g. that a completion row really moved).
+pub async fn test_app_with_pool() -> (Router, SqlitePool) {
+    let pool = test_pool().await;
+    (routes::router(pool.clone(), Path::new("."), None), pool)
 }
 
 /// Send a request through a clone of the router and decode the JSON body (empty
@@ -47,6 +59,16 @@ pub async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
         serde_json::from_slice(&bytes).expect("json body")
     };
     (status, body)
+}
+
+/// Send a request and return only the status — for responses whose body isn't
+/// JSON (e.g. axum's own query-string rejection, which is plain text).
+pub async fn status_of(app: &Router, req: Request<Body>) -> StatusCode {
+    app.clone()
+        .oneshot(req)
+        .await
+        .expect("router response")
+        .status()
 }
 
 /// Build a JSON request with the given method, URI, and body.

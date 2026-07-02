@@ -19,6 +19,11 @@ import { replaceOccurrence, toggleCompletion } from '../task-actions'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
+// Shown when a write landed but the follow-up refetch failed: the save itself must
+// never read as a failure (a retry would duplicate the task), so editors close and
+// this soft message points at the stale view instead.
+const REFRESH_FAILED_MSG = 'Saved, but refreshing the view failed — switch tabs to reload it.'
+
 export function createTaskCore() {
   let tasks = $state<Task[]>([])
   let labels = $state<Label[]>([])
@@ -58,6 +63,7 @@ export function createTaskCore() {
     if (pending) return false
     const snapTasks = tasks
     const snapLabels = labels
+    const tokenAtStart = loadToken
     pending = true
     error = null
     apply()
@@ -65,8 +71,12 @@ export function createTaskCore() {
       await persist()
       return true
     } catch (err) {
-      tasks = snapTasks
-      labels = snapLabels
+      // Revert only if no load began since the snapshot (loadWith isn't gated by
+      // `pending`): a newer load's data is server truth and must not be clobbered.
+      if (loadToken === tokenAtStart) {
+        tasks = snapTasks
+        labels = snapLabels
+      }
       error = errorMessage(err, failMsg)
       return false
     } finally {
@@ -92,8 +102,22 @@ export function createTaskCore() {
     }
   }
 
+  // A landed persist must never read as a failure: after it, a reload error surfaces
+  // only as the soft refresh-failed banner. Shared by `save` and `saveOrThrow`.
+  async function softReload(reload: () => Promise<void>) {
+    try {
+      await reload()
+    } catch {
+      error = REFRESH_FAILED_MSG
+    }
+  }
+
   // For create/update, where the server assigns the id / expands recurrence, so a reload is
   // the correct resync rather than an optimistic insert. Holds the lock across persist+reload.
+  // The two stages fail differently: a persist failure returns false (the editor stays open
+  // to retry), but once persist landed the save DID happen — a reload failure still returns
+  // true (so editors close and a resubmit can't duplicate) and only sets the soft
+  // refresh-failed `error`.
   async function save(
     persist: () => Promise<void>,
     reload: () => Promise<void>,
@@ -103,12 +127,14 @@ export function createTaskCore() {
     pending = true
     error = null
     try {
-      await persist()
-      await reload()
+      try {
+        await persist()
+      } catch (err) {
+        error = errorMessage(err, failMsg)
+        return false
+      }
+      await softReload(reload)
       return true
-    } catch (err) {
-      error = errorMessage(err, failMsg)
-      return false
     } finally {
       pending = false
     }
@@ -116,9 +142,11 @@ export function createTaskCore() {
 
   // Like `save`, but for a caller that renders its OWN error rather than `core.error` — the
   // day-sheet composer, whose error must show inline over the grid, not behind the modal.
-  // Same `pending` lock + reload-on-success, but it RETHROWS the failure so the caller can
-  // catch it. Serialized with every other mutation: if a change is already in flight it throws
-  // (the caller keeps its editor open to retry) rather than running unlocked.
+  // Same `pending` lock, but a persist failure RETHROWS so the caller can catch it.
+  // Serialized with every other mutation: if a change is already in flight it throws
+  // (the caller keeps its editor open to retry) rather than running unlocked. As in `save`,
+  // a reload failure after a landed persist returns normally (the caller's editor closes —
+  // a retry would duplicate) and surfaces the soft refresh-failed `error`.
   async function saveOrThrow(
     persist: () => Promise<void>,
     reload: () => Promise<void>,
@@ -127,7 +155,7 @@ export function createTaskCore() {
     pending = true
     try {
       await persist()
-      await reload()
+      await softReload(reload)
     } finally {
       pending = false
     }

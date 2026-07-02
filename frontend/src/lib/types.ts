@@ -1,10 +1,5 @@
 // Shared types mirroring the API contract — single source of truth on the client.
 
-export interface Health {
-  status: string
-  db: boolean
-}
-
 export interface Label {
   id: number
   name: string

@@ -1,9 +1,9 @@
 <script lang="ts">
   // One day rendered as a full-width, readable section — the phone layout for the Week
-  // view (each of the seven days). A weekday + date header sits over that day's tasks as
-  // readable TaskRows, so a phone shows what's on every day at a glance instead of
-  // cramming text into a grid cell. (The phone Month view uses CalendarCellMobile — a
-  // calendar grid of compact cells — instead.)
+  // view (each of the seven days) AND the selected day's agenda under the phone Month
+  // split view's grid. A weekday + date header sits over that day's tasks as readable
+  // TaskRows, so a phone shows a day at a glance instead of cramming text into a grid
+  // cell.
   //
   // Optional props:
   //  - `onSelect` makes the weekday/date header tap to zoom into the day sheet — the phone
@@ -11,18 +11,20 @@
   //  - `onAdd` shows the quick-add "+" beside the header.
   //  - `emptyLabel` shows placeholder text on an empty day; omit it for a header-only row.
   //  - `onConsider`/`onFinalize` (with `dateKey`) turn the rows into a svelte-dnd-action
-  //    `calendar` drop zone bound to WeekView's calendar board, so a task can be dragged
-  //    from one day-section to another (reschedule) or reordered within its day — the phone
-  //    counterpart of the desktop WeekDayCell columns. Drag is a whole-row press-and-hold
-  //    (delayTouchStart) so a tap still edits and a swipe still scrolls. All seven sections
-  //    share the one `calendar` type, so a held task can hop between days; the board's
-  //    guarded re-projection keeps the lists stable mid-gesture. The day sheet (opened from
-  //    the header) is a full-screen modal, so its own DayAgenda drag zone can never be live
-  //    at the same time as these behind it — no freeze needed.
+  //    `calendar` drop zone bound to the owning view's calendar board, so a task can be
+  //    dragged from one day to another (reschedule) or reordered within its day — in Week,
+  //    a held task hops between the seven sections (the phone counterpart of the desktop
+  //    WeekDayCell columns); in the Month split, a held row drops onto any grid cell.
+  //    Drag is a whole-row press-and-hold (delayTouchStart) so a tap still edits and a
+  //    swipe still scrolls; the board's guarded re-projection keeps the lists stable
+  //    mid-gesture. Week's day sheet (opened from the header) is a full-screen modal, so
+  //    its own DayAgenda drag zone can never be live at the same time as these behind it —
+  //    no freeze needed. (The Month split freezes the selected day's CELL instead, since
+  //    this agenda and that cell would otherwise share one day's items.)
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { dndzone, type DndEvent } from 'svelte-dnd-action'
-  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS } from '../constants'
+  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
   import { openWithoutPhantomClick } from '../phantom-click'
   import { formatDayFull, weekdayLong } from '../date'
   import TaskRow from './TaskRow.svelte'
@@ -125,7 +127,7 @@
         delayTouchStart: DND_TOUCH_HOLD_MS,
         dragDisabled: pending,
         dropTargetStyle: {},
-        dropTargetClasses: ['rounded-lg', 'ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5'],
+        dropTargetClasses: ['rounded-lg', ...DROP_TARGET_RING_CLASSES],
         zoneItemTabIndex: -1,
       }}
       onconsider={(e) => onConsider?.(dateKey, e)}

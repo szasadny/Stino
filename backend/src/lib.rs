@@ -62,7 +62,7 @@ pub async fn run() -> anyhow::Result<()> {
         .await
         .context("running migrations")?;
 
-    let app = routes::router(pool, &cfg.static_dir);
+    let app = routes::router(pool, &cfg.static_dir, cfg.allowed_hosts.clone());
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", cfg.port))
         .await

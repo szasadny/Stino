@@ -1,8 +1,6 @@
 # Stinō — a self-hosted TickTick replacement
 
-> **Stinō** is the product name — the **ō** (o-macron, U+014D) is pronounced *oo*/*oe* (like Dutch *moe*), so it reads roughly "Stee-noo". The **logo stays a cairn** — the stack of trail stones that marks the way ahead — so the mountain-forest identity carries through even though the name changed. The name only ever appears in user-facing copy, so it's trivial to change.
-
-A personal, self-hosted task + calendar web app. It replaces TickTick for one person, reachable only over Tailscale, running in a single Docker container. The guiding principle is **calm and core**: the month calendar and the task list, done well, with a calm mountain-forest feel — and nothing else. When a detail is unspecified, **do it the way TickTick does it**, then strip anything that isn't core.
+A personal, self-hosted task + calendar web app for one person, reachable only over Tailscale, running in a single Docker container. Guiding principle: **calm and core** — the month calendar and the task list, done well, with a calm mountain-forest feel, and nothing else. When a detail is unspecified, **do it the way TickTick does it**, then strip anything that isn't core. (The name **Stinō** — ō = U+014D, reads "Stee-noo" — appears only in user-facing copy; the logo is a **cairn**, three stacked trail stones.)
 
 ## Start Here — Task Routing
 
@@ -10,80 +8,69 @@ Match the task against this table and do the listed action **before** reading co
 
 | If the task involves… | Then first… |
 | --- | --- |
-| Any frontend / UI work (a view, component, styling, layout, mobile) | The `frontend-design` skill loads automatically — follow it, and stay inside the design tokens in [§ Design Language](#design-language--calm-mountain-forest) |
-| A DB schema change (table, column, index) | Read [§ Data Model](#data-model) and [§ Hard Rules](#hard-rules--quick-index) 3; add a **new** SQLx migration, never edit an applied one |
-| Deciding where a new piece of code belongs | Use [§ Architecture & Module Boundaries](#architecture--module-boundaries) — every concern has exactly one home |
-| Anything touching dates, times, or recurrence | Read [§ Time, Dates & Recurrence](#time-dates--recurrence) — the timezone and recurrence rules are easy to get subtly wrong |
-| The API contract, exact DDL, recurrence or import detail | Read [ARCHITECTURE.md](./ARCHITECTURE.md) — the concrete contract + schema; update it in the same change |
+| Frontend / UI work (view, component, styling, layout, mobile) | Follow the `frontend-design` skill and stay inside the tokens in [§ Design Language](#design-language--calm-mountain-forest) |
+| A DB schema change (table, column, index) | Read [§ Data Model](#data-model) + Hard Rule 3; add a **new** SQLx migration, never edit an applied one |
+| Deciding where new code belongs | [§ Architecture & Module Boundaries](#architecture--module-boundaries) — every concern has exactly one home |
+| Dates, times, or recurrence | Read [§ Time, Dates & Recurrence](#time-dates--recurrence) — easy to get subtly wrong |
+| The API contract, exact DDL, frontend module map, calendar layout/drag detail, import detail | Read [ARCHITECTURE.md](./ARCHITECTURE.md) — the source of truth; update it in the same change |
 | Reviewing your own diff before finishing | Run `/code-review` (bugs) and `/simplify` (cleanups) |
-| The CLAUDE.md itself drifting from reality | Run `/revise-claude-md` |
+| CLAUDE.md drifting from reality | Run `/revise-claude-md` |
 | Confirming a change works in the real app | Run `/run` (launch it) or `/verify` (drive it and observe) |
 
-## Hard Rules — quick index
+## Hard Rules
 
 Breaking any of these is never acceptable, including during debugging or quick fixes.
 
-1. **Handlers stay thin.** HTTP handlers parse input, call one service, and shape the response. All business logic lives in `services/`; all SQL lives in the repository layer. No SQL in handlers, no `axum` types in services. ([§ Architecture](#architecture--module-boundaries))
-2. **The frontend talks to the backend only through the single API client** (`lib/api.ts`). No `fetch`/`axios` scattered in components. Label colors, enums, and shared types come from one source, never hardcoded twice. ([§ Architecture](#architecture--module-boundaries))
-3. **Migrations are additive and permanent.** Never edit a migration that has been applied — add a new one. Never `DROP`/`DELETE`/`TRUNCATE` or do a data-losing type change unless the user explicitly asks for that exact removal. This app holds real, imported personal data. ([§ Data Model](#data-model))
-4. **Core only — no bloat.** Reminders, push notifications, alerts, pomodoro, habits, collaboration, AI assistants, "smart" lists beyond what is specified are explicitly **out of scope**. Do not add them, even if TickTick has them. If a feature feels like an addition rather than the calendar/task core, stop and ask. ([§ Scope](#scope--what-this-is-and-is-not))
-5. **Mobile is a first-class target, not an afterthought.** Every view must be usable on a phone (touch targets, single-column reflow, the calendar legible). Design mobile-first, then widen. ([§ Design Language](#design-language--calm-mountain-forest))
-6. **Stay inside the design tokens.** Colors, spacing, and radii come from the Tailwind theme tokens in [§ Design Language](#design-language--calm-mountain-forest). No ad-hoc hex values in components. Label colors are the one exception (user data), and they come from a fixed, nature-derived palette.
-7. **Dates are calendar dates in the user's local timezone, never UTC instants.** A task due "June 24" must never shift a day because of a timezone conversion. ([§ Time, Dates & Recurrence](#time-dates--recurrence))
-8. **State survives restarts.** The SQLite file lives on a mounted volume; nothing important is written to the container's ephemeral filesystem. Config comes from env vars. ([§ Environment](#environment))
-9. **No auth in code, but never assume public exposure.** Access control is Tailscale's job. Don't build login, and don't add anything that only makes sense for a publicly-exposed multi-user app.
+1. **Handlers stay thin.** Parse input, call one service, shape the response. Business logic lives in `services/`; all SQL in `db/`. No SQL in handlers, no `axum` types in services.
+2. **Frontend HTTP only through `lib/api.ts`.** No `fetch`/`axios` in components. Label colors, enums, and shared types come from one source, never hardcoded twice.
+3. **Migrations are additive and permanent.** Never edit an applied migration — add a new one. Never `DROP`/`DELETE`/`TRUNCATE` or make a data-losing type change unless the user explicitly asks for that exact removal. The app holds real, imported personal data.
+4. **Core only — no bloat.** Reminders, notifications, alerts, pomodoro, habits, collaboration, AI assistants, "smart" lists are **out of scope**. Don't add them even if TickTick has them. If a feature feels like an addition rather than the calendar/task core, stop and ask.
+5. **Mobile is first-class.** Every view must be usable on a phone (touch targets, single-column reflow, legible calendar). Design mobile-first, then widen.
+6. **Stay inside the design tokens.** Colors, spacing, and radii come from the Tailwind theme tokens. No ad-hoc hex in components. One exception: label colors (user data), from the fixed palette.
+7. **Dates are local calendar dates, never UTC instants.** A task due "June 24" must never shift a day because of a timezone conversion.
+8. **State survives restarts.** SQLite lives on a mounted volume; config comes from env vars; nothing important is written to the container's ephemeral filesystem.
+9. **No auth in code, but never assume public exposure.** Access control is Tailscale's job. Don't build login, and don't add anything that only makes sense for a public multi-user app.
 
-## Scope — what this is and is not
+## Scope
 
-**In scope (the must-haves):**
+**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; every N days/weeks) · times on tasks · search over title/notes · group-by-label in a day view · time-sorted ordering (timed by time, untimed by manual drag order) · TickTick CSV import.
 
-- **Month calendar** — the primary view; see what's upcoming at a glance.
-- **Day zoom** — open a single day to see everything on it when the month cell is too full.
-- **Week view** — a seven-day layout.
-- **Color labels** — create labels with colors; tasks carry one (or more) labels.
-- **Today** tab — everything due today.
-- **Inbox** tab — captured-but-not-yet-scheduled tasks (no due date yet).
-- **Recurring tasks** — daily, weekly (specific weekdays), monthly (by date incl. the last day, by the Nth weekday incl. last, or the first/last workday), and custom intervals (every N days/weeks).
-- **Times on tasks** — a task may have a time, not just a date.
-- **Search** — find tasks by title / notes.
-- **Group by label** when viewing a single day.
-- **Time-sorted ordering** — within any day/list view, timed tasks sort by time; untimed tasks have a manual drag-to-reorder order.
-- **Import from TickTick** — migrate existing data from a TickTick export (CSV backup).
-
-**Out of scope (deliberately — see Hard Rule 4):** reminders / notifications / alerts, pomodoro & focus timers, habit tracking, sub-tasks/checklists depth, priorities beyond what import needs, collaboration / sharing, accounts & auth, calendar (ICS) subscriptions, AI features. Keep the surface small and the app calm.
+**Out of scope (deliberate — Hard Rule 4):** reminders/notifications/alerts, pomodoro & focus timers, habit tracking, sub-task/checklist depth, priorities beyond what import needs, collaboration/sharing, accounts & auth, ICS subscriptions, AI features.
 
 ## Architecture & Module Boundaries
 
-> The concrete API contract, DDL, recurrence semantics, and import mapping live in [ARCHITECTURE.md](./ARCHITECTURE.md) — the source of truth. This section is orientation; keep the two in sync.
+> The concrete API contract, DDL, recurrence semantics, import mapping, frontend module map, and calendar layout/drag rules live in [ARCHITECTURE.md](./ARCHITECTURE.md) — the source of truth. Keep the two files in sync.
 
-One process, one container. The Axum server serves the built Svelte SPA as static files and exposes a JSON API under `/api`. The browser SPA renders all views and calls the API.
+One process, one container. Axum serves the built Svelte SPA as static files and the JSON API under `/api`.
 
 ```
-Browser (Svelte SPA)  ──HTTP/JSON──▶  Axum  ──▶  services  ──▶  repository (SQLx)  ──▶  SQLite
-        ▲                                                                                  │
-        └──────────────────  static assets served by Axum  ◀───────────────────────────────┘
+Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ db (SQLx) ──▶ SQLite
+        ▲                                                                │
+        └───────────────── static assets served by Axum ◀────────────────┘
 ```
 
-**Backend layers — each has one job; dependencies point downward only:**
+**Backend layers — dependencies point downward only:**
 
 | Layer | Owns | Must NOT |
 | --- | --- | --- |
-| `routes`/`handlers` | HTTP shape: parse request, call one service, return JSON/status | contain business logic or SQL |
-| `services` | all business logic, recurrence expansion, import mapping, validation | import `axum` types or write raw SQL |
-| `repository` (`db`) | every SQL query (SQLx, compile-time checked) | contain business rules |
-| `domain`/`models` | plain Rust structs + enums (the data shapes) | depend on `axum`, `services`, or `db` |
+| `routes/` | HTTP shape: parse request, call one service, return JSON/status | contain business logic or SQL |
+| `services/` | business logic, recurrence expansion, import mapping, validation | import `axum` types or write raw SQL |
+| `db/` | every SQL query (SQLx, compile-time checked) | contain business rules |
+| `domain/` | plain structs + enums | depend on `axum`, `services`, or `db` |
 
 **Frontend boundaries:**
 
-- **All HTTP goes through `lib/api.ts`** — typed functions, one per endpoint. Components never call `fetch` directly.
-- **Shared types live in `lib/types.ts`** — mirror the API contract; single source of truth.
-- **Reusable UI** (calendar cell, task row, label chip, day sheet) lives in `lib/components/`; views compose them, never re-implement them.
-- **The calendar views go compact at or below `COMPACT_MAX_WIDTH` (639px — i.e. anything narrower than Tailwind's `sm` 640px breakpoint).** A reactive `isCompact()` (`lib/viewport.svelte.ts` — one app-wide `matchMedia` listener) picks exactly ONE layout per view (never CSS-toggle both — that would mount duplicate `svelte-dnd-action` zones). **Month** stays the full 6×7 **calendar grid on every screen** — wide screens use `CalendarCell` (interactive pills, drag); a phone swaps in `CalendarCellMobile`, whose narrow cells show each task as a compact readable line (a label-colour dot + title) so every day is legible at a glance, and the whole cell taps to open the day popup. `CalendarCellMobile` has **no hardcoded line cap** — it measures the cell's list height (`bind:clientHeight`) and one rendered line's height and fits exactly as many lines as the screen allows (pure math in `lib/fit.ts`, unit-tested), so "+N more" is always exact. The phone grid also renders only the month's **actual week-rows** (`monthWeekCount`, 4–6) via a dynamic `grid-template-rows` instead of a fixed 6, so no all-spill-over row wastes space and the remaining cells take the reclaimed height (the data layer keeps the full 42-cell grid). Desktop keeps the fixed 6×7. **Week** keeps its 7-column `WeekDayCell` grid on wide screens but a phone (where 7 columns are unreadable) becomes a scrollable stack of readable day-sections (`DayListSection` — a weekday/date header over that day's tasks as full `TaskRow`s). The phone Week rows are a shared `type: 'calendar'` drag zone bound to the SAME `calendar-board` as the desktop grid, so a held task drags **day-to-day** (reschedule) or reorders within its day on a phone too — a whole-row press-and-hold (`dndzone` + `delayTouchStart`, so a tap still edits and a swipe still scrolls). Tapping a day cell zooms into it, but the day zoom differs by width. A **phone** gets the full-screen `DaySheet` (its single `DayAgenda` is the only untimed drag zone live at once). `DayAgenda` renders a day's tasks as a **flat, drag-sorted list by default** (timed-first, then the shared `sort_order`), so a day zoom reads the **same order as the month/week cell** it opened from; a small **List / By label toggle** switches to the alternative **grouped-by-label** view (label sections + up/down label-reorder). Flat is modelled as one unlabeled section (`dayViewGroups`), so one render/drag path serves both; the choice is a shared, persisted preference (`lib/group-view.svelte.ts`) so `DaySheet` and Today flip together. A **wide screen** gets `DayPanel` instead: a floating, **non-modal** card anchored beside the tapped cell (placement math in `lib/panel-pos.ts`, unit-tested) — because it has no modal backdrop, the grid stays live behind it, so a task can be **dragged out of the panel onto another day** to reschedule it. `DayPanel` does this by being just another `type: 'calendar'` zone bound to the SAME board cell the grid uses (shared `calendar-board` `consider`/`finalize`), so every move gesture reuses `move.ts`; add/edit reuse the grid composer, complete the shared toggle. Its list is a flat, grid-ordered cell (label shown as the pill colour), never the label sections — the group-by-label alternative lives only on the phone `DaySheet` and Today (via `DayAgenda`'s toggle), since the panel's single shared `calendar` zone can't split into per-label zones. While `DayPanel` is open, the matching grid cell **freezes** (its `open` prop renders pills statically with no zone) so the panel is the day's only live `calendar` zone — two zones sharing one day's items would corrupt drag tracking. Cross-day drag on the **Month** grid stays desktop-only (`CalendarCellMobile` carries no drop zone — a phone month cell only taps to open the day popup); the phone **Week** list, by contrast, drags day-to-day via `DayListSection`'s `calendar` zone (above). That's safe because the Week day sheet is a full-screen modal, so its `DayAgenda` drag zone is never live at the same time as the list zones behind it — no per-cell freeze needed (unlike the desktop non-modal `DayPanel`). Untimed **reorder inside `DayAgenda`** (the phone `DaySheet` and Today, at all widths) adapts to input: a wide screen drags the 6-dot grip handle (`dragHandleZone`), a phone **press-and-holds the whole row** (`dndzone` + `delayTouchStart`, so a tap still opens/toggles and a scroll still scrolls) — `isCompact()` picks one zone. Since `DaySheet` is phone-only, its rows are always hold-to-drag; the grip shows on a wide **Today**. Because svelte-dnd-action won't start a drag from a `<button>` (any element with a `.value`), the row's tap-to-edit surface renders as a `div role=button` under `TaskRow`'s `holdToDrag`, and `DayAgenda` swallows the one phantom compatibility click a touch tap emits so it can't reach the editor that mounts in place (`DayListSection` reuses that same swallow when its hold-to-drag rows tap open the editor). The **task editor is full-screen on a phone in every view** for consistency — `TaskComposerDialog` (Month/Week/Today/Inbox) mirrors `DaySheet`'s full-screen panel, and `DaySheet` embeds its editor inline — so editing looks the same wherever it's opened; desktop keeps the centered card.
-- **Shared view orchestration lives in `lib/controllers/` (rune factories, `*.svelte.ts`).** `createTaskCore()` owns the task/label state + the load/toggle/reorder/remove/save actions (plus a throwing `dayCrud(reload)` the Month/Week day-sheet binds — same lock, reloads the range, rethrows so the sheet shows its own error) behind ONE in-flight lock and a uniform optimistic-then-revert update; `createCalendarBoard(core, keys, reload)` adds the month/week drop zones; `createGridComposer(core, reload)` owns the month/week add/edit dialog (state + create/update/delete through the lock, exposing the dialog's derived props). Every standing view (Today/Month/Week/Inbox) binds to a core instead of re-implementing CRUD — don't fork this logic back into a view.
-- **Drag-and-drop uses flat, non-nested `svelte-dnd-action` zones only.** A drop list is owned `$state`, mutated solely by `consider`/`finalize`, and re-projected from source data only while no gesture is live (guard the `$effect` with a `dragging` flag read via `untrack`). Never nest one zone inside another (it breaks the inner drag — see DayAgenda: tasks reorder by drag, label sections reorder by up/down controls). Pure drag logic (e.g. a cross-day move) lives in `lib/move.ts`, unit-tested.
-- **Constants** (label palette, view names, layout sizes) live in `lib/constants.ts`.
-
-**One source of truth per concern.** If you write the same block in a second place, lift it into the shared module first.
+- **All HTTP through `lib/api.ts`** (typed, one function per endpoint). **Shared types in `lib/types.ts`.** **Constants in `lib/constants.ts`.** Reusable UI in `lib/components/` — views compose components, never re-implement them.
+- **Shared view orchestration lives in `lib/controllers/`** (rune factories, `*.svelte.ts`). `createTaskCore()` owns task/label state + load/toggle/reorder/remove/save behind ONE in-flight lock with uniform optimistic-then-revert updates; `createCalendarBoard()` adds the month/week drop zones; `createGridComposer()` owns the month/week add/edit dialog. Every standing view (Today/Month/Week/Inbox) binds to a core — never fork this logic back into a view.
+- **Responsive rule:** calendar views go compact at ≤ `COMPACT_MAX_WIDTH` (639px, below Tailwind's `sm`). The reactive `isCompact()` (`lib/viewport.svelte.ts`) picks exactly **ONE layout per view** — never CSS-toggle both layouts (that mounts duplicate drag zones). Per-view layout + drag map: ARCHITECTURE.md §8.
+- **Drag-and-drop invariants** (details and per-view wiring: ARCHITECTURE.md §8):
+  - Flat, non-nested `svelte-dnd-action` zones only — nesting breaks the inner drag.
+  - A drop list is owned `$state`, mutated only by `consider`/`finalize`, and re-projected from source data only while no gesture is live (guard the `$effect` with a `dragging` flag read via `untrack`).
+  - At most ONE live zone holds a given day's items — freeze any duplicate (render it statically, no zone), e.g. a grid cell freezes while `DayPanel` or the phone-month agenda is that day's live zone.
+  - Mid-drag, hide a zone with `hidden` (display:none zeroes its rects, so it can't capture the pointer) — never unmount it (the origin zone must stay registered) and never `invisible`/`visibility:hidden` (an invisible zone keeps its rects and phantom-captures the pointer).
+  - Pure drag/gesture logic lives in `lib/` (`move.ts`, `fit.ts`, `drag-scroll.ts`, `swipe.ts`, `panel-pos.ts`), unit-tested.
+- **Period navigation (month/week) is a directional slide, not an instant swap.** Phone calendars swipe horizontally to the previous/next period (`lib/swipe.ts` — touch-only, drag-aware: it ignores a gesture while svelte-dnd-action's dragged clone exists). Every navigation (swipe or header arrows, all widths) goes through `lib/nav-transition.ts`'s `navigateWithSlide`: a View-Transitions slide scoped to the `vt-calendar` pane (`view-transition-name: calendar-pane`, keyframes in `app.css`) — snapshot-based, so the outgoing grid never mounts twice (no duplicate dnd zones) — that **awaits the range fetch inside the transition**, so the new period slides in already populated. No API support or `prefers-reduced-motion` ⇒ the update applies instantly.
+- **One source of truth per concern.** If you write the same block in a second place, lift it into the shared module first.
 
 ## Stack
 
@@ -95,89 +82,64 @@ Browser (Svelte SPA)  ──HTTP/JSON──▶  Axum  ──▶  services  ─�
 | Recurrence | `rrule` crate (RFC-5545 RRULE parsing + expansion) |
 | Frontend | Svelte 5 + Vite (SPA) + TypeScript |
 | Styling | Tailwind CSS (theme tokens — see Design Language) |
-| Reorder | `svelte-dnd-action` (drag-to-reorder untimed tasks) |
-| Natural-language dates | `chrono-node` (parse "tomorrow 9am" in quick-add, client-side) |
+| Reorder / drag | `svelte-dnd-action` |
+| Natural-language dates | `chrono-node` (client-side quick-add parsing) |
 | Packaging | Single multi-stage Docker image |
 | Access | No auth; reachable over Tailscale only |
 | Persistence | SQLite file on a mounted Docker volume |
 
-**External Solutions First:** before hand-rolling, reach for a maintained crate/package. Recurrence → `rrule` (do not write a date-recursion engine). CSV parsing for import → `csv` crate + `serde`. NL date parsing → `chrono-node` (client-side, do not parse free text on the server). Date math → `chrono`/`time`. If a well-maintained crate or npm package solves ≥80% of a problem, use it and flag the dependency.
+**External Solutions First:** prefer a maintained crate/package over hand-rolling. Recurrence → `rrule` (never write a date-recursion engine); CSV → `csv` + `serde`; NL dates → `chrono-node` (client-side only, never parse free text on the server); date math → `chrono`. If a maintained package solves ≥80% of a problem, use it and flag the dependency.
 
 ## Environment
 
-**Dev:** backend `cargo run` (serves `/api`); frontend `vite dev` with a proxy from `/api` to the backend, so the SPA and API feel like one origin. SQLite path and any config come from env (`DATABASE_URL`, `DATA_DIR`, `TZ`, `PORT`). `.env` for local values — never commit it.
+**Dev:** backend `cargo run` (API on :8080); frontend `vite dev` (:5173, proxies `/api` so SPA and API feel like one origin). Config from env: `DATABASE_URL`, `DATA_DIR`, `STATIC_DIR`, `PORT`, optional `ALLOWED_HOSTS`. `.env` holds local values — never commit it. There is deliberately **no `TZ` config** — the backend never computes "today": dates are stored and returned as plain local text, the browser supplies the local timezone, and the importer uses the CSV's own timezone column.
 
-**Prod:** one container. Multi-stage Dockerfile: (1) build the Svelte SPA with Vite, (2) build the Rust binary, (3) a slim runtime image that bundles the static assets and the binary. The container serves both. The SQLite database lives on a **mounted volume** so data survives restarts and image rebuilds. Migrations run automatically on startup. Exposed only on the Tailscale network.
+**Prod:** one container (`docker compose up --build`). Multi-stage Dockerfile: build the SPA → build the Rust binary → slim runtime serving both. SQLite on a **mounted volume**; migrations run at startup; exposed only on Tailscale.
 
-Write code that works in dev and in the container — no absolute local paths, no hardcoded `localhost` in the frontend (use the proxy / relative `/api`), no state that doesn't survive a restart.
+Write code that works in dev and in the container: no absolute local paths, no hardcoded `localhost` in the frontend (use relative `/api`), no state that doesn't survive a restart.
 
-**Gotcha — keep the project path colon-free.** Rust (`LD_LIBRARY_PATH`), npm (`PATH`), and Docker bind mounts (`host:container`) all use `:` as a separator, so a `:` anywhere in the absolute project path breaks `cargo run`/`cargo build`, `npm run`, **and** `docker compose up` (the `./data:/data` mount). The folder is now `Stino` (colon-free), so `cargo`, `npm run`, and `docker compose` all work normally — no `CARGO_TARGET_DIR` or direct `./node_modules/.bin` workarounds needed. Don't reintroduce a colon in the path. The Docker *image build* is unaffected either way (it copies into `/app`).
+**Gotcha — keep the absolute project path colon-free.** `:` is the separator in `LD_LIBRARY_PATH` (cargo), `PATH` (npm), and Docker bind mounts, so a colon anywhere in the path breaks `cargo`, `npm run`, and `docker compose up`.
 
 ## Data Model
 
-The single source of truth for the schema is the SQLx migrations in `migrations/`. This is the agreed shape; exact DDL is written when the backend is scaffolded.
+Source of truth: `backend/migrations/` (exact DDL and indexes: ARCHITECTURE.md §3).
 
-- **task** — the core entity.
-  - `id`, `title`, `notes` (nullable)
-  - `label_id` (nullable FK → label) — see grouping note below
-  - `due_date` (local calendar date, nullable) — **null ⇒ the task lives in the Inbox** (unscheduled)
-  - `due_time` (local time, nullable) — present ⇒ timed; null ⇒ all-day/untimed
-  - `recurrence_rule` (RRULE string, nullable) — present ⇒ recurring; `due_date` is the series start (DTSTART)
-  - `sort_order` (integer) — manual drag order for untimed tasks within a day/list
-  - `created_at`, `updated_at`
-- **label** — `id`, `name`, `color` (hex from the fixed palette), `emoji` (nullable; an optional single glyph shown beside the color dot), `sort_order`.
-- **completion** — records a done occurrence: `task_id`, `occurrence_date`, `completed_at`.
-  - A non-recurring task is "done" when a completion row exists for it.
-  - A recurring task is done **for a specific date** when a completion exists for `(task_id, occurrence_date)`; other occurrences stay open. This is how completing one instance of a daily task doesn't complete them all.
-- **task_exception** — records a recurring occurrence that has been **detached** by a single-instance move: `task_id`, `occurrence_date`. Expansion skips these dates, so dragging one instance of a repeating task to another day moves *only that instance* (it becomes its own one-off on the new day) while the series keeps repeating. Same per-occurrence keying as `completion`; cascades on task delete.
+- **task** — `id, title, notes?, label_id?→label, due_date?, due_time?, recurrence_rule?, sort_order, created_at, updated_at`. `due_date` NULL ⇒ **Inbox** (unscheduled; giving it a date moves it onto the calendar, TickTick-style). `due_time` NULL ⇒ untimed. `recurrence_rule` set ⇒ recurring, with `due_date` as the series start (DTSTART).
+- **label** — `id, name, color` (hex from the fixed palette), `emoji?` (optional single glyph), `sort_order`.
+- **completion** — one row per done occurrence: `(task_id, occurrence_date, completed_at)`. A recurring task is done **per date** — completing one instance never completes the rest.
+- **task_exception** — `(task_id, occurrence_date)`: a recurring occurrence **detached** by a single-instance move. Expansion skips these dates; cascades on task delete.
 
-**Inbox = `due_date IS NULL`.** Scheduling a task (giving it a date) moves it out of the Inbox and onto the calendar — exactly TickTick's behaviour.
-
-**Labels for grouping.** "Group by label when viewing a day" is the driving requirement. Start with a single `label_id` per task (simplest, sorts cleanly into groups). If multi-label is needed later, introduce a `task_label` join table in a new additive migration — do not retrofit by overloading existing columns.
-
-**Search.** SQLite `LIKE` over `title`/`notes` is enough at personal scale for the MVP. Add an FTS5 virtual table only if search feels slow — and only then.
+**Single `label_id` per task** by design. If multi-label is ever needed, add a `task_label` join table in a new additive migration — never overload existing columns. **Search** is SQLite `LIKE` over title/notes; add FTS5 only if it ever feels slow.
 
 ## Time, Dates & Recurrence
 
-This is the easiest area to introduce subtle bugs. Rules:
+The easiest area for subtle bugs. Rules:
 
-- **`due_date` is a calendar date in the user's local timezone**, stored as a plain date (e.g. `2026-06-24`), not a UTC timestamp. Never convert it through UTC — that's how a task jumps to the wrong day. The timezone is a single configured value (`TZ`), since there is one user.
-- **`due_time` is a local wall-clock time.** Combine with `due_date` only at the edges (display, sorting) using the configured timezone.
-- **Sorting within a view:** timed tasks first, ordered by `due_time` ascending; untimed tasks after, ordered by `sort_order`. This is the "time has to be sorted" requirement.
-- **Recurrence is stored as one task with an RRULE**, not as materialized rows. To render the calendar, **expand the rule with the `rrule` crate over the visible date range** (the month/week window) and overlay completion state per occurrence. Completing an occurrence writes a `completion` row keyed by `(task_id, occurrence_date)`; it does not mutate the task. The range/date queries return **one `Task` per expanded occurrence** carrying a derived **`occurrence_date`** (the instance; `due_date` stays the series start) — so clients key rows by `(id, occurrence_date)`, not `id` alone. See [ARCHITECTURE.md](./ARCHITECTURE.md) §4–§5.
-- **Moving a single occurrence** (drag one instance of a recurring task to another day) detaches just that instance via `POST /api/tasks/{id}/move_occurrence`: it writes a `task_exception` for the old date and creates a one-off on the new day (series keeps repeating). A same-day drop of a recurring instance is a no-op (pinned to its day). The grid drag also handles plain moves (cross-day reschedule) and same-cell untimed reordering — the classification is pure logic in `frontend/src/lib/move.ts` (`dropKind`), unit-tested.
-- **Recurrence options** map to RRULE in `frontend/src/lib/recurrence.ts`: Daily (`FREQ=DAILY`), Weekly (pick weekdays: `FREQ=WEEKLY;BYDAY=…`), Monthly (by date `FREQ=MONTHLY;BYMONTHDAY=n`, `n=-1` ⇒ last day; by the Nth weekday `FREQ=MONTHLY;BYDAY=xx;BYSETPOS=n`, `n=-1` ⇒ last; or the first/last **workday** — the same BYSETPOS rule over the whole Mon–Fri set `BYDAY=MO,TU,WE,TH,FR`), and Custom (every N days/weeks: `FREQ=DAILY|WEEKLY;INTERVAL=n`). Quick-add also recognizes these as typed phrases ("first Monday of every month", "the 15th of every month") client-side via `parseRecurrencePhrase` — rule-based, not chrono. Quick-add also takes an inline `#tag` (TickTick-style) as the task's label — picked from a suggestion menu or created on the fly with the next palette color (see ARCHITECTURE.md `parseQuickAdd`).
+- **`due_date` is a local calendar date** stored as plain text (`2026-06-24`) — **never** converted through UTC. **`due_time` is local wall-clock** (`HH:MM`); combine with the date only at the edges (display, sorting), in the browser's timezone. The backend never computes "today".
+- **Sorting in any view:** timed tasks first by `due_time` ascending, then untimed by `sort_order`.
+- **Recurrence is one task + an RRULE**, never materialized rows. The range/date queries expand the rule (`rrule` crate) over the visible window and return **one Task per occurrence** with a derived `occurrence_date` (`due_date` stays the series start) — clients key rows by `(id, occurrence_date)`, never `id` alone. Completing an occurrence writes a `completion` row; it never mutates the task.
+- **Moving a single occurrence** (`POST /api/tasks/{id}/move_occurrence`) detaches just that instance: a `task_exception` for the old date + a new one-off on the new day; the series keeps repeating. A same-day drop of a recurring instance is a no-op. Drop classification (reorder vs reschedule vs detach) is pure logic in `lib/move.ts` (`dropKind`).
+- The UI options ⇄ RRULE mapping lives in `frontend/src/lib/recurrence.ts`; quick-add parses typed recurrence phrases (`parseRecurrencePhrase`) and inline `#tag` labels (`parseQuickAdd`). Full mapping and validation rules: ARCHITECTURE.md §4–§5.
 
 ## Import from TickTick
 
-TickTick exports a CSV backup. Provide an importer (an upload endpoint + a service that maps rows → our model). Mapping intent:
+`POST /api/import/ticktick` takes a raw TickTick CSV backup. **Add-only** (never deletes — Hard Rule 3), per-row tolerant (a bad row is counted in `skipped`, not fatal), returns a created/skipped summary. Reminder/priority columns are ignored (out of scope). Full column mapping, timezone handling, and atomicity rules: ARCHITECTURE.md §6.
 
-- Title → `task.title`; Content → `task.notes`.
-- Tags / List → **label** (create labels on the fly, assign a palette color deterministically).
-- Due Date (+ Is All Day / time) → `due_date` / `due_time`, respecting the export's timezone but storing as local date/time per the rules above.
-- Repeat (RRULE) → `recurrence_rule` directly.
-- Status / Completed Time → a `completion` row.
-- Reminder column → **ignored** (reminders are out of scope, Hard Rule 4).
-
-The importer must be **idempotent-ish and safe**: it adds data, never deletes existing data, and should be runnable against an empty DB for the initial migration. Surface a summary (counts created, rows skipped) rather than failing the whole import on one bad row.
-
-## Project Structure (target)
-
-The repo is greenfield — this is the layout to scaffold toward. Keep it flat and obvious.
+## Project Structure
 
 ```text
 backend/
   src/
-    main.rs            # binary entry point — just calls lib::run()
-    lib.rs             # crate root: module declarations + run() (pool, migrations, serve)
-    routes/            # one module per resource (tasks, labels, search, import) — thin handlers
-    services/          # business logic: task_service, recurrence, import, search
-    db/                # SQLx repository functions (all SQL lives here)
-    domain/            # plain structs + enums (Task, Label, Recurrence, ...)
-    error.rs           # single AppError mapped to HTTP at the boundary (IntoResponse)
-    config.rs          # env-driven config (DATABASE_URL, TZ, PORT, DATA_DIR)
+    main.rs            # thin entry — calls lib::run()
+    lib.rs             # module declarations + run() (pool, migrations, serve)
+    routes/            # thin handlers: health, labels, tasks, search, import
+    services/          # business logic: task, label, search, recurrence, import, validation
+    db/                # SQLx repository functions (all SQL)
+    domain/            # plain structs + enums (Task, Label, import rows)
+    error.rs           # single AppError → HTTP at the boundary (IntoResponse)
+    config.rs          # env config + shared constants (date/time formats, length caps, body limit)
   migrations/          # SQLx migrations — additive, never edit an applied one
-  .sqlx/               # committed offline query cache (compile-time checks in the Docker build)
+  .sqlx/               # committed offline query cache (the Docker build compiles offline)
   tests/               # integration tests against a temp SQLite DB
 
 frontend/
@@ -185,89 +147,95 @@ frontend/
     lib/
       api.ts           # the ONLY place that talks HTTP
       types.ts         # shared types mirroring the API contract
-      palette.js       # the fixed label palette — one source, imported by constants.ts AND tailwind.config.js
-      constants.ts     # view names, layout sizes, durations, INPUT_CLASS; re-exports the palette
-      controllers/      # rune factories (*.svelte.ts): task-core (shared CRUD + lock), calendar-board (month/week drag), calendar-selection (month/week day-select + label preload), grid-composer (month/week add/edit dialog)
-      move.ts          # pure cross-day-move logic (dropKind / applyMove), unit-tested
-      viewport.svelte.ts # reactive isCompact() — picks the phone (compact) vs wide calendar layout
-      components/       # calendar cell (+ mobile readable cell), task row, label chip, day sheet (phone zoom) + day panel (desktop floating drag-out zoom), day list section (mobile week), quick-add, search dialog
-    views/             # MonthView, WeekView, Today, Inbox (day zoom = phone DaySheet overlay or desktop DayPanel floating card; search is an overlay, not a tab)
-    app.css            # Tailwind entry + theme tokens
-  index.html, vite.config.ts, tailwind.config.*
+      palette.js       # fixed label palette — one source for constants.ts AND tailwind.config.js
+      constants.ts     # caps, breakpoints, durations, look-tokens, view list
+      *.ts             # pure helpers, one concern each, unit-tested (*.test.ts beside each)
+      *.svelte.ts      # reactive module state (viewport, group-view, refresh)
+      controllers/     # rune factories: task-core, calendar-board, calendar-selection, grid-composer
+      components/      # reusable UI (calendar cells, task row, day sheet/panel, dialogs)
+    views/             # MonthView, WeekView, TodayView, InboxView (search is an overlay, not a tab)
+    app.css            # Tailwind entry + theme CSS variables
+  index.html, vite.config.ts, tailwind.config.js
 
-Dockerfile             # multi-stage: build SPA -> build Rust -> slim runtime
+Dockerfile             # multi-stage: build SPA → build Rust → slim runtime
 docker-compose.yml     # mounts the SQLite volume, sets env
 ```
 
-**Navigation rule:** read only the folder relevant to the task. Grep before scanning.
+Full frontend module map (every helper, what it exports, who uses it): ARCHITECTURE.md §7. **Navigation rule:** read only the folder relevant to the task; grep before scanning.
 
 ## Design Language — calm mountain forest
 
-The feel is a quiet morning in a pine forest: soft light, mist, stone, evergreen, warm wood. Calm, spacious, professional — never busy, never neon. Implement these as Tailwind theme tokens (in `tailwind.config`), and use the tokens, not raw hex.
+A quiet morning in a pine forest: soft light, mist, stone, evergreen. Calm, spacious, professional — never busy, never neon. All chrome colors are Tailwind theme tokens (CSS variables in `app.css`, mapped in `tailwind.config.js`) — use the tokens, not raw hex.
 
 **Palette (light):**
 
 | Token | Hex | Use |
 | --- | --- | --- |
-| `fog` | `#F4F6F3` | app background (soft misty green-white) |
+| `fog` | `#F4F6F3` | app background |
 | `surface` | `#FBFCFA` | cards, calendar cells |
 | `pine` | `#2F5D50` | primary actions, active state |
 | `pine-deep` | `#1E3A34` | headers, emphasis |
 | `moss` | `#6F8F6B` | secondary accents, success |
-| `bark` | `#8B6F52` | warm accent, subtle highlights |
-| `mist` | `#8FB3C7` | info / cool accent (sky between peaks) |
+| `bark` | `#8B6F52` | warm accent |
+| `mist` | `#8FB3C7` | info / cool accent |
 | `ink` | `#2B332E` | primary text |
 | `sage` | `#6B7770` | secondary text, muted labels |
 | `lichen` | `#DDE3DD` | borders, dividers |
 
-**Dark mode** ("forest at night") — **implemented**. Defaults to **System** (`prefers-color-scheme`), with a **Settings → Appearance** toggle (System / Light / Dark) that overrides the OS; the choice persists in `localStorage` (`theme.ts`). Mechanism: the chrome tokens are CSS variables (RGB channel triplets) in `frontend/src/app.css`; the dark `@media` block (guarded with `:not([data-theme])` so an explicit choice wins) and a `:root[data-theme='dark']` block re-point the same variables, so every `bg-fog` / `text-ink` adapts with **no per-component `dark:` classes**. A manual override sets `data-theme` on `<html>` (applied pre-paint by a tiny inline bootstrap in `index.html` to avoid a flash). The ground is a calm **cool blue-charcoal** (night sky and shadow) — deliberately **not** green-tinted, since green-on-black reads as an old terminal; evergreen lives only in the **accents** (pine/moss), so the forest shows as colour against the night, and text is a soft cool off-white rather than glaring. pine/pine-deep go **light** in the dark so `bg-pine text-surface` buttons stay readable (dark text on a light fill); all text pairs verified ≥ AA. Calendar cells use dedicated `--cell` / `--cell-out` tokens that **swap per theme**: in light, in-month cells are the crisp surface and other-month days recede to fog; in dark this inverts so the current month is the deep night field and only other-month days take the lighter slate. Weekends are **not** tinted differently from weekdays. The single moonlight gradient (below) is token-driven, so it adapts to dark automatically. Tokens stay in `tailwind.config.js` as `rgb(var(--x) / <alpha-value>)` so `/opacity` modifiers keep working. **Label colors are user data and are not themed** (Hard Rule 6) — a `LabelChip` shows the color as a small dot, legible on either ground.
+**Dark mode** ("forest at night") — implemented:
 
-**Label palette** (the colors a user can assign — nature-derived but distinguishable): pine, moss, fern, clay, amber, slate-blue, plum, stone. Fixed set in `constants.ts`.
+- Defaults to **System** (`prefers-color-scheme`); Settings → Appearance toggle (System/Light/Dark) persists in `localStorage` (`lib/theme.ts`) and sets `data-theme` on `<html>`, applied pre-paint by an inline bootstrap in `index.html` (no flash).
+- Tokens are CSS variables (RGB triplets) in `app.css`. The dark `@media` block (guarded `:not([data-theme])` so an explicit choice wins) and `:root[data-theme='dark']` re-point the same variables — **no per-component `dark:` classes**. Tailwind maps them as `rgb(var(--x) / <alpha-value>)` so `/opacity` modifiers keep working.
+- The dark ground is a cool blue-charcoal (deliberately not green-tinted); evergreen lives in the accents. `pine`/`pine-deep` go **light** in dark so `bg-pine text-surface` buttons stay readable; all text pairs ≥ AA.
+- Calendar cells use `--cell` / `--cell-out` tokens that swap per theme: light = in-month cells on `surface`, other-month days recede to fog; dark = inverted. Weekends are not tinted differently.
+- **Label colors are user data — never themed** (Hard Rule 6); a `LabelChip` shows the color as a small dot, legible on either ground.
 
-**Logo / mark:** a **cairn** — three stacked trail stones, each a distinct forest tone (`pine` / `moss` / `sage`) with clear gaps and a slight natural lean, so it reads as a balanced stack of stones (never one smooth blob) at favicon size and in the header. The header `Cairn.svelte` fills the stones from theme tokens so it adapts in dark; `favicon.svg` uses the equivalent light hexes. It is the one piece of explicit mountain iconography — keep it to three distinct stones.
+**Label palette** (user-assignable, nature-derived, fixed set in `palette.js`): pine, moss, fern, clay, amber, slate-blue, plum, stone.
 
-**Typography:** headings / wordmark / modal titles use **Hanken Grotesk** (`font-display`, self-hosted via `@fontsource-variable/hanken-grotesk`, imported in `main.ts`) — a neutral, minimal grotesque with a touch of humanist warmth; **Inter** (`font-sans`) carries body/UI. Hierarchy comes from size and weight, not ornament — minimal, but not boring. (No display serif; that read as too frivolous.)
+**Logo:** a cairn — three stacked stones (`pine`/`moss`/`sage`) with clear gaps and a slight lean, legible at favicon size. `Cairn.svelte` fills from theme tokens (adapts in dark); `favicon.svg` uses the light hexes. Keep it three distinct stones — the one piece of mountain iconography.
 
-**Atmosphere & depth (restrained):** a single soft, token-driven gradient over `fog` (`app.css` `body::before`) — light between the peaks by day, a faint moonlit sky at night — so views never sit on a dead-flat fill. No grain, no busy multi-glow. Depth is a soft, pine-tinted **elevation scale** in `tailwind.config.js` (`shadow-soft` cards, `shadow-overlay` modals), used sparingly. Shared look-tokens in `constants.ts`: `INPUT_CLASS` (field border + focus ring) and `PRIMARY_BTN_CLASS` (a clean **solid** pine CTA — no gradient) keep fields and buttons identical everywhere.
+**Typography:** headings/wordmark/modal titles = **Hanken Grotesk** (`font-display`, self-hosted `@fontsource-variable/hanken-grotesk`, imported in `main.ts`); body/UI = **Inter** (`font-sans`). Hierarchy from size and weight, not ornament.
 
-**Principles:** keep the UI **minimal, slick and clean** — every view polished and uncluttered, never busy; generous whitespace; soft rounded corners (`rounded-lg`/`rounded-xl`); the soft elevation scale above, never heavy; calm, short transitions and **no** hover lifts or motion flourishes; low visual noise so the calendar content is the focus. Motion is gentle (a quiet `animate-rise-in` on view mount), never bouncy, and respects `prefers-reduced-motion`.
+**Atmosphere & depth (restrained):** one soft token-driven gradient over `fog` (`app.css` `body::before`) — adapts to dark automatically. Depth via the pine-tinted elevation scale in `tailwind.config.js` (`shadow-soft` cards, `shadow-overlay` modals), used sparingly. Shared look-tokens in `constants.ts`: `INPUT_CLASS` (field border + focus ring) and `PRIMARY_BTN_CLASS` (solid pine CTA, no gradient) keep fields and buttons identical everywhere.
+
+**Principles:** minimal, slick, clean; generous whitespace; soft corners (`rounded-lg`/`rounded-xl`); no hover lifts or motion flourishes; gentle motion (`animate-rise-in` on view mount) that respects `prefers-reduced-motion`; low visual noise so the calendar content is the focus.
 
 ## Conventions
 
-**Backend (Rust):** `cargo fmt` + `cargo clippy` clean (treat warnings as failures); errors as `Result` with a single app error type mapped to HTTP at the boundary; `async` throughout on Tokio; SQLx compile-time-checked queries (no string-built SQL); business logic in `services/`, never in handlers.
+**Backend (Rust):** `cargo fmt` + `cargo clippy` clean (warnings are failures); errors as `Result` with the single `AppError` mapped to HTTP at the boundary; `async` throughout on Tokio; SQLx compile-time-checked queries (no string-built SQL); business logic in `services/`, never in handlers.
 
-**Frontend (Svelte + TS):** strict TypeScript, no `any`; small composable components; all HTTP through `lib/api.ts`; Tailwind utility classes with the theme tokens; keep view components thin — push logic into small helpers.
+**Frontend (Svelte + TS):** strict TypeScript, no `any`; small composable components; all HTTP through `lib/api.ts`; Tailwind utilities with the theme tokens; keep view components thin — push logic into small pure helpers.
 
-**General:** config via env, never commit secrets; no dead code, commented-out blocks, or half-finished features left in main; no magic values — constants live in `config.rs` (backend) / `constants.ts` (frontend).
+**General:** config via env, never commit secrets; no dead code, commented-out blocks, or half-finished features in main; no magic values — constants live in `config.rs` (backend) / `constants.ts` (frontend).
 
 ## Testing & Lint
 
-Run before considering a change done. (Commands assume the toolchain is installed — see [§ Toolchain](#toolchain).)
+Run before considering a change done:
 
 1. **Backend lint:** `cd backend && cargo fmt --check && cargo clippy -- -D warnings`
-2. **Backend tests:** `cd backend && cargo test` — integration tests run against a temporary SQLite database.
-3. **Frontend lint + types:** `cd frontend && npm run lint && npm run check` (svelte-check / tsc).
-4. **Frontend unit tests:** `cd frontend && npm test` — Vitest over the pure `lib/*.ts` helpers (date, recurrence, grouping, quickadd, theme). Node env, no DOM; component testing is out of scope.
-5. **Frontend build smoke:** `cd frontend && npm run build` — catches type and bundling errors.
+2. **Backend tests:** `cd backend && cargo test` — integration tests against a temp SQLite DB.
+3. **Frontend lint + types:** `cd frontend && npm run lint && npm run check` (prettier + svelte-check).
+4. **Frontend unit tests:** `cd frontend && npm test` — Vitest over the pure `lib/*.ts` helpers. Node env, no DOM; component testing is out of scope.
+5. **Frontend build smoke:** `cd frontend && npm run build`
 
-Treat any clippy/eslint/svelte-check error as a failing build — fix it in the same change. **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test` (backend) or a Vitest case (a pure frontend helper).
+Treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change. **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test` or a Vitest case.
 
 ## Working Approach
 
-**Before writing:** read only the files you'll touch plus their direct dependencies; grep for the existing pattern and match it; pick a maintained crate/package over building in-house. **Ask when genuinely split** — if two sound designs have real trade-offs, present them rather than picking arbitrarily. When TickTick's behaviour is the reference and it's unambiguous, just match it.
+**Before writing:** read only the files you'll touch plus their direct dependencies; grep for the existing pattern and match it; pick a maintained package over building in-house. **Ask when genuinely split** — if two sound designs have real trade-offs, present them rather than picking arbitrarily. When TickTick's behaviour is the unambiguous reference, just match it.
 
-**While writing:** scope changes tightly; keep handlers thin and SQL in the repository layer; stay inside the design tokens; keep `cargo clippy` / `svelte-check` green as you go. Never weaken a boundary "to test quickly" — find the root cause.
+**While writing:** scope changes tightly; keep handlers thin and SQL in `db/`; stay inside the design tokens; keep clippy/svelte-check green as you go. Never weaken a boundary "to test quickly" — find the root cause.
 
-**Definition of done (all must hold):** lint green (clippy + svelte-check); tests cover the change; no boundary violations (handlers thin, HTTP only via `lib/api.ts`); schema change ⇒ a new additive migration; the change works on a phone-width screen; mountain-forest tokens used, no stray hex; CLAUDE.md updated in the same change if a folder, boundary, or entity changed.
+**Definition of done (all must hold):** lint green; tests cover the change; no boundary violations; schema change ⇒ a new additive migration; works on a phone-width screen; tokens used, no stray hex; CLAUDE.md/ARCHITECTURE.md updated in the same change if a folder, boundary, or entity changed.
 
 ## Maintaining CLAUDE.md
 
-- When a top-level folder, a layer boundary, the data model, or a core decision changes, update this file in the **same** change — it is the reference future sessions rely on. Run `/revise-claude-md` to audit it against reality.
-- Keep this file as living guidance: no changelogs, no task notes, no "done" lists — git tracks what changed.
-- For deep situational context that spans many prompts, create `.claude/<topic>.md` and add one reference line here; delete it when no longer relevant.
+- When a top-level folder, a layer boundary, the data model, or a core decision changes, update this file in the **same** change. Run `/revise-claude-md` to audit it against reality.
+- Living guidance only: no changelogs, no task notes, no "done" lists — git tracks what changed.
+- For deep situational context spanning many prompts, create `.claude/<topic>.md` and add one reference line here; delete it when no longer relevant.
 
 ## Toolchain
 
-- **Installed:** Rust 1.96 (cargo, clippy, rustfmt, **rust-analyzer**) via rustup; `sqlx-cli` 0.8.6 (sqlite/rustls) via `cargo install`; Node 22 + npm 10; `typescript-language-server` 5.3 + `tsc` 6.0 in `~/.local/bin` (npm user prefix set to `~/.local`, which is on PATH); Docker 29.
+- **Installed:** Rust 1.96 (cargo, clippy, rustfmt, rust-analyzer) via rustup; `sqlx-cli` 0.8.6 (sqlite/rustls); Node 22 + npm 10; `typescript-language-server` 5.3 + `tsc` 6.0 in `~/.local/bin` (on PATH); Docker 29.
 - **Claude plugins enabled** (user scope): `rust-analyzer-lsp`, `typescript-lsp`, `frontend-design`, `claude-md-management`.
-- **SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details in ARCHITECTURE.md §8).
+- **SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details: ARCHITECTURE.md §9).

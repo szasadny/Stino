@@ -20,24 +20,23 @@ describe('visibleLineCount', () => {
     expect(visibleLineCount(3, 80, 16)).toBe(3)
   })
 
-  it('reserves one row for "+N more" when it overflows', () => {
-    // capacity = 5, total 10 -> 4 visible, 6 more
-    expect(visibleLineCount(10, 80, 16)).toBe(4)
+  it('fills the whole measured height on overflow (the "+N more" row lives outside it)', () => {
+    // capacity = 5, total 10 -> 5 visible, 5 more
+    expect(visibleLineCount(10, 80, 16)).toBe(5)
   })
 
-  it('treats one-over-capacity as overflow (reserve a row)', () => {
-    // capacity = 5, total 6 -> 4 visible, 2 more
-    expect(visibleLineCount(6, 80, 16)).toBe(4)
+  it('caps one-over-capacity at capacity', () => {
+    // capacity = 5, total 6 -> 5 visible, 1 more
+    expect(visibleLineCount(6, 80, 16)).toBe(5)
   })
 
   it('floors fractional capacity', () => {
-    // floor(50 / 16) = 3 capacity, total 5 -> overflow -> 2 visible
-    expect(visibleLineCount(5, 50, 16)).toBe(2)
+    // floor(50 / 16) = 3 capacity, total 5 -> 3 visible
+    expect(visibleLineCount(5, 50, 16)).toBe(3)
   })
 
   it('handles a capacity of 1 (very short cell)', () => {
-    // capacity = 1, total 3 -> max(0, 0) = 0 visible (all roll into "+N more")
-    expect(visibleLineCount(3, 16, 16)).toBe(0)
+    expect(visibleLineCount(3, 16, 16)).toBe(1)
   })
 
   it('handles a capacity of 0 (cell shorter than a line)', () => {

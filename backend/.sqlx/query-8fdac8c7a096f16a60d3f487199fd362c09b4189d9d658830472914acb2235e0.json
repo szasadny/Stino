@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE completion SET task_id = ?, occurrence_date = ?\n         WHERE task_id = ? AND occurrence_date = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8fdac8c7a096f16a60d3f487199fd362c09b4189d9d658830472914acb2235e0"
+}

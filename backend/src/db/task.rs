@@ -7,7 +7,7 @@
 //! null-safe, so an Inbox task with `due_date IS NULL` matches a NULL
 //! occurrence).
 
-use sqlx::SqlitePool;
+use sqlx::{SqliteExecutor, SqlitePool};
 
 use super::assert_affected;
 use crate::domain::Task;
@@ -251,6 +251,21 @@ pub async fn move_occurrence(
     )
     .fetch_one(&mut *tx)
     .await?;
+    // A completed source occurrence carries its done state to the detached
+    // one-off: re-key the series' completion at `occurrence_date` to the new
+    // task on its new day. The new id is fresh, so the
+    // `UNIQUE(task_id, occurrence_date)` index can't collide. No-op if the
+    // occurrence wasn't completed.
+    sqlx::query!(
+        "UPDATE completion SET task_id = ?, occurrence_date = ?
+         WHERE task_id = ? AND occurrence_date = ?",
+        new_id,
+        new_date,
+        task_id,
+        occurrence_date
+    )
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     let task = get(pool, new_id).await?.ok_or(sqlx::Error::RowNotFound)?;
     Ok(task)
@@ -284,9 +299,10 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Task>, sqlx::Error
 /// The next `sort_order` so a new task appends to the end. A single global
 /// counter is enough: relative order is preserved within any filtered list, and
 /// drag-reordering rewrites these values for the reordered set (see [`reorder`]).
-pub async fn next_sort_order(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+/// Takes any executor so the importer can run it inside its one transaction.
+pub async fn next_sort_order(executor: impl SqliteExecutor<'_>) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "next!" FROM task"#)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
 }
 
@@ -337,24 +353,61 @@ pub async fn batch_set_label(
     Ok(())
 }
 
+/// How [`batch_set_due_date`] fails: a recurring task in the batch (a typed
+/// signal the service maps to a validation error — detecting it here, from the
+/// row just read inside the transaction, closes the check-then-write race and
+/// avoids a second per-id lookup) or any database error (`RowNotFound` keeps
+/// meaning an unknown id, as in the other batches).
+#[derive(Debug, thiserror::Error)]
+pub enum BatchScheduleError {
+    #[error("a recurring task cannot be batch-scheduled")]
+    Recurring,
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+}
+
 /// Give each id a `due_date` in one transaction — the Inbox bulk "schedule",
 /// which moves the tasks onto the calendar. An unknown id rolls the batch back.
+/// Mirrors the single-task PATCH: a non-recurring task's completion is keyed to
+/// its `due_date` (`completed` = a completion at `occurrence_date IS due_date`),
+/// so a completed task carries its done state to the new date instead of
+/// silently reopening. A recurring id rolls the batch back with
+/// [`BatchScheduleError::Recurring`] — re-dating a series would need its rule
+/// revalidated, which is the service's decision to reject.
 pub async fn batch_set_due_date(
     pool: &SqlitePool,
     ids: &[i64],
     due_date: &str,
-) -> Result<(), sqlx::Error> {
+) -> Result<(), BatchScheduleError> {
     let mut tx = pool.begin().await?;
     for id in ids {
-        let affected = sqlx::query!(
+        // The select doubles as the existence check (an unknown id returns
+        // `RowNotFound` inside the open transaction, rolling the batch back).
+        let Some(current) = sqlx::query!(
+            "SELECT due_date, recurrence_rule FROM task WHERE id = ?",
+            id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        else {
+            return Err(sqlx::Error::RowNotFound.into());
+        };
+        if current.recurrence_rule.is_some() {
+            return Err(BatchScheduleError::Recurring);
+        }
+        sqlx::query!(
             "UPDATE task SET due_date = ?, updated_at = datetime('now') WHERE id = ?",
             due_date,
             id
         )
         .execute(&mut *tx)
-        .await?
-        .rows_affected();
-        assert_affected(affected)?;
+        .await?;
+        // Same carry as the single-task reschedule. Skipped when the date
+        // doesn't change — the delete-at-target would drop the completion the
+        // move is meant to keep.
+        if current.due_date.as_deref() != Some(due_date) {
+            carry_completion(&mut tx, *id, current.due_date.as_deref(), Some(due_date)).await?;
+        }
     }
     tx.commit().await?;
     Ok(())
@@ -406,9 +459,10 @@ pub async fn batch_complete(pool: &SqlitePool, ids: &[i64]) -> Result<(), sqlx::
     Ok(())
 }
 
+/// Takes any executor so the importer can run it inside its one transaction.
 #[allow(clippy::too_many_arguments)]
 pub async fn insert(
-    pool: &SqlitePool,
+    executor: impl SqliteExecutor<'_>,
     title: &str,
     notes: Option<&str>,
     label_id: Option<i64>,
@@ -441,7 +495,7 @@ pub async fn insert(
         recurrence_rule,
         sort_order
     )
-    .fetch_one(pool)
+    .fetch_one(executor)
     .await
 }
 
@@ -459,7 +513,39 @@ pub async fn update(
     due_time: Option<&str>,
     recurrence_rule: Option<&str>,
 ) -> Result<Option<Task>, sqlx::Error> {
-    let rows = sqlx::query!(
+    let rows = run_update(
+        pool,
+        id,
+        title,
+        notes,
+        label_id,
+        due_date,
+        due_time,
+        recurrence_rule,
+    )
+    .await?;
+    if rows == 0 {
+        return Ok(None);
+    }
+    get(pool, id).await
+}
+
+/// The one UPDATE statement behind [`update`] and [`update_rescheduled`], so the
+/// column list can't drift between them. Takes any executor so the reschedule
+/// path can run it inside its transaction. Returns the affected row count
+/// (0 = unknown id).
+#[allow(clippy::too_many_arguments)]
+async fn run_update(
+    executor: impl SqliteExecutor<'_>,
+    id: i64,
+    title: &str,
+    notes: Option<&str>,
+    label_id: Option<i64>,
+    due_date: Option<&str>,
+    due_time: Option<&str>,
+    recurrence_rule: Option<&str>,
+) -> Result<u64, sqlx::Error> {
+    Ok(sqlx::query!(
         r#"UPDATE task
            SET title = ?, notes = ?, label_id = ?, due_date = ?, due_time = ?,
                recurrence_rule = ?, updated_at = datetime('now')
@@ -472,14 +558,9 @@ pub async fn update(
         recurrence_rule,
         id
     )
-    .execute(pool)
+    .execute(executor)
     .await?
-    .rows_affected();
-
-    if rows == 0 {
-        return Ok(None);
-    }
-    get(pool, id).await
+    .rows_affected())
 }
 
 /// Returns `true` if a row was deleted. `completion` rows cascade (ON DELETE).
@@ -493,9 +574,10 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> Result<bool, sqlx::Error> {
 /// Mark a task done for an occurrence (`occurrence_date`, NULL for an Inbox
 /// task). Idempotent: the guarded INSERT does nothing if the row already exists.
 /// We can't lean on `INSERT OR IGNORE` because SQLite treats NULLs as distinct
-/// in the UNIQUE index, so a NULL occurrence would never collide.
+/// in the UNIQUE index, so a NULL occurrence would never collide. Takes any
+/// executor so the importer can run it inside its one transaction.
 pub async fn add_completion(
-    pool: &SqlitePool,
+    executor: impl SqliteExecutor<'_>,
     task_id: i64,
     occurrence_date: Option<&str>,
 ) -> Result<(), sqlx::Error> {
@@ -511,7 +593,7 @@ pub async fn add_completion(
         task_id,
         occurrence_date
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
     Ok(())
 }
@@ -533,36 +615,64 @@ pub async fn remove_completion(
     Ok(())
 }
 
-/// Move a non-recurring task's completion from one occurrence to another after
-/// its `due_date` changed, so a task completed on one day stays completed when
-/// it is rescheduled to another (`completed` is derived as
-/// `occurrence_date IS due_date`). Any completion already sitting at `to` is
-/// cleared first so the move can't trip the `(task_id, occurrence_date)` UNIQUE
-/// index; the net effect is that the done-state at `from` is carried to `to`.
-/// `IS` matches a NULL date (the Inbox case). No-op if nothing was done at
-/// `from`.
-pub async fn migrate_completion(
+/// [`update`] plus the completion migration a non-recurring reschedule needs, in
+/// ONE transaction — so the date change and the carried completion commit (or
+/// fail) together, never leaving a window where the task moved but its done
+/// state was stranded. The caller (the service) decides this is a reschedule and
+/// passes the pre-update `prev_due_date`; the reschedule rule only applies to
+/// non-recurring tasks, so `recurrence_rule` is written as NULL. Returns `None`
+/// if no task has that id.
+#[allow(clippy::too_many_arguments)]
+pub async fn update_rescheduled(
     pool: &SqlitePool,
-    task_id: i64,
-    from: Option<&str>,
-    to: Option<&str>,
-) -> Result<(), sqlx::Error> {
+    id: i64,
+    title: &str,
+    notes: Option<&str>,
+    label_id: Option<i64>,
+    due_date: Option<&str>,
+    due_time: Option<&str>,
+    prev_due_date: Option<&str>,
+) -> Result<Option<Task>, sqlx::Error> {
     let mut tx = pool.begin().await?;
+    let rows = run_update(
+        &mut *tx, id, title, notes, label_id, due_date, due_time, None,
+    )
+    .await?;
+    if rows == 0 {
+        return Ok(None); // dropping the tx rolls back (nothing changed anyway)
+    }
+    carry_completion(&mut tx, id, prev_due_date, due_date).await?;
+    tx.commit().await?;
+    get(pool, id).await
+}
+
+/// Carry a non-recurring task's completion across a date change, inside the
+/// caller's open transaction. `completed` is derived as `occurrence_date IS
+/// due_date`, so without this a reschedule would strand the completion at the
+/// old date and silently reopen the task. Any completion already sitting at the
+/// target is cleared first so the move can't trip the
+/// `(task_id, occurrence_date)` UNIQUE index; `IS` matches a NULL date (the
+/// Inbox case). No-op if the old date had no completion.
+async fn carry_completion(
+    tx: &mut sqlx::SqliteConnection,
+    task_id: i64,
+    from_date: Option<&str>,
+    to_date: Option<&str>,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "DELETE FROM completion WHERE task_id = ? AND occurrence_date IS ?",
         task_id,
-        to
+        to_date
     )
     .execute(&mut *tx)
     .await?;
     sqlx::query!(
         "UPDATE completion SET occurrence_date = ? WHERE task_id = ? AND occurrence_date IS ?",
-        to,
+        to_date,
         task_id,
-        from
+        from_date
     )
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
     Ok(())
 }

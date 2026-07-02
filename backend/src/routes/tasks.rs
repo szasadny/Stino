@@ -15,8 +15,15 @@ use crate::services::task_service;
 /// `GET /api/tasks` selectors, most specific first: `?from=&to=` lists a date
 /// range (the calendar grid), `?date=YYYY-MM-DD` lists one day, and otherwise
 /// (incl. `?inbox=true`) the Inbox. Giving only one of `from`/`to` is a 400.
+/// Unknown params are a 400 too (`deny_unknown_fields`) — a typo'd selector
+/// must not silently return the Inbox.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ListParams {
+    /// Accepted for the explicit `?inbox=true` form; the Inbox is also the
+    /// default when no selector is given, so only deserialization reads it.
+    #[allow(dead_code)]
+    pub inbox: Option<bool>,
     pub date: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,

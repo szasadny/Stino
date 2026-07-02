@@ -4,12 +4,12 @@
   // than a dialog, so the agenda renders inline. No new endpoint: the existing `?date=`
   // query for today. All task orchestration lives in the shared TaskCore.
   import { onMount } from 'svelte'
-  import { api, type TaskInput } from '../lib/api'
-  import type { Task } from '../lib/types'
+  import { api } from '../lib/api'
   import { formatDayFull, toISODate } from '../lib/date'
-  import { taskToDraft } from '../lib/composer'
   import { PRIMARY_BTN_CLASS } from '../lib/constants'
+  import { onRefresh } from '../lib/refresh.svelte'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
+  import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
   import DayAgenda from '../lib/components/DayAgenda.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
   import EmptyState from '../lib/components/EmptyState.svelte'
@@ -20,13 +20,16 @@
   const todayKey = toISODate(today)
 
   const core = createTaskCore()
-
-  // The editor: 'new' adds a task to today; a Task edits it; null is closed.
-  let editing = $state<Task | 'new' | null>(null)
+  // The add/edit dialog — the same composer controller the grids use, bound to this view's
+  // reload. "Add" prefills today's date; changing or clearing the date in the editor just
+  // means the task no longer shows here after the reload.
+  const composer = createGridComposer(core, load)
 
   const count = $derived(core.tasks.length)
 
   onMount(load)
+  // Reload after a mutating overlay (Search/Labels/Import) closes over this view.
+  onRefresh(load)
 
   function load() {
     return core.loadWith(async () => {
@@ -34,29 +37,6 @@
       const [tasks, labels] = await Promise.all([api.tasks.forDate(todayKey), api.labels.list()])
       return { tasks, labels }
     }, 'Could not load today')
-  }
-
-  // Add a task to today / edit one, then reload so the list re-sorts. A new task defaults
-  // to today's date (prefilled in the editor); changing or clearing the date just means it
-  // no longer shows here after the reload.
-  async function save(input: TaskInput) {
-    if (editing == null) return
-    const target = editing
-    const persist =
-      target === 'new'
-        ? () => api.tasks.create(input).then(() => {})
-        : () => api.tasks.update(target.id, input).then(() => {})
-    if (await core.save(persist, load, 'Could not save the task')) editing = null
-  }
-
-  // Delete the task being edited, then reload so it drops from the day.
-  async function remove() {
-    if (editing == null || editing === 'new') return
-    const id = editing.id
-    if (
-      await core.save(() => api.tasks.remove(id).then(() => {}), load, 'Could not delete the task')
-    )
-      editing = null
   }
 </script>
 
@@ -75,7 +55,7 @@
     </div>
     <button
       type="button"
-      onclick={() => (editing = 'new')}
+      onclick={() => composer.add(todayKey)}
       class="{PRIMARY_BTN_CLASS} flex shrink-0 items-center gap-1.5 px-3 py-2"
     >
       <svg
@@ -109,20 +89,20 @@
         onToggle={core.toggle}
         onReorder={core.reorder}
         onReorderLabels={core.reorderLabels}
-        onEdit={(task) => (editing = task)}
+        onEdit={(task) => composer.edit(task)}
       />
     {/if}
   </div>
 
   <TaskComposerDialog
-    open={editing != null}
-    title={editing === 'new' ? 'New task' : 'Edit task'}
-    submitLabel={editing === 'new' ? 'Add' : 'Save'}
+    open={composer.open}
+    title={composer.title}
+    submitLabel={composer.submitLabel}
     labels={core.labels}
-    initial={editing === 'new' ? { date: todayKey } : editing ? taskToDraft(editing) : {}}
+    initial={composer.initial}
     busy={core.pending}
-    onSubmit={save}
-    onDelete={editing && editing !== 'new' ? remove : undefined}
-    onClose={() => (editing = null)}
+    onSubmit={composer.submit}
+    onDelete={composer.onDelete}
+    onClose={composer.close}
   />
 </section>

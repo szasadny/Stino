@@ -5,8 +5,12 @@ mod search;
 mod tasks;
 
 use std::path::Path;
+use std::sync::Arc;
 
-use axum::http::StatusCode;
+use axum::extract::{DefaultBodyLimit, Request};
+use axum::http::{header, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::{
     routing::{get, patch, post},
     Json, Router,
@@ -15,6 +19,8 @@ use serde::{Deserialize, Deserializer};
 use sqlx::SqlitePool;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
+
+use crate::config;
 
 /// Shared state handed to every handler. Holds the SQLite pool today; future
 /// slices add more (config, clock) here rather than using globals.
@@ -25,7 +31,9 @@ pub struct AppState {
 
 /// Build the application router: the JSON API under `/api`, and everything else
 /// served from the built SPA with a fallback to `index.html` for client routing.
-pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
+/// `allowed_hosts` (from `ALLOWED_HOSTS`) optionally gates every request on its
+/// Host header; `None` leaves behavior unchanged.
+pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<String>>) -> Router {
     let api = Router::new()
         .route("/health", get(health::health))
         .route("/labels", get(labels::list).post(labels::create))
@@ -50,7 +58,12 @@ pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
         // repeating task). Literal segment under `{id}`, like `completions`.
         .route("/tasks/{id}/move_occurrence", post(tasks::move_occurrence))
         .route("/search", get(search::list))
-        .route("/import/ticktick", post(import::ticktick))
+        // A real TickTick backup can exceed axum's default 2 MB body limit, so
+        // this route (only) takes up to IMPORT_MAX_BODY_BYTES.
+        .route(
+            "/import/ticktick",
+            post(import::ticktick).layer(DefaultBodyLimit::max(config::IMPORT_MAX_BODY_BYTES)),
+        )
         // Unknown /api/* paths return a JSON 404 instead of falling through to
         // the SPA index, so the client always gets a parseable error.
         .fallback(api_not_found)
@@ -62,10 +75,50 @@ pub fn router(pool: SqlitePool, static_dir: &Path) -> Router {
     let index = static_dir.join("index.html");
     let spa = ServeDir::new(static_dir).fallback(ServeFile::new(index));
 
-    Router::new()
+    let router = Router::new()
         .nest("/api", api)
         .fallback_service(spa)
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http());
+
+    match allowed_hosts {
+        Some(hosts) => {
+            let hosts = Arc::new(hosts);
+            router.layer(middleware::from_fn(move |req, next| {
+                check_host(hosts.clone(), req, next)
+            }))
+        }
+        None => router,
+    }
+}
+
+/// DNS-rebinding guard: with `ALLOWED_HOSTS` configured, reject any request
+/// whose Host header (port stripped, case-insensitive) isn't in the list. Pure
+/// HTTP shape — it decides nothing about tasks — so it lives with the router.
+async fn check_host(hosts: Arc<Vec<String>>, req: Request, next: Next) -> Response {
+    let allowed = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .map(host_name)
+        .is_some_and(|name| hosts.iter().any(|host| host.eq_ignore_ascii_case(name)));
+    if allowed {
+        next.run(req).await
+    } else {
+        (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "error": "forbidden host" })),
+        )
+            .into_response()
+    }
+}
+
+/// The hostname of a Host header value: strips a `:port`, keeping an IPv6
+/// literal (`[::1]:8080`) intact up to its closing bracket.
+fn host_name(header: &str) -> &str {
+    if let Some(rest) = header.strip_prefix('[') {
+        return rest.split_once(']').map_or(rest, |(name, _)| name);
+    }
+    header.split_once(':').map_or(header, |(name, _)| name)
 }
 
 /// Deserialize so a present JSON `null` becomes `Some(None)` (clear) rather than

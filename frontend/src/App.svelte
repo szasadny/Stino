@@ -1,5 +1,6 @@
 <script lang="ts">
   import { VIEWS, type ViewId } from './lib/constants'
+  import { bumpRefresh } from './lib/refresh.svelte'
   import Cairn from './lib/components/Cairn.svelte'
   import LabelManager from './lib/components/LabelManager.svelte'
   import ImportDialog from './lib/components/ImportDialog.svelte'
@@ -152,8 +153,23 @@
     {/each}
   </nav>
 
-  <SearchDialog open={searchOpen} onClose={() => (searchOpen = false)} />
-  <LabelManager open={labelsOpen} onClose={() => (labelsOpen = false)} />
+  <!-- Search / Labels / Import can mutate tasks or labels behind the standing view, so
+       closing them bumps the refresh signal and the active view reloads (one GET —
+       cheaper than tracking dirtiness). Settings only touches the theme, so it doesn't. -->
+  <SearchDialog
+    open={searchOpen}
+    onClose={() => {
+      searchOpen = false
+      bumpRefresh()
+    }}
+  />
+  <LabelManager
+    open={labelsOpen}
+    onClose={() => {
+      labelsOpen = false
+      bumpRefresh()
+    }}
+  />
   <SettingsDialog
     open={settingsOpen}
     onClose={() => (settingsOpen = false)}
@@ -162,5 +178,11 @@
       importOpen = true
     }}
   />
-  <ImportDialog open={importOpen} onClose={() => (importOpen = false)} />
+  <ImportDialog
+    open={importOpen}
+    onClose={() => {
+      importOpen = false
+      bumpRefresh()
+    }}
+  />
 </div>

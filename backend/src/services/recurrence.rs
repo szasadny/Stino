@@ -10,7 +10,7 @@
 //! dates everywhere.)
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeZone};
-use rrule::{RRule, RRuleSet, Tz, Unvalidated};
+use rrule::{Frequency, RRule, RRuleSet, Tz, Unvalidated};
 
 use crate::error::{AppError, AppResult};
 
@@ -32,13 +32,27 @@ fn invalid_rule() -> AppError {
 }
 
 /// Build the rrule set for `rule` starting at `dtstart`, mapping any parse /
-/// validation failure to a UI-safe error.
+/// validation failure to a UI-safe error. Sub-daily frequencies are rejected
+/// here — the one gate every stored rule passes through (create, update,
+/// import) — because occurrences are whole calendar dates: an hourly repeat is
+/// meaningless on a calendar and would emit the same date many times over.
 fn build(rule: &str, dtstart: NaiveDate) -> AppResult<RRuleSet> {
     let normalized = normalize_until(rule.trim());
     let parsed: RRule<Unvalidated> = normalized.parse().map_err(|_| invalid_rule())?;
-    parsed
+    let set = parsed
         .build(at_midnight(dtstart))
-        .map_err(|_| invalid_rule())
+        .map_err(|_| invalid_rule())?;
+    if set.get_rrule().iter().any(|r| {
+        matches!(
+            r.get_freq(),
+            Frequency::Hourly | Frequency::Minutely | Frequency::Secondly
+        )
+    }) {
+        return Err(AppError::Validation(
+            "recurrence_rule must repeat daily or less often".into(),
+        ));
+    }
+    Ok(set)
 }
 
 /// TickTick writes a recurrence end date as a bare `UNTIL=YYYYMMDD` (an RFC-5545
@@ -95,13 +109,26 @@ pub fn expand(
     let set = build(rule, dtstart)?
         .after(at_midnight(from))
         .before(at_midnight(to));
-    let dates = set
-        .all(MAX_OCCURRENCES)
+    let result = set.all(MAX_OCCURRENCES);
+    // With sub-daily frequencies rejected above, no real rule can produce 1000
+    // occurrences inside a calendar window — but if one somehow does, refuse
+    // rather than silently truncate the calendar. Validation fits: the rule is
+    // client-supplied input and the message is safe to show.
+    if result.limited {
+        return Err(AppError::Validation(
+            "recurrence_rule produces too many occurrences".into(),
+        ));
+    }
+    let mut dates: Vec<NaiveDate> = result
         .dates
         .into_iter()
         .map(|dt| dt.date_naive())
         .filter(|d| *d >= from && *d <= to)
         .collect();
+    // Belt and braces: distinct datetimes mapping onto one date would render
+    // duplicate rows. Occurrences come back ascending, so adjacent dedup is
+    // complete.
+    dates.dedup();
     Ok(dates)
 }
 
@@ -202,6 +229,25 @@ mod tests {
     fn an_invalid_rule_is_a_validation_error() {
         assert!(validate("FREQ=NONSENSE", date("2026-06-01")).is_err());
         assert!(validate("totally not a rule", date("2026-06-01")).is_err());
+    }
+
+    #[test]
+    fn sub_daily_frequencies_are_rejected() {
+        // Occurrences are calendar dates; an hourly (or finer) repeat is
+        // meaningless and would emit the same date many times over.
+        for rule in ["FREQ=HOURLY", "FREQ=MINUTELY", "FREQ=SECONDLY"] {
+            assert!(validate(rule, date("2026-06-01")).is_err(), "{rule}");
+            assert!(
+                expand(
+                    rule,
+                    date("2026-06-01"),
+                    date("2026-06-01"),
+                    date("2026-06-02")
+                )
+                .is_err(),
+                "{rule} must not expand either"
+            );
+        }
     }
 
     #[test]

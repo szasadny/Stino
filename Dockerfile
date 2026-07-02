@@ -32,9 +32,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=backend /app/stino-backend /app/stino-backend
 COPY --from=frontend /app/frontend/dist /app/static
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# The app runs as a non-root user, but the container STARTS as root: the
+# entrypoint chowns the bind-mounted /data (whose ownership comes from the
+# host — often root:root, e.g. when Docker auto-creates a missing ./data or the
+# DB was written by an older root-running image) and only then drops to
+# `stino` via setpriv. A build-time chown alone would be masked by the mount.
+RUN useradd --uid 1000 --user-group --home-dir /app --shell /usr/sbin/nologin stino \
+    && mkdir -p /data && chown stino:stino /data \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV DATA_DIR=/data \
     STATIC_DIR=/app/static \
     PORT=8080
 EXPOSE 8080
 VOLUME ["/data"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/app/stino-backend"]

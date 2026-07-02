@@ -193,3 +193,86 @@ async fn a_file_without_a_header_is_a_clean_validation_error() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(body["error"].as_str().unwrap().contains("TickTick"));
 }
+
+#[tokio::test]
+async fn a_mid_file_database_error_rolls_the_whole_import_back() {
+    // The import runs in one transaction: if row N hits a real database error
+    // after rows 1..N-1 were mapped, NOTHING may commit — otherwise a re-run
+    // duplicates the earlier rows. Simulate infrastructure failure by dropping
+    // the `completion` table: row 1 (a plain task + its label) maps fine inside
+    // the transaction, row 2 is completed and its completion insert then fails.
+    let pool = test_pool().await;
+    sqlx::query("DROP TABLE completion")
+        .execute(&pool)
+        .await
+        .expect("drop completion table");
+
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","First row","","","false","","","","","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"","Work","Second row done","","","false","","","","","0","1","2026-06-21T08:00:00+0000","2026-06-22T08:00:00+0000","2","Europe/Amsterdam","false","false"
+"#;
+    let result =
+        stino_backend::services::import_service::import_ticktick(&pool, csv.as_bytes()).await;
+    assert!(
+        result.is_err(),
+        "the completion insert must abort the import"
+    );
+
+    let tasks: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task")
+        .fetch_one(&pool)
+        .await
+        .expect("count tasks");
+    let labels: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM label")
+        .fetch_one(&pool)
+        .await
+        .expect("count labels");
+    assert_eq!(tasks, 0, "row 1's task rolled back with the failure");
+    assert_eq!(labels, 0, "row 1's label rolled back with the failure");
+}
+
+#[tokio::test]
+async fn an_hourly_repeat_is_dropped_but_the_task_still_imports() {
+    // Sub-daily repeats are meaningless for calendar-date tasks; like any
+    // unusable rule the recurrence is dropped and the task kept (degrade,
+    // never lose it).
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","Hourly ping","","","false","","2026-06-27T07:30:00+0000","","RRULE:FREQ=HOURLY","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"#;
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+    assert_eq!(summary["created"]["tasks"], 1);
+    assert_eq!(summary["skipped"], 0);
+
+    let (_, day) = send(&app, get("/api/tasks?date=2026-06-27")).await;
+    let ping = titled(&day, "Hourly ping");
+    assert_eq!(ping.len(), 1);
+    assert_eq!(
+        ping[0]["recurrence_rule"],
+        Value::Null,
+        "the hourly rule was dropped, not stored"
+    );
+}
+
+#[tokio::test]
+async fn an_import_larger_than_axums_default_body_limit_is_accepted() {
+    // Axum caps request bodies at 2 MB by default; a real multi-year TickTick
+    // backup can exceed that, so the import route takes up to 32 MB. Pad one
+    // row's Content past 2 MB to prove the raised limit is in effect.
+    let padding = "x".repeat(3 * 1024 * 1024);
+    let csv = format!(
+        r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","Big note","","{padding}","false","","","","","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"#
+    );
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(&csv)).await;
+    assert_eq!(status, StatusCode::OK, "a >2 MB backup must import");
+    assert_eq!(summary["created"]["tasks"], 1);
+}

@@ -1,10 +1,11 @@
-// Horizontal-swipe gesture for the phone month grid (swipe left ⇒ next month,
+// Horizontal-swipe gesture for the phone calendars (swipe left ⇒ next month/week,
 // right ⇒ previous). The decision — is this drag a real horizontal swipe, and
 // which way — is pure math (`swipeDirection`), kept separate and unit-tested; the
 // `swipe` Svelte action is just the thin touch-event plumbing around it. Touch-only:
 // it never fires for a mouse/trackpad, so desktop (which navigates via the header
 // arrows and has drag-and-drop on cells) is untouched.
 import type { Action } from 'svelte/action'
+import { dragIsLive } from './drag-scroll'
 
 // Minimum horizontal travel (px) to count as a swipe rather than a tap, and how much
 // horizontal must dominate vertical so a diagonal scroll never flips the month.
@@ -47,22 +48,33 @@ export const swipe: Action<HTMLElement, SwipeOptions> = (node, options) => {
   function onEnd(e: TouchEvent) {
     if (!tracking) return
     tracking = false
+    // A finished press-and-hold task drag must never double as a swipe (the phone
+    // Week stack is a drag zone AND a swipe surface). While the drop is still
+    // settling the library's floating clone exists, so its presence marks this
+    // gesture as a drag, not a navigation.
+    if (dragIsLive()) return
     const t = e.changedTouches[0]
     const dir = swipeDirection(t.clientX - startX, t.clientY - startY)
     if (dir === 'left') opts.onLeft?.()
     else if (dir === 'right') opts.onRight?.()
   }
 
-  node.addEventListener('touchstart', onStart, { passive: true })
-  node.addEventListener('touchend', onEnd, { passive: true })
+  // Capture phase, not bubble: svelte-dnd-action's per-row touchstart handler calls
+  // stopPropagation() unconditionally, so a swipe that starts on a draggable task row
+  // (the phone Week stack) would never bubble up to this container. Capture listeners
+  // run first and only observe — they never preventDefault — so the row's own
+  // hold-to-drag and tap behaviour are untouched.
+  const listen = { passive: true, capture: true } as const
+  node.addEventListener('touchstart', onStart, listen)
+  node.addEventListener('touchend', onEnd, listen)
 
   return {
     update(next: SwipeOptions) {
       opts = next
     },
     destroy() {
-      node.removeEventListener('touchstart', onStart)
-      node.removeEventListener('touchend', onEnd)
+      node.removeEventListener('touchstart', onStart, listen)
+      node.removeEventListener('touchend', onEnd, listen)
     },
   }
 }

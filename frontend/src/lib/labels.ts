@@ -1,7 +1,19 @@
 // Label lookup shared by the views that decorate task rows with their label
 // (Inbox / Month / Week / Search), so the id→label map and the "no label / a
 // deleted label" handling live in one place.
+import { LABEL_PALETTE } from './palette.js'
 import type { Label, Task } from './types'
+
+/**
+ * The palette color for the NEXT label to create, matching the backend importer's
+ * convention: `(max sort_order + 1) % palette length` (see `next_sort_order` +
+ * `create_label` in the backend). Keyed off sort_order, not list length, so the
+ * client and the importer keep assigning the same colors after a label delete.
+ */
+export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): string {
+  const next = labels.reduce((max, l) => Math.max(max, l.sort_order), -1) + 1
+  return LABEL_PALETTE[next % LABEL_PALETTE.length].hex
+}
 
 /**
  * Build a `(task) => label | undefined` lookup over `labels`. Returns

@@ -34,6 +34,13 @@ export const DND_TOUCH_HOLD_MS = 250
 // arms identically. Touch-only — mouse drag is immediate.
 export const DND_GRID_TOUCH_HOLD_MS = 150
 
+// Phone Month split view: hold a dragged task this close (px) to the bottom of the view,
+// for this long (ms), to hide the day agenda so the WHOLE month grid becomes the drop
+// surface. The dwell keeps a reorder-to-last-place drag (which passes through the same
+// strip) from collapsing the list by accident; once triggered it sticks until the drop.
+export const MONTH_EXPAND_ZONE_PX = 64
+export const MONTH_EXPAND_HOLD_MS = 250
+
 // Window (ms) after a touch tap opens the day-sheet editor during which we swallow the
 // one stray "compatibility" click a phone emits (the dnd delay-touch path fires its own
 // synthetic tap→click AND the browser's native one). Just long enough to catch that
@@ -56,6 +63,11 @@ export const INPUT_CLASS =
 // Callers prepend only layout (flex, padding, width); design tokens only.
 export const PRIMARY_BTN_CLASS =
   'rounded-lg bg-pine text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40'
+
+// The shared drop-target highlight svelte-dnd-action applies while a drag hovers
+// a zone — the pine ring + tint every drop zone shows. Callers prepend only their
+// own corner radius (rounded-md cells vs rounded-lg list rows); design tokens only.
+export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 
 // The tabbed views. Search is not a tab — it opens as an overlay from the
 // header's search icon (see SearchDialog), so you can search from anywhere.

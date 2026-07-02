@@ -5,14 +5,15 @@
 
 /**
  * How many of `total` task lines to show in `listHeight` px, given a measured
- * per-line `lineHeight` px. Reserves one row for the "+N more" line when the full
- * set can't fit. Returns `total` while unmeasured (either dimension `<= 0`), so the
- * first paint shows everything (clipped by `overflow-hidden`) rather than a wrong
- * "+N more" before the ResizeObserver reports real sizes.
+ * per-line `lineHeight` px. The "+N more" row renders OUTSIDE the measured list
+ * (as a sibling that takes its own height), so the full capacity is available for
+ * task lines — no row is reserved here. Returns `total` while unmeasured (either
+ * dimension `<= 0`), so the first paint shows everything (clipped by
+ * `overflow-hidden`) rather than a wrong "+N more" before the ResizeObserver
+ * reports real sizes.
  */
 export function visibleLineCount(total: number, listHeight: number, lineHeight: number): number {
   if (total <= 0) return 0
   if (listHeight <= 0 || lineHeight <= 0) return total
-  const capacity = Math.floor(listHeight / lineHeight)
-  return capacity >= total ? total : Math.max(0, capacity - 1)
+  return Math.min(total, Math.floor(listHeight / lineHeight))
 }

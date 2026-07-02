@@ -134,3 +134,72 @@
     animation: none;
   }
 }
+
+/* Directional slide for month/week navigation (View Transitions API — the
+ * plumbing lives in lib/nav-transition.ts). The calendar pane carries
+ * `vt-calendar`; while a navigation transition runs, the old period slides out
+ * and the new one slides in from the direction of travel, clipped to the pane's
+ * box. Browsers without the API never start a transition, so they keep the
+ * plain instant swap; reduced motion is honoured in nav-transition.ts. */
+.vt-calendar {
+  view-transition-name: calendar-pane;
+}
+
+/* Only the calendar pane participates — opting the root out keeps the rest of
+ * the page LIVE during the ~0.3s slide (a captured element is skipped for
+ * painting and hit-testing, so with the default root snapshot the whole page
+ * would go inert and eat a fast follow-up swipe). The swipe listeners sit on
+ * the section around the pane for the same reason. */
+:root {
+  view-transition-name: none;
+}
+
+/* The snapshot overlay itself must not swallow pointer events either. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* The slide stays inside the pane, like content moving past a window. */
+::view-transition-image-pair(calendar-pane) {
+  overflow: clip;
+}
+
+::view-transition-old(calendar-pane),
+::view-transition-new(calendar-pane) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes vt-slide-to-left {
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes vt-slide-from-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes vt-slide-to-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes vt-slide-from-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+html[data-nav-dir='forward']::view-transition-old(calendar-pane) {
+  animation-name: vt-slide-to-left;
+}
+html[data-nav-dir='forward']::view-transition-new(calendar-pane) {
+  animation-name: vt-slide-from-right;
+}
+html[data-nav-dir='back']::view-transition-old(calendar-pane) {
+  animation-name: vt-slide-to-right;
+}
+html[data-nav-dir='back']::view-transition-new(calendar-pane) {
+  animation-name: vt-slide-from-left;
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT due_date, recurrence_rule FROM task WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "due_date",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "recurrence_rule",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "03fff2c7ec407b1ee1a40ebe13a2dafc5c2afa96f5075ab5fb5837655999bd36"
+}
