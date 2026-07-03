@@ -9,6 +9,8 @@
   //  - `onSelect` makes the weekday/date header tap to zoom into the day sheet — the phone
   //    path to group-by-label and the grouped view.
   //  - `onAdd` shows the quick-add "+" beside the header.
+  //  - `onClose` shows a close "×" beside the header — the Month split's way to collapse
+  //    the agenda back to the full-height grid.
   //  - `emptyLabel` shows placeholder text on an empty day; omit it for a header-only row.
   //  - `onConsider`/`onFinalize` (with `dateKey`) turn the rows into a svelte-dnd-action
   //    `calendar` drop zone bound to the owning view's calendar board, so a task can be
@@ -41,6 +43,7 @@
     onEditTask,
     onSelect,
     onAdd,
+    onClose,
     onConsider,
     onFinalize,
     emptyLabel,
@@ -56,6 +59,7 @@
     onEditTask: (task: Task) => void
     onSelect?: () => void
     onAdd?: () => void
+    onClose?: () => void
     // When both are given (with dateKey), the rows become a cross-day drop zone.
     onConsider?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     onFinalize?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
@@ -108,8 +112,32 @@
       </div>
     {/if}
 
-    {#if onAdd}
-      <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
+    {#if onAdd || onClose}
+      <div class="flex shrink-0 items-center gap-1">
+        {#if onAdd}
+          <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
+        {/if}
+        {#if onClose}
+          <button
+            type="button"
+            onclick={onClose}
+            aria-label="Hide {formatDayFull(date)}"
+            class="rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              class="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        {/if}
+      </div>
     {/if}
   </div>
 

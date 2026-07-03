@@ -3,10 +3,11 @@
   // close, backdrop, open/close) lives in Modal; this owns the list and the
   // create/edit forms. Loads its list and focuses the name field each time it
   // opens (via Modal's onOpen).
-  import { dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
+  import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import { api, type LabelInput } from '../api'
   import {
     DND_FLIP_MS,
+    DND_TOUCH_HOLD_MS,
     INPUT_CLASS,
     LABEL_EMOJI_MAX_LENGTH,
     LABEL_EMOJI_SUGGESTIONS,
@@ -15,6 +16,7 @@
     PRIMARY_BTN_CLASS,
   } from '../constants'
   import { errorMessage } from '../errors'
+  import { isCompact } from '../viewport.svelte'
   import type { Label } from '../types'
   import DeleteConfirm from './DeleteConfirm.svelte'
   import ErrorAlert from './ErrorAlert.svelte'
@@ -130,7 +132,10 @@
   // owned dnd source (mutated only by consider/finalize during a gesture), so no separate
   // re-projection is needed. Reordering only makes sense with more than one label, and is
   // locked while editing a row or a request is in flight. `#tag` in quick-add and the
-  // suggestion menu read the same order.
+  // suggestion menu read the same order. The gesture differs by input, like every list:
+  // wide grabs the 6-dot grip (`dragHandleZone`); a phone press-and-holds the whole row
+  // (`dndzone` + `delayTouchStart`) — `isCompact()` mounts exactly ONE of the two zones.
+  const compact = $derived(isCompact())
   const reorderable = $derived(labels.length > 1 && editingId === null && !busy)
   let preDrag: Label[] = []
 
@@ -293,73 +298,99 @@
     {:else if labels.length === 0}
       <p class="py-6 text-center text-sm text-sage">No labels yet — create your first above.</p>
     {:else}
-      <ul
-        class="space-y-2"
-        use:dragHandleZone={{
-          items: labels,
-          flipDurationMs: DND_FLIP_MS,
-          dropTargetStyle: {},
-          dragDisabled: !reorderable,
-        }}
-        onconsider={considerOrder}
-        onfinalize={finalizeOrder}
-      >
-        {#each labels as label (label.id)}
-          <li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
-            {#if editingId === label.id}
-              <div class="flex items-center gap-2">
-                <input
-                  bind:value={editName}
-                  type="text"
-                  maxlength={LABEL_NAME_MAX_LENGTH}
-                  aria-label="Label name"
-                  class="min-w-0 flex-1 rounded-lg border border-lichen bg-surface px-3 py-1.5 text-sm text-ink outline-none transition focus:border-pine focus:ring-2 focus:ring-pine/20"
-                />
-                <button
-                  type="button"
-                  onclick={() => saveEdit(label.id)}
-                  disabled={!editName.trim() || busy}
-                  class="{PRIMARY_BTN_CLASS} shrink-0 px-3 py-1.5"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onclick={() => (editingId = null)}
-                  class="shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-sage transition hover:text-pine-deep"
-                >
-                  Cancel
-                </button>
-              </div>
-              <div class="mt-3">
-                {@render swatches(editColor, (hex) => (editColor = hex))}
-              </div>
-              <div class="mt-3">
-                {@render emojiField(editEmoji, (emoji) => (editEmoji = emoji))}
-              </div>
-            {:else}
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex min-w-0 items-center gap-2">
-                  {#if reorderable}
-                    {@render grip()}
-                  {/if}
-                  <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
-                </div>
-                <div class="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onclick={() => startEdit(label)}
-                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-                  >
-                    Edit
-                  </button>
-                  <DeleteConfirm onConfirm={() => remove(label.id)} {busy} compact />
-                </div>
-              </div>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+      {#snippet labelRow(label: Label)}
+        {#if editingId === label.id}
+          <div class="flex items-center gap-2">
+            <input
+              bind:value={editName}
+              type="text"
+              maxlength={LABEL_NAME_MAX_LENGTH}
+              aria-label="Label name"
+              class="min-w-0 flex-1 rounded-lg border border-lichen bg-surface px-3 py-1.5 text-sm text-ink outline-none transition focus:border-pine focus:ring-2 focus:ring-pine/20"
+            />
+            <button
+              type="button"
+              onclick={() => saveEdit(label.id)}
+              disabled={!editName.trim() || busy}
+              class="{PRIMARY_BTN_CLASS} shrink-0 px-3 py-1.5"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onclick={() => (editingId = null)}
+              class="shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-sage transition hover:text-pine-deep"
+            >
+              Cancel
+            </button>
+          </div>
+          <div class="mt-3">
+            {@render swatches(editColor, (hex) => (editColor = hex))}
+          </div>
+          <div class="mt-3">
+            {@render emojiField(editEmoji, (emoji) => (editEmoji = emoji))}
+          </div>
+        {:else}
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-2">
+              {#if reorderable && !compact}
+                {@render grip()}
+              {/if}
+              <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
+            </div>
+            <div class="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onclick={() => startEdit(label)}
+                class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+              >
+                Edit
+              </button>
+              <DeleteConfirm onConfirm={() => remove(label.id)} {busy} compact />
+            </div>
+          </div>
+        {/if}
+      {/snippet}
+      {#if compact}
+        <!-- Phone: press-and-hold anywhere on a row (its buttons excepted) to drag. -->
+        <ul
+          class="space-y-2"
+          use:dndzone={{
+            items: labels,
+            flipDurationMs: DND_FLIP_MS,
+            dropTargetStyle: {},
+            dragDisabled: !reorderable,
+            delayTouchStart: DND_TOUCH_HOLD_MS,
+            zoneItemTabIndex: -1,
+          }}
+          onconsider={considerOrder}
+          onfinalize={finalizeOrder}
+        >
+          {#each labels as label (label.id)}
+            <li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
+              {@render labelRow(label)}
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <ul
+          class="space-y-2"
+          use:dragHandleZone={{
+            items: labels,
+            flipDurationMs: DND_FLIP_MS,
+            dropTargetStyle: {},
+            dragDisabled: !reorderable,
+          }}
+          onconsider={considerOrder}
+          onfinalize={finalizeOrder}
+        >
+          {#each labels as label (label.id)}
+            <li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
+              {@render labelRow(label)}
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
   </div>
 </Modal>

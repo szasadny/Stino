@@ -4,10 +4,12 @@
   // every occurrence the backend expands into the range). Navigate months, jump to today,
   // tap a day to zoom into it, tap a pill to edit it, tick a pill to complete it, drag a
   // pill to another day to reschedule it. On a phone the cells are too narrow for the full
-  // pills, so each shows compact readable task lines (CalendarCellMobile) and the view is
-  // a TickTick-style SPLIT: the grid on top, the selected day's agenda underneath
-  // (DayListSection — the same `calendar` drag zone the phone Week uses), so a held task
-  // drags from the agenda onto any grid cell to reschedule it. Task orchestration lives in
+  // pills, so each shows compact readable task lines (CalendarCellMobile); the grid gets
+  // the full height until a day is tapped, which opens a TickTick-style SPLIT: the grid on
+  // top, that day's agenda underneath (DayListSection — the same `calendar` drag zone the
+  // phone Week uses), so a held task drags from the agenda onto any grid cell to
+  // reschedule it. Tapping the selected day again (or the agenda's close button) collapses
+  // the split back to the full-height grid. Task orchestration lives in
   // the shared TaskCore + calendar board; this view is thin glue + markup. Date math:
   // lib/date.ts.
   import { onMount } from 'svelte'
@@ -64,17 +66,6 @@
   // agenda, and freezes the matching grid cell (so the panel/agenda is the only live drag
   // zone for that day).
   const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
-
-  // The phone split layout always shows one day's agenda under the grid: default to today
-  // when viewing today's month, else the 1st. go()/goToday() null the selection, so this
-  // re-fills it for the new month. Desktop keeps tap-to-open (null = no DayPanel).
-  $effect(() => {
-    if (!isCompact() || sel.selectedDate) return
-    sel.selectedDate =
-      viewYear === today.getFullYear() && viewMonth === today.getMonth()
-        ? today
-        : new Date(viewYear, viewMonth, 1)
-  })
 
   // Compact layout (touch or mouse): while a task held from the agenda dwells near the bottom,
   // hide the agenda so the WHOLE month grid becomes the drop surface (sticky until the
@@ -226,11 +217,13 @@
   </div>
 
   {#if isCompact()}
-    <!-- Phone: the TickTick-style split. The same calendar grid on top, each cell showing
-         compact readable task lines (a colour dot + title); tapping a day selects it and
-         its agenda renders underneath as full task rows — a shared `calendar` drag zone,
-         so a held row drops onto any grid cell to reschedule (the selected day's own cell
-         freezes while its agenda is the live zone). While a held task dwells at the very
+    <!-- Phone: the calendar grid, each cell showing compact readable task lines (a colour
+         dot + title). No day selected ⇒ the grid alone fills the screen — the month
+         overview IS the view. Tapping a day opens the TickTick-style split: its agenda
+         renders underneath as full task rows — a shared `calendar` drag zone, so a held
+         row drops onto any grid cell to reschedule (the selected day's own cell freezes
+         while its agenda is the live zone). Tapping the selected day again, or the
+         agenda's close button, collapses the split. While a held task dwells at the very
          bottom, the agenda hides (`gridExpanded`) so the whole month is the drop surface.
          Only the month's actual week-rows render, so the cells get the reclaimed height.
          Swipe left/right anywhere in the view (the section's `swipe` action) to step to
@@ -250,7 +243,7 @@
             isToday={gridKeys[i] === todayKey}
             open={gridKeys[i] === selectedKey}
             labelFor={sel.labelFor}
-            onSelect={() => (sel.selectedDate = date)}
+            onSelect={() => (sel.selectedDate = gridKeys[i] === selectedKey ? null : date)}
             onConsider={cal.consider}
             onFinalize={cal.finalize}
           />
@@ -272,6 +265,7 @@
             onToggle={core.toggle}
             onEditTask={(task) => composer.edit(task)}
             onAdd={() => composer.add(selectedKey)}
+            onClose={() => (sel.selectedDate = null)}
             onConsider={cal.consider}
             onFinalize={cal.finalize}
             emptyLabel="Nothing scheduled"

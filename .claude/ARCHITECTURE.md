@@ -344,9 +344,10 @@ Behaviours that matter:
   `#tag` label via `parseQuickAdd`, with a live "Scheduling for …" hint and label chip; a `#tag`
   opens a suggestion menu of matching labels or "Create …" (next palette color, like the importer);
   a parsed date or recurrence schedules the task straight out of the Inbox. Complete / edit /
-  schedule / set recurrence / drag-to-reorder (`dragHandleZone` + handle). **Multi-select bulk
-  edit:** a "Select" toggle turns rows into checkboxes and a sticky bar applies one
-  `api.tasks.batch` op (label / schedule / complete / delete).
+  schedule / set recurrence / drag-to-reorder — the drag gesture adapts to input like every list
+  (wide: `dragHandleZone` + grip; phone: whole-row press-and-hold `dndzone`, tap-to-edit row, delete
+  inside the editor). **Multi-select bulk edit:** a "Select" toggle turns rows into checkboxes and a
+  sticky bar applies one `api.tasks.batch` op (label / schedule / complete / delete).
 - `MonthView`, `WeekView` — the calendar grids + period nav (layouts and drag wiring: §8). Week is
   Monday-first over the range query.
 - `TodayView` — everything due today (`?date=`), rendered inline via `DayAgenda`; full-date header +
@@ -370,10 +371,11 @@ layout per view.
 
 - Every width keeps the real calendar grid. Wide: fixed 6×7 of `CalendarCell` — interactive pills,
   drag between cells.
-- Phone: TickTick-style **split** — the grid of `CalendarCellMobile` cells on top (each task one
-  line: label dot + title), the **selected day's agenda** underneath (a reused `DayListSection`).
-  Tapping a cell selects its day (defaults to today); there is no separate day popup on phone
-  Month.
+- Phone: the grid of `CalendarCellMobile` cells (each task one line: label dot + title) fills the
+  screen by default — no day selected. Tapping a cell opens the TickTick-style **split**: that
+  day's agenda underneath (a reused `DayListSection`). Tapping the selected cell again, the
+  agenda's close "×", or navigating months collapses the split back to the full-height grid; there
+  is no separate day popup on phone Month.
 - Phone drag: the agenda rows and the cells share ONE `type: 'calendar'` zone bound to the same
   `calendar-board`, so a press-and-held agenda row drops onto any cell to reschedule. The cells are
   **drop-only** (`dragDisabled` — their lines are too small to grab); the selected day's cell
@@ -428,7 +430,9 @@ directional slide that never mounts the outgoing grid twice.
   shared + persisted (`group-view.svelte.ts`).
 - Untimed reorder adapts to input: wide screens drag the 6-dot grip (`dragHandleZone`); a phone
   press-and-holds the whole row (`dndzone` + `delayTouchStart`). `isCompact()` picks one zone.
-  `DaySheet` is phone-only ⇒ always hold-to-drag; the grip shows on wide Today.
+  `DaySheet` is phone-only ⇒ always hold-to-drag; the grip shows on wide Today. This grip-vs-hold
+  split is universal — every reorder list (`InboxView`, `LabelManager` included) follows it; no
+  grip handles at phone width, ever.
 
 **Gesture plumbing:**
 

@@ -21,7 +21,8 @@ use crate::domain::Task;
 // would mean dropping to a runtime `query_as` and losing the compile-time check,
 // which isn't worth it — so the projection is intentionally duplicated.
 
-/// Inbox: unscheduled tasks (`due_date IS NULL`), in manual `sort_order`.
+/// Inbox: unscheduled, not-yet-completed tasks (`due_date IS NULL`), in manual
+/// `sort_order`. Completed captures drop out — a done inbox task doesn't return.
 pub async fn list_inbox(pool: &SqlitePool) -> Result<Vec<Task>, sqlx::Error> {
     sqlx::query_as!(
         Task,
@@ -41,6 +42,10 @@ pub async fn list_inbox(pool: &SqlitePool) -> Result<Vec<Task>, sqlx::Error> {
             ) AS "completed!: bool"
         FROM task
         WHERE due_date IS NULL
+          AND NOT EXISTS(
+              SELECT 1 FROM completion c
+              WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date
+          )
         ORDER BY sort_order, id"#
     )
     .fetch_all(pool)

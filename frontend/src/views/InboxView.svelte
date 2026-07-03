@@ -7,7 +7,7 @@
   // quick-capture, `#tag` label menu, and bulk multi-select stay here.
   import { onMount, tick, untrack } from 'svelte'
   import { SvelteSet } from 'svelte/reactivity'
-  import { dragHandleZone, dragHandle } from 'svelte-dnd-action'
+  import { dndzone, dragHandleZone, dragHandle } from 'svelte-dnd-action'
   import type { DndEvent } from 'svelte-dnd-action'
   import { api, type TaskInput } from '../lib/api'
   import type { BatchOp, Label, Task } from '../lib/types'
@@ -20,6 +20,7 @@
   import { type ComposerDraft, taskToDraft } from '../lib/composer'
   import {
     DND_FLIP_MS,
+    DND_TOUCH_HOLD_MS,
     INPUT_CLASS,
     LABEL_NAME_MAX_LENGTH,
     PRIMARY_BTN_CLASS,
@@ -28,6 +29,8 @@
   import { errorMessage } from '../lib/errors'
   import { labelLookup, nextPaletteColor } from '../lib/labels'
   import { onRefresh } from '../lib/refresh.svelte'
+  import { isCompact } from '../lib/viewport.svelte'
+  import { openWithoutPhantomClick } from '../lib/phantom-click'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import TaskRow from '../lib/components/TaskRow.svelte'
   import DeleteConfirm from '../lib/components/DeleteConfirm.svelte'
@@ -282,6 +285,20 @@
     if (await core.remove(id)) composerOpen = false
   }
 
+  // Completing an inbox task drops it from the list (TickTick-style) rather than leaving a
+  // struck-through row: an unscheduled task shown here is always incomplete (list_inbox
+  // filters completed ones out), so this is only ever complete-then-remove — no reopen path.
+  // Optimistic remove, reverted by the shared lock on failure.
+  function completeTask(task: Task) {
+    void core.optimistic(
+      () => {
+        core.tasks = core.tasks.filter((t) => t.id !== task.id)
+      },
+      () => api.tasks.complete(task.id, task.occurrence_date).then(() => {}),
+      'Could not update the task',
+    )
+  }
+
   // Delete the task open in the editor (the guard narrows `composerMode` to its id).
   function deleteEditing() {
     if (composerMode !== 'create') removeTask(composerMode)
@@ -292,6 +309,11 @@
   // source `core.tasks` ONLY while no gesture is live (the `dragging` flag, read untracked so
   // the projection doesn't fight the live drag). Persisting goes through `core.reorder`, which
   // holds the in-flight lock and reverts `core.tasks` on failure — never a bespoke API call.
+  // The GESTURE differs by input, like every other list: a wide screen grabs the 6-dot grip
+  // (`dragHandleZone` + `dragHandle`); a phone press-and-holds the whole row (`dndzone` +
+  // `delayTouchStart`), where a tap edits and delete lives inside the editor. `isCompact()`
+  // mounts exactly ONE of the two zones.
+  const compact = $derived(isCompact())
   let dragging = $state(false)
   let dragOrder = $state<Task[]>([])
   $effect(() => {
@@ -364,8 +386,10 @@
   }
 
   function bulkComplete() {
+    // Completing removes the tasks from the Inbox (they won't reload — list_inbox
+    // excludes completed ones), matching single-row completion.
     void runBatch({ type: 'complete' }, (ids) => {
-      core.tasks = core.tasks.map((t) => (ids.has(t.id) ? { ...t, completed: true } : t))
+      core.tasks = core.tasks.filter((t) => !ids.has(t.id))
     })
   }
 
@@ -665,50 +689,84 @@
           Batch edit
         </button>
       </div>
-      <ul
-        class="flex flex-col gap-2"
-        use:dragHandleZone={{
-          items: dragOrder,
-          flipDurationMs: DND_FLIP_MS,
-          dragDisabled: core.pending,
-          dropTargetStyle: {},
-        }}
-        onconsider={reorderConsider}
-        onfinalize={reorderFinalize}
-      >
-        {#each dragOrder as task (task.id)}
-          <li>
-            <TaskRow {task} label={labelFor(task)} onToggle={() => core.toggle(task)}>
-              {#snippet leading()}
-                <div
-                  use:dragHandle
-                  title="Drag to reorder"
-                  class="grid h-6 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-                    <circle cx="9" cy="6" r="1.4" />
-                    <circle cx="9" cy="12" r="1.4" />
-                    <circle cx="9" cy="18" r="1.4" />
-                    <circle cx="15" cy="6" r="1.4" />
-                    <circle cx="15" cy="12" r="1.4" />
-                    <circle cx="15" cy="18" r="1.4" />
-                  </svg>
-                </div>
-              {/snippet}
-              {#snippet trailing()}
-                <button
-                  type="button"
-                  onclick={() => startEdit(task)}
-                  class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-                >
-                  Edit
-                </button>
-                <DeleteConfirm onConfirm={() => removeTask(task.id)} busy={core.pending} compact />
-              {/snippet}
-            </TaskRow>
-          </li>
-        {/each}
-      </ul>
+      {#if compact}
+        <!-- Phone: whole-row press-and-hold drags, a tap opens the editor (which holds
+             delete), so no grip / trailing buttons crowd the row. -->
+        <ul
+          class="flex flex-col gap-2"
+          use:dndzone={{
+            items: dragOrder,
+            flipDurationMs: DND_FLIP_MS,
+            dragDisabled: core.pending,
+            delayTouchStart: DND_TOUCH_HOLD_MS,
+            dropTargetStyle: {},
+            zoneItemTabIndex: -1,
+          }}
+          onconsider={reorderConsider}
+          onfinalize={reorderFinalize}
+        >
+          {#each dragOrder as task (task.id)}
+            <li>
+              <TaskRow
+                {task}
+                label={labelFor(task)}
+                onToggle={() => completeTask(task)}
+                onEdit={() => openWithoutPhantomClick(() => startEdit(task))}
+                holdToDrag
+              />
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <ul
+          class="flex flex-col gap-2"
+          use:dragHandleZone={{
+            items: dragOrder,
+            flipDurationMs: DND_FLIP_MS,
+            dragDisabled: core.pending,
+            dropTargetStyle: {},
+          }}
+          onconsider={reorderConsider}
+          onfinalize={reorderFinalize}
+        >
+          {#each dragOrder as task (task.id)}
+            <li>
+              <TaskRow {task} label={labelFor(task)} onToggle={() => completeTask(task)}>
+                {#snippet leading()}
+                  <div
+                    use:dragHandle
+                    title="Drag to reorder"
+                    class="grid h-6 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                      <circle cx="9" cy="6" r="1.4" />
+                      <circle cx="9" cy="12" r="1.4" />
+                      <circle cx="9" cy="18" r="1.4" />
+                      <circle cx="15" cy="6" r="1.4" />
+                      <circle cx="15" cy="12" r="1.4" />
+                      <circle cx="15" cy="18" r="1.4" />
+                    </svg>
+                  </div>
+                {/snippet}
+                {#snippet trailing()}
+                  <button
+                    type="button"
+                    onclick={() => startEdit(task)}
+                    class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+                  >
+                    Edit
+                  </button>
+                  <DeleteConfirm
+                    onConfirm={() => removeTask(task.id)}
+                    busy={core.pending}
+                    compact
+                  />
+                {/snippet}
+              </TaskRow>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
   </div>
 

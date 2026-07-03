@@ -177,7 +177,7 @@ async fn rescheduling_a_completed_task_keeps_it_completed() {
 }
 
 #[tokio::test]
-async fn an_inbox_task_can_be_completed() {
+async fn completing_an_inbox_task_removes_it_from_the_inbox() {
     let app = test_app().await;
 
     let task = create_task(&app, json!({"title":"Someday"})).await;
@@ -192,8 +192,12 @@ async fn an_inbox_task_can_be_completed() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(done["completed"], true);
 
+    // A completed capture drops out of the Inbox — it doesn't linger struck-through.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
-    assert_eq!(inbox.as_array().expect("array")[0]["completed"], true);
+    assert!(
+        inbox.as_array().expect("array").is_empty(),
+        "the completed task no longer appears in the inbox"
+    );
 }
 
 #[tokio::test]

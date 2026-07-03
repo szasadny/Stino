@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n            id              AS \"id!\",\n            title           AS \"title!\",\n            notes,\n            label_id,\n            due_date,\n            due_time,\n            recurrence_rule,\n            due_date        AS occurrence_date,\n            sort_order      AS \"sort_order!\",\n            EXISTS(\n                SELECT 1 FROM completion c\n                WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date\n            ) AS \"completed!: bool\"\n        FROM task\n        WHERE due_date IS NULL\n        ORDER BY sort_order, id",
+  "query": "SELECT\n            id              AS \"id!\",\n            title           AS \"title!\",\n            notes,\n            label_id,\n            due_date,\n            due_time,\n            recurrence_rule,\n            due_date        AS occurrence_date,\n            sort_order      AS \"sort_order!\",\n            EXISTS(\n                SELECT 1 FROM completion c\n                WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date\n            ) AS \"completed!: bool\"\n        FROM task\n        WHERE due_date IS NULL\n          AND NOT EXISTS(\n              SELECT 1 FROM completion c\n              WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date\n          )\n        ORDER BY sort_order, id",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "0a3103c0e630c89c9e1bdf0f1e51280616b1758683c189e04ab0fbd2274be581"
+  "hash": "fa88d425603f89fa249b440b127afe8e26fdcfa2c0b4722cbcfc474d55a223d2"
 }
