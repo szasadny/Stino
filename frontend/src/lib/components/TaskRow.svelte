@@ -22,6 +22,7 @@
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
+  import { labelTint } from '../labels'
   import LabelChip from './LabelChip.svelte'
 
   let {
@@ -61,6 +62,7 @@
   } = $props()
 
   const done = $derived(task.completed || completing)
+  const tint = $derived(labelTint(label?.color))
 
   // Keep the complete-toggle from arming a press-and-hold drag on the phone day-sheet,
   // whichever low-level start event the dnd library listens for (mirrors TaskPill).
@@ -79,14 +81,8 @@
 
 {#snippet content()}
   {#if slim}
+    <!-- One line, no dot: the row's own label-colour wash carries the label. -->
     <div class="flex min-w-0 items-center gap-2">
-      {#if label}
-        <span
-          class="h-2 w-2 shrink-0 rounded-full"
-          style="background-color: {label.color}"
-          title={label.name}
-        ></span>
-      {/if}
       <span
         class="min-w-0 flex-1 truncate text-sm font-medium {done
           ? 'text-sage line-through'
@@ -176,7 +172,10 @@
     aria-checked={selected}
     class="flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left shadow-soft transition {selected
       ? 'border-pine bg-pine/5'
-      : 'border-lichen bg-surface hover:border-pine/40'}"
+      : tint
+        ? 'border-lichen hover:border-pine/40'
+        : 'border-lichen bg-surface hover:border-pine/40'}"
+    style={selected ? '' : tint}
   >
     <span
       class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-md border transition sm:mt-0 sm:self-center {selected
@@ -204,7 +203,10 @@
   <div
     class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
       ? 'border-pine/40 bg-pine/5'
-      : 'border-lichen bg-surface hover:border-pine/30'}"
+      : tint
+        ? 'border-lichen hover:border-pine/30'
+        : 'border-lichen bg-surface hover:border-pine/30'}"
+    style={completing ? '' : tint}
   >
     {#if leading}
       <div class="flex shrink-0 items-center self-stretch">

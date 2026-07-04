@@ -233,6 +233,7 @@
     items={cal.board[selectedKey] ?? []}
     labelFor={sel.labelFor}
     pending={core.pending}
+    dragging={cal.dragging}
     onConsider={cal.consider}
     onFinalize={cal.finalize}
     onToggle={core.toggle}

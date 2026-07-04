@@ -18,7 +18,6 @@
     WEEKDAYS,
     addMonths,
     buildMonthGrid,
-    clampDayToMonth,
     formatMonthYear,
     isSameMonth,
     monthWeekCount,
@@ -58,21 +57,23 @@
   const compactCells = $derived(grid.slice(0, weeks * 7))
 
   const core = createTaskCore()
-  const cal = createCalendarBoard(core, () => gridKeys, loadRange)
-  // The grid add/edit dialog ('add' = header "+", date prefilled; 'edit' = tapped pill).
-  const composer = createGridComposer(core, loadRange)
-
   const sel = createCalendarSelection(core)
   // The ISO key of the zoomed day, or null — drives the desktop DayPanel / the phone split
   // agenda, and freezes the matching grid cell (so the panel/agenda is the only live drag
   // zone for that day).
   const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
+  // A pinned agenda stays open on its day across a month swipe, so the day can fall outside
+  // the visible grid. Add its key to the board (so `cal.board[selectedKey]` still buckets
+  // its tasks) and to the range fetch (loadRange) below; an in-grid day leaves these
+  // unchanged.
+  const boardKeys = $derived(
+    selectedKey && !gridKeys.includes(selectedKey) ? [...gridKeys, selectedKey] : gridKeys,
+  )
 
-  // Compact layout (touch or mouse): while a task held from the agenda dwells near the bottom,
-  // hide the agenda so the WHOLE month grid becomes the drop surface (sticky until the
-  // drop lands — cal.dragging clears — then the agenda returns). The agenda collapses
-  // with `hidden`, never unmounts: its zone must stay registered mid-drag, and
-  // display:none zeroes its rects so it can't phantom-capture the pointer.
+  const cal = createCalendarBoard(core, () => boardKeys, loadRange)
+  // The grid add/edit dialog ('add' = header "+", date prefilled; 'edit' = tapped pill).
+  const composer = createGridComposer(core, loadRange)
+
   let gridExpanded = $state(false)
   let splitEl = $state<HTMLElement | null>(null)
   $effect(() => {
@@ -109,10 +110,16 @@
   onRefresh(loadAll)
 
   function loadRange() {
+    // Span the visible grid AND the pinned day — a swipe can keep the agenda open on a day
+    // now outside the month, and its agenda must still show that day's tasks.
+    let from = grid[0]
+    let to = grid[grid.length - 1]
+    if (sel.selectedDate) {
+      if (sel.selectedDate < from) from = sel.selectedDate
+      else if (sel.selectedDate > to) to = sel.selectedDate
+    }
     return core.loadWith(
-      async () => ({
-        tasks: await api.tasks.range(toISODate(grid[0]), toISODate(grid[grid.length - 1])),
-      }),
+      async () => ({ tasks: await api.tasks.range(toISODate(from), toISODate(to)) }),
       'Could not load the calendar',
     )
   }
@@ -120,16 +127,15 @@
   // Both navigations run inside a directional view-transition slide (the grid pane
   // carries `vt-calendar`), awaiting the range fetch so the new month slides in
   // already populated. Falls back to the plain instant swap (nav-transition.ts).
-  // An open day zoom (the phone split agenda / the desktop DayPanel) STAYS open
-  // across a navigation: the selection follows the same day-of-month into the new
-  // month (clamped to its length), so a swipe with the agenda up keeps it up.
+  // An open day zoom (the phone split agenda / the desktop DayPanel) STAYS open and
+  // stays PINNED to the originally-tapped day across a navigation — the selection
+  // never moves to the new month, so you can flip through months with one day's
+  // agenda held open (e.g. to drag its task onto another month's cell).
   function go(delta: number) {
     void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
       const next = addMonths(viewYear, viewMonth, delta)
       viewYear = next.year
       viewMonth = next.month
-      if (sel.selectedDate)
-        sel.selectedDate = clampDayToMonth(sel.selectedDate.getDate(), next.year, next.month)
       await loadRange()
     })
   }
@@ -139,9 +145,7 @@
     void navigateWithSlide(delta > 0 ? 'forward' : delta < 0 ? 'back' : null, async () => {
       viewYear = today.getFullYear()
       viewMonth = today.getMonth()
-      // Jumping "home" with a day open lands on today's agenda.
-      if (sel.selectedDate)
-        sel.selectedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      // Like a swipe, this only moves the grid — an open day stays pinned to its own day.
       await loadRange()
     })
   }
@@ -315,6 +319,7 @@
     items={cal.board[selectedKey] ?? []}
     labelFor={sel.labelFor}
     pending={core.pending}
+    dragging={cal.dragging}
     onConsider={cal.consider}
     onFinalize={cal.finalize}
     onToggle={core.toggle}

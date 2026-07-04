@@ -29,6 +29,7 @@
     items,
     labelFor,
     pending = false,
+    dragging = false,
     onConsider,
     onFinalize,
     onToggle,
@@ -42,6 +43,7 @@
     labelFor: (task: Task) => Label | undefined
     // While a mutation is in flight, lock drag-start so a move can't race it.
     pending?: boolean
+    dragging?: boolean
     // The view's calendar-board handlers — shared with the grid cells, keyed by day.
     onConsider: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
@@ -57,9 +59,7 @@
       : `${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
   )
 
-  // Anchor the fixed-position card beside its day cell. We measure the cell by the
-  // `data-day-cell` attribute the grid stamps on each cell, and the panel by its own
-  // bound size, then recompute on the open day changing, a resize, or a scroll.
+  // Anchor the fixed-position card beside its day cell.
   let panelW = $state(0)
   let panelH = $state(0)
   let pos = $state<{ left: number; top: number } | null>(null)
@@ -108,7 +108,8 @@
 <div
   bind:clientWidth={panelW}
   bind:clientHeight={panelH}
-  class="fixed z-30 flex max-h-[75vh] w-[19rem] animate-rise-in flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay
+  class="fixed z-30 max-h-[75vh] w-[19rem] animate-rise-in flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay
+    {dragging ? 'hidden' : 'flex'}
     {pos ? '' : 'pointer-events-none opacity-0'}"
   style:left="{pos?.left ?? 0}px"
   style:top="{pos?.top ?? 0}px"

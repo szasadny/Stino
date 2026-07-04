@@ -15,6 +15,20 @@ export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): string {
   return LABEL_PALETTE[next % LABEL_PALETTE.length].hex
 }
 
+// Soft label-colour wash (~25%) used as the BACKGROUND wherever a task shows its label
+// colour as a pill/row — the calendar pills (TaskPill), the phone month cell lines, and
+// the day/inbox task rows (TaskRow). One source so every surface tints identically. `40`
+// is the 8-digit-hex alpha byte (~25%): enough colour to read the label at a glance while
+// the themed `ink` title stays legible over it on the light OR dark ground (same safe
+// approach as LabelChip — no per-component `dark:` classes).
+export const LABEL_TINT_ALPHA = '40'
+
+/** Inline `background-color` style for a label colour, or `''` when unlabelled (the caller
+ * then falls back to a neutral background). Keeps the tint recipe in exactly one place. */
+export function labelTint(color: string | null | undefined): string {
+  return color ? `background-color:${color}${LABEL_TINT_ALPHA}` : ''
+}
+
 /**
  * Build a `(task) => label | undefined` lookup over `labels`. Returns
  * `undefined` for a task with no label or one whose `label_id` is no longer in

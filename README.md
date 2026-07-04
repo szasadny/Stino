@@ -11,14 +11,19 @@ Feel free to fork it and use it as your own!
 ## Stack
 
 A Rust (Axum + SQLx + SQLite) backend serves a Svelte (Vite + Tailwind) SPA from a single Docker
-container. See [CLAUDE.md](./CLAUDE.md) for the spec and [ARCHITECTURE.md](./ARCHITECTURE.md) for
-the contract.
+container.
 
-## Run it
+## Run
 
 ```bash
 git clone https://github.com/szasadny/Stino.git && cd Stino
 docker compose up -d --build
+```
+
+## Update
+
+```bash
+git pull && docker compose up -d --build
 ```
 
 ## Develop

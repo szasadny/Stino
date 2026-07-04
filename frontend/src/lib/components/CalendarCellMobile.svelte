@@ -28,6 +28,7 @@
   import { DND_FLIP_MS, DROP_TARGET_RING_CLASSES } from '../constants'
   import { formatDayFull } from '../date'
   import { visibleLineCount } from '../fit'
+  import { labelTint } from '../labels'
 
   let {
     date,
@@ -55,22 +56,26 @@
   } = $props()
 
   // Available height of the list region (layout-fixed, so measuring it can't feed back
-  // into itself) and one line's height — both measured so the fit adapts to any screen.
+  // into itself), one pill's height, and the list's row gap — all measured so the fit
+  // adapts to any screen AND accounts for the gap between pills (mirrors WeekDayCell). A
+  // missing gap term would over-count and clip pills with no "+N more" to hint at them.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
+  let rowGap = $state(0)
 
-  // Measure a real rendered line rather than assume a pixel size. Re-runs when the items
-  // first render (async load) / their count changes / the cell resizes; it only writes
-  // `lineHeight` (never reads it), so it can't loop.
+  // Measure a real rendered pill rather than assume a pixel size. Re-runs when the items
+  // first render (async load) / their count changes / the cell resizes; it only writes the
+  // measurement state (never reads it), so it can't loop.
   $effect(() => {
     void items.length
     void listHeight
     const first = listEl?.firstElementChild
     if (first) lineHeight = first.getBoundingClientRect().height
+    if (listEl) rowGap = parseFloat(getComputedStyle(listEl).rowGap) || 0
   })
 
-  const visible = $derived(visibleLineCount(items.length, listHeight, lineHeight))
+  const visible = $derived(visibleLineCount(items.length, listHeight, lineHeight, rowGap))
   const overflow = $derived(items.length - visible)
   const ariaLabel = $derived(
     `${formatDayFull(date)}, ${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
@@ -81,13 +86,20 @@
 
 {#snippet line(item: CellItem, hidden: boolean)}
   {@const label = labelFor(item.task)}
-  <!-- Whole line tinted with the label colour (same ~25% `${color}40` tint as the desktop
-    TaskPill, falling back to `bg-pine/10`) — recognisable at a glance and more space-efficient
-    than a dot + gap in a narrow phone cell. -->
+  <!-- Each task is its own compact label-coloured pill (same soft wash as the desktop
+    TaskPill, shared labelTint; `bg-pine/10` when unlabelled) — recognisable at a glance and
+    more space-efficient than a dot + gap. The `gap-0.5` on the <ul> keeps pills visually
+    separate so a run of them reads as distinct chips, not one bulky block. -->
+  <!-- `shrink-0`: pills must keep their natural height. As flex-column children they'd
+    otherwise compress when the cell overflows, which both overlaps them visually AND feeds a
+    too-small height back into the measurement effect (→ over-counting `visible`). Pinned, the
+    measured line height is always true and overflow pills are simply hidden + clipped. -->
   <li
-    class="truncate rounded px-1 leading-tight text-[10px] {label ? '' : 'bg-pine/10'}
+    class="shrink-0 truncate rounded px-1 py-px text-[10px] leading-tight {label
+      ? ''
+      : 'bg-pine/10'}
       {item.task.completed ? 'text-sage line-through' : 'text-ink'} {hidden ? 'invisible' : ''}"
-    style={label ? `background-color:${label.color}40` : ''}
+    style={labelTint(label?.color)}
   >
     {item.task.title}
   </li>
@@ -117,7 +129,7 @@
     <ul
       bind:this={listEl}
       bind:clientHeight={listHeight}
-      class="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+      class="flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-hidden"
     >
       {#each items as item, i (item.id)}
         {@render line(item, i >= visible)}
@@ -127,7 +139,7 @@
     <ul
       bind:this={listEl}
       bind:clientHeight={listHeight}
-      class="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+      class="flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-hidden"
       use:dndzone={{
         items,
         type: 'calendar',

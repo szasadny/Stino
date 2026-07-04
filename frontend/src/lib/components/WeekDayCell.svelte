@@ -59,9 +59,6 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  // Available height of the pill list (layout-fixed, so measuring it can't feed back into
-  // itself), one pill's height, and the list's row gap — all measured so the fit adapts to
-  // any screen and shows "+N more" only once the cell is genuinely full.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
@@ -124,7 +121,10 @@
 
   {#snippet pills(canDrag: boolean)}
     {#each items as item, i (item.id)}
-      <li class={i >= visible && !isShadow(item) ? 'invisible' : ''}>
+      <!-- shrink-0: keep each pill's natural height so a full cell hides overflow pills
+           cleanly instead of flex-compressing them (which would also corrupt the measured
+           line height the fit relies on). -->
+      <li class="shrink-0 {i >= visible && !isShadow(item) ? 'invisible' : ''}">
         <TaskPill
           task={item.task}
           label={labelFor(item.task)}

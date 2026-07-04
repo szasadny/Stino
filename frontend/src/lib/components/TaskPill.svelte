@@ -18,6 +18,7 @@
   // the compact dot-grid + readable agenda instead — so there is no slim-bar variant here.)
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
+  import { labelTint } from '../labels'
 
   let {
     task,
@@ -34,10 +35,8 @@
   } = $props()
 
   const color = $derived(label?.color ?? null)
-  // ~25% tint composited over the (light or dark) cell surface — enough colour to
-  // recognize the label at a glance while `ink` text stays legible (no extra left
-  // bar; the soft tint alone carries it). `40` is the 8-digit-hex alpha byte (~25%).
-  const tintStyle = $derived(color ? `background-color:${color}40` : '')
+  // Soft label-colour wash over the cell surface (shared recipe — see labelTint).
+  const tintStyle = $derived(labelTint(color))
 
   const openLabel = $derived(
     `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${

@@ -56,9 +56,7 @@
 
   // Inline label capture (TickTick-style `#tag`). A label can be set two ways: picked from
   // the suggestion menu — tracked here as `captureLabelId`, shown as a chip — or just typed
-  // as a `#tag` and resolved on submit (`draft.label`). The chip wins; typing a fresh `#`
-  // clears it so text drives again. `caret` tracks the cursor so the menu knows which tag is
-  // being typed; `menuDismissed` hides it after Escape / an outside click until the next key.
+  // as a `#tag` and resolved on submit (`draft.label`).
   let captureLabelId = $state<number | null>(null)
   let inputEl = $state<HTMLInputElement | null>(null)
   let captureContainer = $state<HTMLDivElement | null>(null)
@@ -241,9 +239,7 @@
   }
 
   // Open the full editor to add a task, seeded from whatever's in the quick bar (so "call mum
-  // tomorrow #work" carries its parsed title/date/time/label into the form). A typed-but-not-
-  // yet-created `#tag` only seeds when it already names a label — the editor creates labels
-  // itself, so nothing leaks on cancel.
+  // tomorrow #work" carries its parsed title/date/time/label into the form).
   function openDetails() {
     const labelId =
       captureLabelId ?? (draft.label ? (existingLabel(draft.label)?.id ?? null) : null)
@@ -490,9 +486,7 @@
           onkeyup={syncCaret}
           onclick={syncCaret}
           type="text"
-          placeholder={compact
-            ? 'Add a task - “gym 9am”'
-            : 'Add a task - “call mum tomorrow 9am #work”'}
+          placeholder={compact ? 'gym tomorrow 9am' : 'call mum tomorrow 12am #social'}
           maxlength={TITLE_MAX_LENGTH}
           autocomplete="off"
           aria-label="New task title"

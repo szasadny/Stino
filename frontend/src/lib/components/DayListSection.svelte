@@ -146,37 +146,48 @@
          type, so a held task can be dropped onto another day (reschedule) or reordered in
          place. Rendered even when empty (min-height) so an empty day is a valid drop
          target. A whole-row press-and-hold starts the drag; a tap opens the editor. -->
-    <ul
-      class="min-h-[2.75rem] space-y-2"
-      use:dndzone={{
-        items,
-        type: 'calendar',
-        flipDurationMs: DND_FLIP_MS,
-        delayTouchStart: DND_TOUCH_HOLD_MS,
-        dragDisabled: pending,
-        dropTargetStyle: {},
-        dropTargetClasses: ['rounded-lg', ...DROP_TARGET_RING_CLASSES],
-        zoneItemTabIndex: -1,
-      }}
-      onconsider={(e) => onConsider?.(dateKey, e)}
-      onfinalize={(e) => onFinalize?.(dateKey, e)}
-    >
-      {#each items as item (item.id)}
-        <li>
-          <TaskRow
-            task={item.task}
-            label={labelFor(item.task)}
-            slim
-            onToggle={() => onToggle(item.task)}
-            onEdit={() => openWithoutPhantomClick(() => onEditTask(item.task))}
-            holdToDrag
-          />
-        </li>
-      {/each}
-    </ul>
-    {#if items.length === 0 && emptyLabel}
-      <p class="px-0.5 pb-1 text-sm text-sage/70">{emptyLabel}</p>
-    {/if}
+    <!-- Relative wrapper: the empty-day placeholder overlays the drop zone (centered, right
+         under the header) instead of stacking BELOW its min-height — otherwise the text
+         floats in the gap and reads as belonging to the next day. It's a SIBLING of the
+         <ul> (not a child), so svelte-dnd-action's child↔item parity holds, and
+         `pointer-events-none` keeps it from ever blocking a drop. -->
+    <div class="relative">
+      <ul
+        class="min-h-[2.75rem] space-y-2"
+        use:dndzone={{
+          items,
+          type: 'calendar',
+          flipDurationMs: DND_FLIP_MS,
+          delayTouchStart: DND_TOUCH_HOLD_MS,
+          dragDisabled: pending,
+          dropTargetStyle: {},
+          dropTargetClasses: ['rounded-lg', ...DROP_TARGET_RING_CLASSES],
+          zoneItemTabIndex: -1,
+        }}
+        onconsider={(e) => onConsider?.(dateKey, e)}
+        onfinalize={(e) => onFinalize?.(dateKey, e)}
+      >
+        {#each items as item (item.id)}
+          <li>
+            <TaskRow
+              task={item.task}
+              label={labelFor(item.task)}
+              slim
+              onToggle={() => onToggle(item.task)}
+              onEdit={() => openWithoutPhantomClick(() => onEditTask(item.task))}
+              holdToDrag
+            />
+          </li>
+        {/each}
+      </ul>
+      {#if items.length === 0 && emptyLabel}
+        <p
+          class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage/70"
+        >
+          {emptyLabel}
+        </p>
+      {/if}
+    </div>
   {:else if items.length > 0}
     <ul class="space-y-2">
       {#each items as item (item.id)}
