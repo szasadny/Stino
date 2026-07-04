@@ -207,7 +207,7 @@
       : 'border-lichen bg-surface hover:border-pine/30'}"
   >
     {#if leading}
-      <div class="mt-0.5 flex shrink-0 items-center self-stretch">
+      <div class="flex shrink-0 items-center self-stretch">
         {@render leading()}
       </div>
     {/if}

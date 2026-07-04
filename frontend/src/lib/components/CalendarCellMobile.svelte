@@ -1,7 +1,7 @@
 <script lang="ts">
   // One day in the PHONE month calendar grid. Same 7-column calendar as desktop, but a
   // narrow cell can't host the full interactive pills, so each task shows as a compact
-  // readable line (a label-colour dot + its title). The whole cell is one tap target that
+  // readable line (its title on a label-colour tint). The whole cell is one tap target that
   // selects the day (its agenda shows in the split view under the grid).
   //
   // The cell is also a `calendar` DROP zone (drop-only — `dragDisabled`, its lines are
@@ -81,16 +81,15 @@
 
 {#snippet line(item: CellItem, hidden: boolean)}
   {@const label = labelFor(item.task)}
-  <li class="flex items-center gap-1 leading-tight {hidden ? 'invisible' : ''}">
-    <span
-      class="h-1.5 w-1.5 shrink-0 rounded-full {label ? '' : 'bg-pine/60'}"
-      style={label ? `background-color:${label.color}` : ''}
-    ></span>
-    <span
-      class="truncate text-[10px] {item.task.completed ? 'text-sage line-through' : 'text-ink'}"
-    >
-      {item.task.title}
-    </span>
+  <!-- Whole line tinted with the label colour (same ~25% `${color}40` tint as the desktop
+    TaskPill, falling back to `bg-pine/10`) — recognisable at a glance and more space-efficient
+    than a dot + gap in a narrow phone cell. -->
+  <li
+    class="truncate rounded px-1 leading-tight text-[10px] {label ? '' : 'bg-pine/10'}
+      {item.task.completed ? 'text-sage line-through' : 'text-ink'} {hidden ? 'invisible' : ''}"
+    style={label ? `background-color:${label.color}40` : ''}
+  >
+    {item.task.title}
   </li>
 {/snippet}
 

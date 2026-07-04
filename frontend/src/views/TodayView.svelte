@@ -20,12 +20,10 @@
   const todayKey = toISODate(today)
 
   const core = createTaskCore()
-  // The add/edit dialog — the same composer controller the grids use, bound to this view's
-  // reload. "Add" prefills today's date; changing or clearing the date in the editor just
-  // means the task no longer shows here after the reload.
   const composer = createGridComposer(core, load)
 
-  const count = $derived(core.tasks.length)
+  const count = $derived(core.tasks.filter((t) => !t.completed).length)
+  const hasTasks = $derived(core.tasks.length > 0)
 
   onMount(load)
   // Reload after a mutating overlay (Search/Labels/Import) closes over this view.
@@ -79,7 +77,7 @@
   <div class="mt-5 min-h-0 flex-1 overflow-y-auto pb-6">
     {#if core.loading}
       <p class="py-8 text-center text-sm text-sage">Loading…</p>
-    {:else if count === 0}
+    {:else if !hasTasks}
       <EmptyState message="Nothing due today." />
     {:else}
       <DayAgenda

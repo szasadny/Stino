@@ -143,7 +143,7 @@
   <div
     use:dragHandle
     {title}
-    class="grid h-6 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
+    class="grid h-5 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
   >
     <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
       <circle cx="9" cy="6" r="1.4" />
