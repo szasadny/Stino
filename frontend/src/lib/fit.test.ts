@@ -42,4 +42,14 @@ describe('visibleLineCount', () => {
   it('handles a capacity of 0 (cell shorter than a line)', () => {
     expect(visibleLineCount(3, 10, 16)).toBe(0)
   })
+
+  it('accounts for the row gap between lines', () => {
+    // 4 lines of 16px + 3 gaps of 4px = 76px <= 80, a 5th would need +20 -> 96 > 80.
+    // Without the gap the naive floor(80/16)=5 would over-count and clip a line.
+    expect(visibleLineCount(10, 80, 16, 4)).toBe(4)
+  })
+
+  it('treats a gap of 0 like the gapless formula', () => {
+    expect(visibleLineCount(10, 80, 16, 0)).toBe(5)
+  })
 })

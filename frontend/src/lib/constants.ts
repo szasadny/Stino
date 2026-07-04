@@ -3,13 +3,6 @@
 export const TITLE_MAX_LENGTH = 200
 export const LABEL_NAME_MAX_LENGTH = 60
 
-// How many task titles a DESKTOP calendar cell previews before collapsing the rest
-// to a "+N more" affordance (cells clip with overflow-hidden, so these stay safe on
-// short windows). The phone month grid uses no cap — `CalendarCellMobile` fits its
-// lines to the measured cell height (see `lib/fit.ts`).
-export const MONTH_CELL_MAX_TITLES = 4
-export const WEEK_CELL_MAX_TITLES = 8
-
 // The viewport width (px) at/below which the calendar views switch to their
 // compact, phone-friendly layouts (a dot grid + readable agenda) instead of the
 // 7-column grids, whose cells are too narrow for task text on a phone. 639 keeps
@@ -52,13 +45,15 @@ export const GHOST_CLICK_WINDOW_MS = 350
 export const SEARCH_DEBOUNCE_MS = 200
 
 // Inbox completion send-off. Ticking an inbox task doesn't yank the row: it holds
-// for HOLD_MS showing the checkmark pop + strike-through (the moment of "done"),
-// then leaves over EXIT_MS (the row folds shut while fading and drifting away).
+// for HOLD_MS playing the completion sequence (checkbox pop + pine ring ripple,
+// the strike-through line drawing across the title, a soft pine wash over the
+// row — keyframes in app.css), then leaves over EXIT_MS (the row folds shut while
+// fading and drifting right). The hold covers the ~600ms the ring + strike need.
 // If a mutation is still in flight when the hold ends, the removal re-checks every
 // RETRY_MS instead of racing the shared lock (which would bounce the row back).
-// Under prefers-reduced-motion both animations are skipped and removal is instant.
-export const INBOX_COMPLETE_HOLD_MS = 600
-export const INBOX_COMPLETE_EXIT_MS = 300
+// Under prefers-reduced-motion the animations are skipped and removal is instant.
+export const INBOX_COMPLETE_HOLD_MS = 750
+export const INBOX_COMPLETE_EXIT_MS = 350
 export const INBOX_COMPLETE_RETRY_MS = 150
 
 // The shared base styling for a text input/textarea — the border, fog fill, and

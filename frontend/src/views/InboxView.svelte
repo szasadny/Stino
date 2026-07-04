@@ -22,6 +22,7 @@
   import {
     DND_FLIP_MS,
     DND_TOUCH_HOLD_MS,
+    GHOST_CLICK_WINDOW_MS,
     INBOX_COMPLETE_EXIT_MS,
     INBOX_COMPLETE_HOLD_MS,
     INBOX_COMPLETE_RETRY_MS,
@@ -300,8 +301,18 @@
   // the instant removal. A failure reverts via the shared lock, so the row bounces back.
   const completingIds = new SvelteSet<number>()
   const completeTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  const lastTickAt = new Map<number, number>()
 
   function completeTask(task: Task) {
+    // A touch tap fires TWO clicks a beat apart (the phantom-click problem, see
+    // lib/phantom-click.ts). With tap-again-to-undo that phantom is fatal in BOTH
+    // directions — it would instantly cancel every mobile completion, and instantly
+    // restart one after a deliberate undo. So: any click within the ghost window of
+    // the last HANDLED click on this task is the phantom — drop it.
+    const now = performance.now()
+    if (now - (lastTickAt.get(task.id) ?? -Infinity) < GHOST_CLICK_WINDOW_MS) return
+    lastTickAt.set(task.id, now)
+
     if (completingIds.has(task.id)) {
       // Ticked again during the hold: undo — nothing has been written yet.
       clearTimeout(completeTimers.get(task.id))
@@ -329,6 +340,7 @@
     }
     completeTimers.delete(task.id)
     completingIds.delete(task.id)
+    lastTickAt.delete(task.id)
     void core.optimistic(
       () => {
         core.tasks = core.tasks.filter((t) => t.id !== task.id)
@@ -347,7 +359,7 @@
       duration: reduced ? 0 : INBOX_COMPLETE_EXIT_MS,
       easing: cubicOut,
       css: (t: number, u: number) =>
-        `overflow: hidden; height: ${t * height}px; opacity: ${t}; transform: translateX(${u * 24}px);`,
+        `overflow: hidden; height: ${t * height}px; opacity: ${t}; transform: translateX(${u * 48}px);`,
     }
   }
 

@@ -104,8 +104,16 @@
 {/snippet}
 
 {#snippet fullContent()}
-  <p class="break-words text-sm font-medium {done ? 'text-sage line-through' : 'text-ink'}">
-    {task.title}
+  <!-- While completing, the strike is the ANIMATED line (strike-draw) instead of the
+       static text-decoration, so the two never double up. -->
+  <p
+    class="break-words text-sm font-medium transition-colors duration-300 {task.completed
+      ? 'text-sage line-through'
+      : completing
+        ? 'text-sage'
+        : 'text-ink'}"
+  >
+    <span class={completing ? 'strike-draw' : ''}>{task.title}</span>
   </p>
   {#if dateLabel || task.due_time || label || task.recurrence_rule}
     <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -194,7 +202,9 @@
   </button>
 {:else}
   <div
-    class="flex items-start gap-3 rounded-xl border border-lichen bg-surface px-3 py-2.5 shadow-soft transition hover:border-pine/30"
+    class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
+      ? 'border-pine/40 bg-pine/5'
+      : 'border-lichen bg-surface hover:border-pine/30'}"
   >
     {#if leading}
       <div class="mt-0.5 flex shrink-0 items-center self-stretch">
@@ -212,7 +222,9 @@
       aria-label={done ? 'Mark as not done' : 'Mark as done'}
       class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition sm:mt-0 sm:self-center {done
         ? 'border-pine bg-pine text-surface'
-        : 'border-sage/60 text-transparent hover:border-pine'}"
+        : 'border-sage/60 text-transparent hover:border-pine'} {completing
+        ? 'animate-check-burst'
+        : ''}"
     >
       <svg
         viewBox="0 0 24 24"

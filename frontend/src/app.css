@@ -129,16 +129,18 @@
   animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-/* The completion tick landing — the checkmark scales in with a tiny overshoot as
- * the circle fills pine. Used only while a row is celebrating its completion
- * (TaskRow `completing`), so ordinary completed rows render statically. */
+/* The completion send-off (TaskRow `completing`, driven by the Inbox) — three beats
+ * that read clearly without turning bouncy: the checkmark scales in while the WHOLE
+ * circle pops and casts one soft expanding pine ring (a single ripple, not a pulse),
+ * and a strike line draws itself across the title. Ordinary completed rows render
+ * statically; calendar/today toggles keep their plain color transition. */
 @keyframes check-pop {
   from {
     opacity: 0;
     transform: scale(0.3);
   }
   60% {
-    transform: scale(1.2);
+    transform: scale(1.25);
   }
   to {
     opacity: 1;
@@ -147,13 +149,59 @@
 }
 
 .animate-check-pop {
-  animation: check-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: check-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes check-burst {
+  0% {
+    transform: scale(0.8);
+    box-shadow: 0 0 0 0 rgb(var(--pine) / 0.5);
+  }
+  45% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 14px rgb(var(--pine) / 0);
+  }
+}
+
+.animate-check-burst {
+  animation: check-burst 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Strike line drawing left→right through the title. A separate bar (not
+ * text-decoration, which can't animate) so the strike visibly lands. */
+.strike-draw {
+  position: relative;
+}
+.strike-draw::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: strike-draw 0.35s 0.12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes strike-draw {
+  to {
+    transform: scaleX(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-rise-in,
-  .animate-check-pop {
+  .animate-check-pop,
+  .animate-check-burst {
     animation: none;
+  }
+  .strike-draw::after {
+    animation: none;
+    transform: scaleX(1);
   }
 }
 

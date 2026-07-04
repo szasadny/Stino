@@ -224,8 +224,7 @@ Behaviours that matter:
 - `lib/palette.js` — the fixed label palette as plain JS data, imported by BOTH `constants.ts` and
   `tailwind.config.js` (Tailwind loads outside the TS pipeline). Backend keeps a guarded mirror (§11).
 - `lib/constants.ts` — view list; length caps mirroring `config.rs` (`TITLE_MAX_LENGTH`,
-  `LABEL_NAME_MAX_LENGTH`, `LABEL_EMOJI_MAX_LENGTH`); cell overflow thresholds
-  (`MONTH_CELL_MAX_TITLES`, `WEEK_CELL_MAX_TITLES`); `COMPACT_MAX_WIDTH`; drag/gesture timings
+  `LABEL_NAME_MAX_LENGTH`, `LABEL_EMOJI_MAX_LENGTH`); `COMPACT_MAX_WIDTH`; drag/gesture timings
   (`DND_FLIP_MS`, `DND_TOUCH_HOLD_MS`, `DND_GRID_TOUCH_HOLD_MS`, `MONTH_EXPAND_ZONE_PX`,
   `MONTH_EXPAND_HOLD_MS`, `GHOST_CLICK_WINDOW_MS`, `SEARCH_DEBOUNCE_MS`); look-tokens
   (`INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `DROP_TARGET_RING_CLASSES` — the shared drop-zone
@@ -267,8 +266,9 @@ Behaviours that matter:
   `(id, occurrence_date)` row): the complete-toggle primitives `task-core` and Search build on.
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
 - `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on.
-- `fit.ts` — how many task lines fit a measured cell height (phone month cells) — keeps "+N more"
-  exact.
+- `fit.ts` — how many task lines fit a measured cell height (accounting for the inter-line row gap) —
+  used by every calendar cell (phone month, desktop month, week) so "+N more" appears only once the
+  cell is genuinely full. No hardcoded per-cell line cap anywhere.
 - `panel-pos.ts` — `DayPanel` placement math: given the anchor cell rect, panel size, and viewport,
   keep the panel beside the cell and fully on screen.
 - `drag-scroll.ts` — `dragEdgeScroll` action + pure `edgeScrollStep`: scrolls a container while a
@@ -389,11 +389,13 @@ layout per view.
   the whole grid becomes the drop surface (`MONTH_EXPAND_ZONE_PX` / `MONTH_EXPAND_HOLD_MS`; the
   dwell state machine is `createBottomDwell` in `lib/drag-scroll.ts`, fed by both `touchmove` and
   `mousemove` so a mouse drag in a narrow window expands the grid too).
-- `CalendarCellMobile` has **no hardcoded line cap**: it measures the list height
-  (`bind:clientHeight`) and one rendered line's height and fits exactly as many lines as the screen
-  allows (`lib/fit.ts`), so "+N more" is always exact. The zone renders **every** item for
-  svelte-dnd-action's child↔item parity — overflow lines are `invisible` but keep their child slot;
-  the "+N more" row sits outside the `<ul>`.
+- **No hardcoded line cap anywhere**: `CalendarCellMobile` (phone month), `CalendarCell` (desktop
+  month), and `WeekDayCell` (desktop week) each measure the list height (`bind:clientHeight`), one
+  rendered pill/line's height, and the list's row gap, then fit exactly as many as the cell allows
+  (`lib/fit.ts`), so "+N more" appears only once the cell is genuinely full. Each zone renders
+  **every** item for svelte-dnd-action's child↔item parity — overflow pills/lines are `invisible` but
+  keep their child slot (never the drag shadow, which stays visible as the drop preview); the
+  "+N more" row sits outside the `<ul>`.
 - The phone grid renders only the month's actual week-rows (`monthWeekCount`, 4–6) via a dynamic
   `grid-template-rows`, so no all-spill-over row wastes height (the data layer keeps the full
   42-cell grid). Desktop keeps the fixed 6×7.

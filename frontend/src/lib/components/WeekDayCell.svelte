@@ -4,21 +4,25 @@
   // phone shows WeekView's stacked DayListSection list instead. Pills live in a
   // svelte-dnd-action zone so a non-recurring task can be dragged to another day. The
   // week has room, so pills always show their title. The zone renders every item
-  // (child↔item parity) and clips with "+N more". Tapping the day header (or "+N more")
-  // opens the day sheet via `onSelect`; tapping a task pill edits that task via `onEditTask`.
+  // (child↔item parity): pills past the measured fit are hidden with `invisible` and a
+  // "+N more" footer hints at the rest. How many pills show is MEASURED, not capped — the
+  // flex-1 pill list is read with bind:clientHeight and divided by one pill's height (plus
+  // the row gap) so pills fill the whole tall week cell before overflowing (lib/fit.ts).
+  // Tapping the day header (or "+N more") opens the day sheet via `onSelect`; tapping a
+  // task pill edits that task via `onEditTask`.
   //
   // While this day's floating DayPanel is open (`open`), the cell FREEZES: pills render
   // statically with no drag zone, since the panel is now this day's live `calendar` zone.
-  import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
+  import {
+    dragHandleZone,
+    SHADOW_ITEM_MARKER_PROPERTY_NAME,
+    type DndEvent,
+  } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { formatDayFull, weekdayAbbrev } from '../date'
-  import {
-    DND_FLIP_MS,
-    DND_GRID_TOUCH_HOLD_MS,
-    DROP_TARGET_RING_CLASSES,
-    WEEK_CELL_MAX_TITLES,
-  } from '../constants'
+  import { DND_FLIP_MS, DND_GRID_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
+  import { visibleLineCount } from '../fit'
   import TaskPill from './TaskPill.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
 
@@ -55,10 +59,32 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  const overflow = $derived(items.length - WEEK_CELL_MAX_TITLES)
+  // Available height of the pill list (layout-fixed, so measuring it can't feed back into
+  // itself), one pill's height, and the list's row gap — all measured so the fit adapts to
+  // any screen and shows "+N more" only once the cell is genuinely full.
+  let listEl = $state<HTMLUListElement | null>(null)
+  let listHeight = $state(0)
+  let lineHeight = $state(0)
+  let rowGap = $state(0)
+
+  // Measure a real rendered pill rather than assume a pixel size. Re-runs when the items
+  // first render (async load) / their count changes / the cell resizes; it only writes the
+  // measurement state (never reads it), so it can't loop.
+  $effect(() => {
+    void items.length
+    void listHeight
+    const first = listEl?.firstElementChild
+    if (first) lineHeight = first.getBoundingClientRect().height
+    if (listEl) rowGap = parseFloat(getComputedStyle(listEl).rowGap) || 0
+  })
+
+  const visible = $derived(visibleLineCount(items.length, listHeight, lineHeight, rowGap))
+  const overflow = $derived(items.length - visible)
   const ariaLabel = $derived(
     `${formatDayFull(date)}, ${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
   )
+
+  const isShadow = (item: CellItem) => SHADOW_ITEM_MARKER_PROPERTY_NAME in item
 </script>
 
 <div
@@ -97,8 +123,8 @@
   </div>
 
   {#snippet pills(canDrag: boolean)}
-    {#each items as item (item.id)}
-      <li>
+    {#each items as item, i (item.id)}
+      <li class={i >= visible && !isShadow(item) ? 'invisible' : ''}>
         <TaskPill
           task={item.task}
           label={labelFor(item.task)}
@@ -112,11 +138,17 @@
 
   {#if open}
     <!-- Frozen: the floating DayPanel owns this day's drag zone; render pills statically. -->
-    <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+    <ul
+      bind:this={listEl}
+      bind:clientHeight={listHeight}
+      class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
+    >
       {@render pills(false)}
     </ul>
   {:else}
     <ul
+      bind:this={listEl}
+      bind:clientHeight={listHeight}
       class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
       use:dragHandleZone={{
         items,
