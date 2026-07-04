@@ -1,13 +1,9 @@
 <script lang="ts">
-  // The day-zoom sheet (the phone Week's zoom — the phone Month zooms via its split
-  // agenda instead): tap a day header to see that day's tasks in full,
-  // grouped by label (via DayAgenda), complete them, reorder them — and add a task
-  // for the day or edit one in place. The editor (TaskComposer) renders inline,
-  // not in its own dialog, so we never stack a modal on this one; `onCreate`/
-  // `onUpdate` bubble the change up to the owning view (it does the API call and
-  // reloads, which refreshes this sheet through its `tasks` prop). The shell lives
-  // in Modal — full-screen on a phone, a centered card on wider screens. Driven
-  // by the `date` prop (null = closed).
+  // The day-zoom sheet (the phone Week's zoom). Shows a day's tasks grouped by label (via
+  // DayAgenda) and adds/edits one in place. The editor renders inline, not in its own dialog,
+  // so we never stack a modal; `onCreate`/`onUpdate` bubble up to the owning view, which does
+  // the API call and reloads, refreshing this sheet via its `tasks` prop. Driven by `date`
+  // (null = closed).
   import type { Label, Task } from '../types'
   import type { TaskInput } from '../api'
   import { taskToDraft } from '../composer'
@@ -106,7 +102,7 @@
   {onClose}
   title={date ? formatDayFull(date) : ''}
   {subtitle}
-  panelClass="m-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
+  panelClass="m-2 h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
   containerClass="h-full sm:h-auto sm:max-h-[85vh]"
 >
   <!-- dragEdgeScroll: a long day still reorders by touch — holding a task near the

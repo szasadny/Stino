@@ -1,24 +1,15 @@
 <script lang="ts">
-  // Reusable task row: a complete-toggle, the title, and a meta line (time +
-  // label chip). View-specific actions (edit, delete, schedule) go in the
-  // `trailing` snippet, and an optional `leading` snippet (e.g. a drag handle)
-  // sits before the checkbox — so Inbox/Today/Day views reuse this same row.
-  // When `onEdit` is given, the title/meta become a button that opens the editor
-  // (tap a task to edit it); the complete-toggle stays its own separate control.
-  // `dateLabel` adds the planned day to the meta line — most views imply the day
-  // from their context, but Search spans every day, so it passes one.
+  // Reusable task row: a complete-toggle, the title, and a meta line. View-specific actions
+  // go in the `trailing` snippet; an optional `leading` snippet (e.g. a drag handle) sits
+  // before the checkbox. `onEdit` makes the title/meta a button that opens the editor.
+  // `dateLabel` adds the planned day (Search spans every day, so it passes one). In
+  // `selectable` mode (Inbox multi-select) the toggle becomes a square checkbox and the whole
+  // row calls `onSelect`.
   //
-  // In `selectable` mode (the Inbox multi-select) the round complete-toggle is
-  // swapped for a square selection checkbox and the whole row becomes one button
-  // that calls `onSelect`; `leading`/`trailing` are omitted by the caller.
-  //
-  // `holdToDrag` adapts the row to be a phone press-and-hold drag target (the day
-  // sheet): (1) the complete-toggle swallows the pointer/touch start so ticking never
-  // arms a drag, and (2) the tap-to-edit surface renders as a `div role=button`, not a
-  // `<button>` — svelte-dnd-action refuses to start a drag from an element with a
-  // defined `.value` (every `<button>` has one), so the whole-row hold only works when
-  // the tap surface is a plain element (the same reason TaskPill is a div). No-op
-  // everywhere else (default false); wide screens keep the grip handle instead.
+  // `holdToDrag` makes the row a phone press-and-hold drag target: the toggle swallows the
+  // pointer start so ticking never arms a drag, and the tap-to-edit surface renders as a
+  // `div role=button`, not a `<button>` — svelte-dnd-action refuses to start a drag from an
+  // element with a defined `.value` (every `<button>` has one; same reason TaskPill is a div).
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
@@ -49,13 +40,10 @@
     selected?: boolean
     onSelect?: () => void
     holdToDrag?: boolean
-    // The Inbox completion send-off: render as done (filled circle + strike-through)
-    // with the checkmark's pop animation while the row waits out its exit — the task
-    // itself isn't `completed` yet (the write happens when the hold ends).
+    // Render as done (filled circle + strike-through) while the Inbox row waits out its exit;
+    // the task itself isn't `completed` yet (the write happens when the hold ends).
     completing?: boolean
-    // One-line phone row for the day lists (week sections, month split agenda, Today):
-    // a label-colour dot + truncated title + inline time, NO meta line (no recurrence
-    // summary, no label chip) — the same at-a-glance line the phone month cells draw.
+    // One-line phone row for the day lists: title + inline time, no meta line.
     slim?: boolean
     leading?: Snippet
     trailing?: Snippet
@@ -243,9 +231,8 @@
     </button>
 
     {#if onEdit && holdToDrag}
-      <!-- Phone hold-to-drag: the tap surface must be a plain element (not a <button>),
-           or svelte-dnd-action won't start a drag from it. role/tabindex/keydown keep it
-           a first-class button for a11y and keyboard. -->
+      <!-- Phone hold-to-drag: the tap surface must be a plain element, not a <button>, or
+           svelte-dnd-action won't start a drag from it; role/tabindex/keydown restore a11y. -->
       <div
         role="button"
         tabindex="0"

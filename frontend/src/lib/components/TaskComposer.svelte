@@ -1,12 +1,8 @@
 <script lang="ts">
-  // The one task editor — used to add a task in full (the alternative to a quick
-  // capture) and to edit an existing one, everywhere a task is created or changed
-  // (Inbox, Today, the day sheet, a tapped calendar task). It's a presentational
-  // form: it owns a local draft and emits a normalized `TaskInput` via `onSubmit`;
-  // the caller does the API call and list update, so this stays reusable and the
-  // boundary (HTTP only in views/api) holds. Validation/normalization lives in
-  // lib/composer.ts. Label assignment is chip-based here (tap to toggle), a calmer,
-  // more legible alternative to the dropdown used in the bulk bar.
+  // The one task editor — add a task in full or edit an existing one, everywhere a task is
+  // created or changed. A presentational form: it owns a local draft and emits a normalized
+  // `TaskInput` via `onSubmit`; the caller does the API call (HTTP stays in views/api).
+  // Validation/normalization lives in lib/composer.ts.
   import { untrack } from 'svelte'
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
@@ -31,13 +27,12 @@
     busy?: boolean
     onSubmit: (input: TaskInput) => void
     onCancel: () => void
-    // Present only when editing an existing task — shows a Delete button. The caller
-    // does the API call + list update (HTTP stays in views/api), this just asks.
+    // Present only when editing — shows a Delete button.
     onDelete?: () => void
   } = $props()
 
-  // Seeded once; the form is remounted per editing session by its container, so it
-  // never needs to react to `initial` changing under it (untrack makes that explicit).
+  // Seeded once; the form is remounted per editing session, so it never reacts to `initial`
+  // changing under it (untrack makes that explicit).
   const draft = $state<ComposerDraft>(untrack(() => emptyDraft(initial)))
 
   const canSubmit = $derived(draft.title.trim().length > 0 && !busy)

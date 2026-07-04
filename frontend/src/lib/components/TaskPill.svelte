@@ -1,21 +1,11 @@
 <script lang="ts">
-  // One task in a month/week cell, rendered as its own label-colored pill (replaces
-  // the old dot + title row). The label color is user data, NOT a theme token, so it
-  // shows as a soft color tint so the label reads at a glance across the month — while
-  // the title stays on the themed `ink` token, which keeps any
-  // chosen color legible on the light OR dark cell ground (same safe approach as
-  // LabelChip, no `dark:` classes).
-  //
-  // The pill carries a small round completion checkbox (same affordance as TaskRow), so
-  // an occurrence can be ticked off straight from the calendar — `onToggle` runs the same
-  // complete/uncomplete path the day sheet uses. A done occurrence fades + strikes through.
-  //
-  // Drag: when `draggable`, the ENTIRE pill is the drag handle AND the click-to-open
-  // target — one element, so a press-and-drag anywhere on it moves the task while a plain
-  // click/tap opens it. The checkbox is the only exception: it swallows the pointer/mouse/
-  // touch start so ticking never starts a drag, and its click never bubbles to "open".
-  // (The month/week grids that use this pill render only on wider screens — a phone shows
-  // the compact dot-grid + readable agenda instead — so there is no slim-bar variant here.)
+  // One task in a month/week cell as its own label-colored pill. The label color is user data
+  // (a soft tint), the title stays on the themed `ink` token so it's legible on either cell
+  // ground (like LabelChip, no `dark:` classes). A round checkbox ticks the occurrence off
+  // straight from the calendar via `onToggle`. When `draggable`, the entire pill is both the
+  // drag handle and the click-to-open target; the checkbox is the exception, swallowing the
+  // pointer start so ticking never starts a drag. Desktop grids only (a phone uses the
+  // compact cell + agenda).
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import { labelTint } from '../labels'
@@ -45,9 +35,8 @@
   )
   const toggleLabel = $derived(`Mark "${task.title}" as ${task.completed ? 'not done' : 'done'}`)
 
-  // The whole pill is the drag handle when the task is movable; a no-op otherwise.
-  // `draggable` is fixed per task for a given render, so reading it once at mount is
-  // correct — the action never needs to react.
+  // The whole pill is the drag handle when movable; `draggable` is fixed per render, so
+  // reading it once at mount is correct.
   function dragHandleIf(node: HTMLElement) {
     if (draggable) return dragHandle(node)
   }
@@ -61,8 +50,7 @@
     }
   }
 
-  // Keep the checkbox from ever starting a drag, whichever low-level start event the dnd
-  // library listens for, without depending on which one it is.
+  // Keep the checkbox from ever starting a drag, whichever low-level start event fires.
   function swallowStart(e: Event) {
     e.stopPropagation()
   }
@@ -101,8 +89,7 @@
 {/snippet}
 
 {#snippet pill()}
-  <!-- The whole pill: drag handle + open target in ONE element, so a drag starts anywhere
-       on it and a plain click opens. The checkbox (a child) is the sole exception. -->
+  <!-- The whole pill: drag handle + open target in one element. The checkbox is the exception. -->
   <div
     use:dragHandleIf
     role="button"

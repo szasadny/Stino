@@ -1,9 +1,7 @@
 <script lang="ts">
-  // The week view — a focused seven-day layout between the month overview and the single-day
-  // zoom. Monday-first; each day shows its tasks in the usual order (timed first, then manual
-  // sort_order). Seven columns on a wide screen reflow to a stacked column on a phone. Same
-  // gestures as the month grid (tap to open/edit, tick to complete, drag a pill to another
-  // day) — all via the shared TaskCore + calendar board; this view is thin glue + markup.
+  // The week view — a focused seven-day layout. Monday-first; seven columns on a wide screen
+  // reflow to a stacked column on a phone. Same gestures as the month grid, all via the
+  // shared TaskCore + calendar board; this view is thin glue + markup.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { addWeeks, buildWeekGrid, formatWeekRange, startOfWeek, toISODate } from '../lib/date'
@@ -15,10 +13,7 @@
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createCalendarBoard } from '../lib/controllers/calendar-board.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
-  import {
-    createCalendarSelection,
-    preloadLabels,
-  } from '../lib/controllers/calendar-selection.svelte'
+  import { createCalendarSelection } from '../lib/controllers/calendar-selection.svelte'
   import WeekDayCell from '../lib/components/WeekDayCell.svelte'
   import DayListSection from '../lib/components/DayListSection.svelte'
   import ErrorAlert from '../lib/components/ErrorAlert.svelte'
@@ -47,12 +42,16 @@
   // range on success), so the sheet stays serialized with grid toggles/drags.
   const dayCrud = core.dayCrud(loadRange)
 
-  // Mount and overlay-close refresh run the same load pair: a closed Search/Labels/
-  // Import overlay may have changed tasks OR labels (loadWith is token-guarded).
-  const loadAll = async () => {
-    await preloadLabels(core)
-    await loadRange()
-  }
+  // Mount + overlay-close refresh: fetch the week's tasks and the labels together (an overlay
+  // may have changed either). Navigation uses the tasks-only loadRange.
+  const loadAll = () =>
+    core.loadWith(async () => {
+      const [tasks, labels] = await Promise.all([
+        api.tasks.range(toISODate(week[0]), toISODate(week[week.length - 1])),
+        api.labels.list(),
+      ])
+      return { tasks, labels }
+    }, 'Could not load the week')
   onMount(loadAll)
   onRefresh(loadAll)
 
@@ -65,9 +64,8 @@
     )
   }
 
-  // Both navigations run inside a directional view-transition slide (the week pane
-  // carries `vt-calendar`), awaiting the range fetch so the new week slides in
-  // already populated. Falls back to the plain instant swap (nav-transition.ts).
+  // Navigate inside a directional view-transition slide, awaiting the range fetch so the new
+  // week slides in already populated.
   function go(delta: number) {
     void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
       anchor = addWeeks(anchor, delta)
@@ -89,10 +87,8 @@
   }
 </script>
 
-<!-- The swipe listener lives on the section, NOT on the vt-calendar pane inside it: a
-     captured pane is skipped for hit-testing while its slide runs, so a fast follow-up
-     swipe would be eaten mid-transition. On the section it always lands (touch-only;
-     the action ignores task drags and vertical scrolls). -->
+<!-- The swipe listener lives on the section, not the vt-calendar pane: a captured pane is
+     skipped for hit-testing mid-slide, so a fast follow-up swipe would be eaten. -->
 <section
   class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
   use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
@@ -158,14 +154,10 @@
   <ErrorAlert error={core.error} class="mb-3" />
 
   {#if isCompact()}
-    <!-- Phone: seven narrow columns leave no room for task text, so each day becomes
-         a full-width section with its tasks as readable rows, the whole week scrolling.
-         The rows are a shared `calendar` drag zone (bound to the same board as the desktop
-         grid), so a held task drags from one day to another; tapping a row edits it and
-         tapping a day's header zooms into the day sheet (group-by-label + the grouped view).
-         dragEdgeScroll auto-scrolls the stack while a held task sits near its top/bottom
-         edge, so a drag can reach days that are off-screen. Swipe left/right anywhere in
-         the view (the section's `swipe` action) to step to the next/previous week. -->
+    <!-- Phone: each day is a full-width section of readable rows, the whole week scrolling.
+         The rows are a shared `calendar` drag zone, so a held task drags from one day to
+         another; a day-header tap zooms into the day sheet. dragEdgeScroll auto-scrolls the
+         stack while a held task sits near an edge, so a drag can reach off-screen days. -->
     <div class="vt-calendar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto" use:dragEdgeScroll>
       {#each week as date, i (weekKeys[i])}
         <DayListSection
@@ -208,10 +200,8 @@
   {/if}
 </section>
 
-<!-- The day zoom. A phone day-header tap gets the full-screen grouped DaySheet
-     (group-by-label + untimed drag-reorder). A desktop column tap gets the floating,
-     non-modal DayPanel: the grid stays live behind it, so a task can be dragged out of
-     the panel onto another day to reschedule it (via the shared calendar board). -->
+<!-- Day zoom. Phone: the full-screen grouped DaySheet. Desktop: the floating, non-modal
+     DayPanel — the grid stays live behind it, so a task can be dragged out onto another day. -->
 {#if isCompact()}
   <DaySheet
     date={sel.selectedDate}

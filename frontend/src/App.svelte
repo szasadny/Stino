@@ -26,7 +26,7 @@
   const Active = $derived(VIEW_COMPONENTS[current])
 </script>
 
-<div class="flex h-dvh flex-col overflow-hidden">
+<div class="flex h-svh flex-col overflow-hidden">
   <header
     class="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
   >
@@ -154,8 +154,8 @@
   </nav>
 
   <!-- Search / Labels / Import can mutate tasks or labels behind the standing view, so
-       closing them bumps the refresh signal and the active view reloads (one GET —
-       cheaper than tracking dirtiness). Settings only touches the theme, so it doesn't. -->
+       closing them bumps the refresh signal and the active view reloads. Settings only
+       touches the theme, so it doesn't. -->
   <SearchDialog
     open={searchOpen}
     onClose={() => {

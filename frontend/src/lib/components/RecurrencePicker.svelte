@@ -31,10 +31,8 @@
     onChange: (rule: string | null) => void
   } = $props()
 
-  // The picker seeds itself from `value` once and is then uncontrolled — it owns
-  // the richer structured state and emits an RRULE via onChange. (It remounts per
-  // edit session, so it never needs to react to `value` changing under it;
-  // untrack makes that snapshot intent explicit.)
+  // Seeds from `value` once, then uncontrolled — it owns the structured state and emits an
+  // RRULE via onChange. Remounts per edit session, so it never reacts to `value` changing.
   const parsed = untrack(() => parseRRule(value))
   // A non-empty rule that didn't map to a known mode — preserve it rather than
   // silently rewriting it. Cleared explicitly by the user.

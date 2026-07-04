@@ -1,20 +1,11 @@
 <script lang="ts">
-  // The DESKTOP day-zoom: a small floating, NON-modal card anchored beside the tapped
-  // calendar cell. Because there's no modal backdrop, the month/week grid behind it stays
-  // fully interactive — so a task can be dragged straight out of this panel onto another
-  // day's cell to reschedule it. It does that by being just another `type: 'calendar'`
-  // svelte-dnd-action zone bound to the SAME board cell the grid uses (`items` +
-  // `onConsider`/`onFinalize` come from the view's calendar board), so every move gesture
-  // (plain reschedule, single recurring-occurrence detach, same-day reorder) is handled by
-  // the exact grid logic in move.ts — nothing new to keep in sync.
-  //
-  // For that to be sound the OPEN day's grid cell must stop being a live drag zone while
-  // this panel is up (two `calendar` zones sharing one day's items would corrupt
-  // svelte-dnd-action's id tracking) — the view freezes it via the cell's `open` prop.
-  //
-  // A phone keeps the full-screen grouped DaySheet instead (this panel is desktop-only:
-  // cross-day drag is a wide-screen gesture). Add/edit go through the view's shared grid
-  // composer; complete is the shared toggle. Placement math lives in lib/panel-pos.ts.
+  // The desktop day-zoom: a small floating, non-modal card anchored beside the tapped cell.
+  // With no backdrop the grid behind stays interactive, so a task can be dragged out onto
+  // another day's cell — this panel is just another `type: 'calendar'` zone bound to the same
+  // board cell the grid uses, so move.ts handles every gesture. The open day's grid cell must
+  // freeze while the panel is up (two zones sharing one day's items would corrupt
+  // svelte-dnd-action), which the view does via the cell's `open` prop. Phone uses the
+  // full-screen DaySheet instead. Placement math: lib/panel-pos.ts.
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -144,9 +135,8 @@
   </header>
 
   <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-    <!-- The day's tasks as a shared `calendar` drag zone: drag a pill out onto any grid
-         cell to reschedule (the view's board handles it), or within the list to reorder.
-         An empty day keeps a min height so it stays a droppable target. -->
+    <!-- The day's tasks as a shared `calendar` drag zone; an empty day keeps a min height so
+         it stays a droppable target. -->
     <ul
       class="flex flex-col gap-1 {items.length === 0 ? 'min-h-[3rem]' : ''}"
       use:dragHandleZone={{

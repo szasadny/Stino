@@ -1,8 +1,7 @@
 <script lang="ts">
-  // Today: everything due today, grouped by label — the first thing reached for each
-  // morning. Same grouped layout as the month/week day sheet, but a standing view rather
-  // than a dialog, so the agenda renders inline. No new endpoint: the existing `?date=`
-  // query for today. All task orchestration lives in the shared TaskCore.
+  // Today: everything due today, via DayAgenda — the same grouped layout as the day sheet,
+  // but a standing view rather than a dialog. All task orchestration lives in the shared
+  // TaskCore.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { formatDayFull, toISODate } from '../lib/date'

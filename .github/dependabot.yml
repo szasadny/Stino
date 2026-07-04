@@ -1,0 +1,54 @@
+version: 2
+
+# Dependabot keeps dependencies current. Each ecosystem below collapses ALL of
+# its updates (patch, minor, and major) into a SINGLE grouped PR per run, so
+# there is one PR for Cargo, one for npm, and one for Docker — not one per
+# package. (Dependabot cannot merge different ecosystems into the same PR.)
+updates:
+  # Rust backend
+  - package-ecosystem: cargo
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      backend-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+          - major
+
+  # Svelte frontend
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      frontend-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+          - major
+
+  # Container base image
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      docker-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+          - major

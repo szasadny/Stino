@@ -1,10 +1,7 @@
 <script lang="ts">
-  // The small "+" quick-add affordance in a calendar day header (month + week cells).
-  // Clicking it adds a task straight onto that day, skipping the day sheet. The two grids
-  // reveal it differently: the dense month grid keeps it desktop-hover-only (hidden on a
-  // phone, where the day sheet's own "Add a task" covers it), while the roomy week grid
-  // shows it on a phone too — `alwaysOnMobile` picks between the two. On desktop both reveal
-  // on cell hover/focus (the parent cell is a Tailwind `group`).
+  // The small "+" in a calendar day header — adds a task straight onto that day. Revealed on
+  // cell hover/focus (the parent cell is a Tailwind `group`); `alwaysOnMobile` also shows it
+  // on a phone (the roomy week grid), otherwise it's desktop-only (the dense month grid).
   let {
     onAdd,
     label,

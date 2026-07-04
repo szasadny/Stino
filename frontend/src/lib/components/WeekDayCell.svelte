@@ -1,18 +1,10 @@
 <script lang="ts">
-  // One day in the week view: a weekday + date "open day" header and that day's tasks
-  // as label-colored pills. This cell is the column in the desktop seven-across grid; a
-  // phone shows WeekView's stacked DayListSection list instead. Pills live in a
-  // svelte-dnd-action zone so a non-recurring task can be dragged to another day. The
-  // week has room, so pills always show their title. The zone renders every item
-  // (child↔item parity): pills past the measured fit are hidden with `invisible` and a
-  // "+N more" footer hints at the rest. How many pills show is MEASURED, not capped — the
-  // flex-1 pill list is read with bind:clientHeight and divided by one pill's height (plus
-  // the row gap) so pills fill the whole tall week cell before overflowing (lib/fit.ts).
-  // Tapping the day header (or "+N more") opens the day sheet via `onSelect`; tapping a
-  // task pill edits that task via `onEditTask`.
-  //
-  // While this day's floating DayPanel is open (`open`), the cell FREEZES: pills render
-  // statically with no drag zone, since the panel is now this day's live `calendar` zone.
+  // One day in the desktop week grid: a weekday + date header and that day's tasks as
+  // label-colored pills in a `calendar` drag zone, so a non-recurring task can be dragged to
+  // another day (a phone shows WeekView's stacked DayListSection instead). The zone renders
+  // every item (child↔item parity); pills past the measured fit are hidden with `invisible`
+  // and a "+N more" footer hints at the rest (fit math in lib/fit.ts). While this day's
+  // DayPanel is open (`open`), the cell freezes and renders pills statically.
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -64,9 +56,8 @@
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a real rendered pill rather than assume a pixel size. Re-runs when the items
-  // first render (async load) / their count changes / the cell resizes; it only writes the
-  // measurement state (never reads it), so it can't loop.
+  // Measure a real rendered pill rather than assume a pixel size. Only writes the measurement
+  // state (never reads it), so it can't loop.
   $effect(() => {
     void items.length
     void listHeight
@@ -114,16 +105,14 @@
       </span>
     </button>
 
-    <!-- Quick-add straight onto this day. The week has room, so the "+" stays visible on a
-         phone; on desktop it's revealed on cell hover/focus to keep the grid calm. -->
+    <!-- Quick-add onto this day; the "+" stays visible on a phone, hover-revealed on desktop. -->
     <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
   </div>
 
   {#snippet pills(canDrag: boolean)}
     {#each items as item, i (item.id)}
       <!-- shrink-0: keep each pill's natural height so a full cell hides overflow pills
-           cleanly instead of flex-compressing them (which would also corrupt the measured
-           line height the fit relies on). -->
+           cleanly instead of flex-compressing them (which corrupts the measured line height). -->
       <li class="shrink-0 {i >= visible && !isShadow(item) ? 'invisible' : ''}">
         <TaskPill
           task={item.task}

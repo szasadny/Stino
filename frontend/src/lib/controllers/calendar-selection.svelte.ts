@@ -4,7 +4,6 @@
 // its deriveds attach to that view's lifecycle. Pairs with `createCalendarBoard`
 // (drag) and `createTaskCore` (CRUD) — each view binds to all three instead of
 // re-deriving this block.
-import { api } from '../api'
 import { toISODate } from '../date'
 import { groupByDate } from '../grouping'
 import { labelLookup } from '../labels'
@@ -36,16 +35,5 @@ export function createCalendarSelection(core: TaskCore) {
     get selectedTasks() {
       return selectedTasks
     },
-  }
-}
-
-// Load the labels a calendar grid needs only for its color dots: on failure the
-// grid still works, just without colors, so a load error degrades to an empty
-// list rather than blocking the view. Shared by Month and Week.
-export async function preloadLabels(core: TaskCore): Promise<void> {
-  try {
-    core.labels = await api.labels.list()
-  } catch {
-    core.labels = []
   }
 }

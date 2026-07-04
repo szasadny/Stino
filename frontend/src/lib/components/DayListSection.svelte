@@ -1,28 +1,15 @@
 <script lang="ts">
-  // One day rendered as a full-width, readable section — the phone layout for the Week
-  // view (each of the seven days) AND the selected day's agenda under the phone Month
-  // split view's grid. A weekday + date header sits over that day's tasks as one-line
-  // `slim` TaskRows (label-colour dot + title + time, no meta), so a phone shows a day
-  // at a glance instead of cramming text into a grid cell.
+  // One day as a full-width, readable section — the phone layout for the Week view and the
+  // selected day's agenda under the phone Month split grid. A weekday + date header over that
+  // day's tasks as one-line `slim` TaskRows.
   //
   // Optional props:
-  //  - `onSelect` makes the weekday/date header tap to zoom into the day sheet — the phone
-  //    path to group-by-label and the grouped view.
-  //  - `onAdd` shows the quick-add "+" beside the header.
-  //  - `onClose` shows a close "×" beside the header — the Month split's way to collapse
-  //    the agenda back to the full-height grid.
-  //  - `emptyLabel` shows placeholder text on an empty day; omit it for a header-only row.
-  //  - `onConsider`/`onFinalize` (with `dateKey`) turn the rows into a svelte-dnd-action
-  //    `calendar` drop zone bound to the owning view's calendar board, so a task can be
-  //    dragged from one day to another (reschedule) or reordered within its day — in Week,
-  //    a held task hops between the seven sections (the phone counterpart of the desktop
-  //    WeekDayCell columns); in the Month split, a held row drops onto any grid cell.
-  //    Drag is a whole-row press-and-hold (delayTouchStart) so a tap still edits and a
-  //    swipe still scrolls; the board's guarded re-projection keeps the lists stable
-  //    mid-gesture. Week's day sheet (opened from the header) is a full-screen modal, so
-  //    its own DayAgenda drag zone can never be live at the same time as these behind it —
-  //    no freeze needed. (The Month split freezes the selected day's CELL instead, since
-  //    this agenda and that cell would otherwise share one day's items.)
+  //  - `onSelect` makes the header tap to zoom into the day sheet.
+  //  - `onAdd` shows the quick-add "+" beside the header; `onClose` a close "×".
+  //  - `emptyLabel` shows placeholder text on an empty day; omit for a header-only row.
+  //  - `onConsider`/`onFinalize` (with `dateKey`) turn the rows into a `calendar` drop zone
+  //    bound to the owning view's board, so a task can be dragged to another day or reordered.
+  //    Drag is a whole-row press-and-hold so a tap still edits and a swipe still scrolls.
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { dndzone, type DndEvent } from 'svelte-dnd-action'
@@ -84,8 +71,7 @@
 <section class="group">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
     {#if onSelect}
-      <!-- Tap the header to zoom into the day sheet (group-by-label + drag-reorder). The
-           chevron hints the affordance on a phone, where there's no hover to reveal it. -->
+      <!-- Tap the header to zoom into the day sheet; the chevron hints the affordance. -->
       <button
         type="button"
         onclick={onSelect}
@@ -142,15 +128,10 @@
   </div>
 
   {#if draggable}
-    <!-- Cross-day / within-day drag zone: all seven day-sections share the `calendar`
-         type, so a held task can be dropped onto another day (reschedule) or reordered in
-         place. Rendered even when empty (min-height) so an empty day is a valid drop
-         target. A whole-row press-and-hold starts the drag; a tap opens the editor. -->
-    <!-- Relative wrapper: the empty-day placeholder overlays the drop zone (centered, right
-         under the header) instead of stacking BELOW its min-height — otherwise the text
-         floats in the gap and reads as belonging to the next day. It's a SIBLING of the
-         <ul> (not a child), so svelte-dnd-action's child↔item parity holds, and
-         `pointer-events-none` keeps it from ever blocking a drop. -->
+    <!-- Cross-day / within-day drag zone: all day-sections share the `calendar` type. Kept a
+         valid drop target when empty via min-height. Relative wrapper so the empty-day
+         placeholder overlays the zone as a pointer-events-none sibling (a child would break
+         svelte-dnd-action's child↔item parity). -->
     <div class="relative">
       <ul
         class="min-h-[2.75rem] space-y-2"

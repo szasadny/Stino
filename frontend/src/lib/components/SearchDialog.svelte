@@ -1,12 +1,8 @@
 <script lang="ts">
-  // Search lives here, not in a tab: the header's search icon opens this overlay
-  // with the field already focused, so you type straight away. The query is
-  // debounced client-side and hits GET /api/search; results are TaskRows you can
-  // complete like anywhere else, and each row shows its planned day since results
-  // span every date. Recurring tasks show as their series row — search is about
-  // finding the task, not a specific occurrence. Tapping a row opens the editor
-  // inline (swapping the result list, like the day sheet) so we never stack a
-  // second modal on this one. The native <dialog> gives us top layer + Escape.
+  // Search overlay, opened from the header icon (field auto-focused). The query is debounced
+  // and hits GET /api/search; each result row shows its planned day since results span every
+  // date. Recurring tasks show as their series row. Tapping a row opens the editor inline
+  // (swapping the result list), so we never stack a second modal.
   import { onDestroy } from 'svelte'
   import { api, type TaskInput } from '../api'
   import type { Label, Task } from '../types'
@@ -125,8 +121,7 @@
   }
 
   // One in-flight guard for every mutation here (toggle / inline save / delete), routing
-  // failures to `error`. This overlay isn't one of the standing views, so it doesn't bind a
-  // TaskCore — but the busy/error scaffolding lives in one place instead of per handler.
+  // failures to `error`. This overlay doesn't bind a TaskCore, so the scaffolding lives here.
   async function run(fn: () => Promise<void>, failMsg: string) {
     if (busy) return
     busy = true

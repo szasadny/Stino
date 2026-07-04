@@ -1,10 +1,7 @@
 <script lang="ts">
-  // Inbox: captured-but-unscheduled tasks (due_date IS NULL). Capture fast with a title
-  // (quick-add, with natural-language dates and `#tag` labels) or open "Details" for the
-  // full editor; complete, edit, or schedule a task by giving it a date — scheduling moves
-  // it out of the Inbox onto the calendar, like TickTick. Task orchestration (load, toggle,
-  // reorder, remove, the in-flight lock) lives in the shared TaskCore; the Inbox-specific
-  // quick-capture, `#tag` label menu, and bulk multi-select stay here.
+  // Inbox: unscheduled tasks (due_date IS NULL). Giving a task a date schedules it onto the
+  // calendar and out of the Inbox. Task orchestration lives in the shared TaskCore;
+  // quick-capture, the `#tag` label menu, and bulk multi-select are Inbox-specific.
   import { onMount, tick, untrack } from 'svelte'
   import { cubicOut } from 'svelte/easing'
   import { SvelteSet } from 'svelte/reactivity'
@@ -35,6 +32,7 @@
   import { labelLookup, nextPaletteColor } from '../lib/labels'
   import { onRefresh } from '../lib/refresh.svelte'
   import { isCompact } from '../lib/viewport.svelte'
+  import { dragEdgeScroll } from '../lib/drag-scroll'
   import { openWithoutPhantomClick } from '../lib/phantom-click'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import TaskRow from '../lib/components/TaskRow.svelte'
@@ -47,16 +45,14 @@
 
   const core = createTaskCore()
 
-  // Quick capture. A natural-language date in the title ("call mum tomorrow 9am") is parsed
-  // client-side; `capturePreview` shows what it resolved to. A `#tag` attaches a label (see
-  // below). "Details" opens the full editor seeded from whatever's typed.
+  // Quick capture. A natural-language date in the title is parsed client-side;
+  // `capturePreview` shows what it resolved to. A `#tag` attaches a label.
   let newTitle = $state('')
   const draft = $derived(parseQuickAdd(newTitle))
   const capturePreview = $derived(describeDraft(draft))
 
-  // Inline label capture (TickTick-style `#tag`). A label can be set two ways: picked from
-  // the suggestion menu — tracked here as `captureLabelId`, shown as a chip — or just typed
-  // as a `#tag` and resolved on submit (`draft.label`).
+  // A label can be set two ways: picked from the suggestion menu (`captureLabelId`, shown as
+  // a chip) or typed as a `#tag` and resolved on submit (`draft.label`).
   let captureLabelId = $state<number | null>(null)
   let inputEl = $state<HTMLInputElement | null>(null)
   let captureContainer = $state<HTMLDivElement | null>(null)
@@ -286,25 +282,18 @@
     if (await core.remove(id)) composerOpen = false
   }
 
-  // Completing an inbox task drops it from the list (TickTick-style) rather than leaving a
-  // struck-through row: an unscheduled task shown here is always incomplete (list_inbox
-  // filters completed ones out), so this is only ever complete-then-remove — no reopen path.
-  //
-  // The drop is a two-beat send-off, not an instant yank: the row first renders as done
-  // (`completingIds` → TaskRow's checkmark pop + strike-through) and holds for a moment,
-  // then leaves the list — the optimistic remove, whose unmount plays the fold-away exit
-  // transition on the <li>. Reduced motion skips the hold (and the transitions), restoring
-  // the instant removal. A failure reverts via the shared lock, so the row bounces back.
+  // Completing an inbox task removes it from the list (it's always incomplete here — no
+  // reopen path). The removal is delayed: the row renders as done (`completingIds`) and
+  // holds briefly, then the optimistic remove unmounts it with the fold-away exit
+  // transition. Reduced motion skips the hold. Tapping again during the hold undoes.
   const completingIds = new SvelteSet<number>()
   const completeTimers = new Map<number, ReturnType<typeof setTimeout>>()
   const lastTickAt = new Map<number, number>()
 
   function completeTask(task: Task) {
-    // A touch tap fires TWO clicks a beat apart (the phantom-click problem, see
-    // lib/phantom-click.ts). With tap-again-to-undo that phantom is fatal in BOTH
-    // directions — it would instantly cancel every mobile completion, and instantly
-    // restart one after a deliberate undo. So: any click within the ghost window of
-    // the last HANDLED click on this task is the phantom — drop it.
+    // A touch tap fires two clicks a beat apart (see lib/phantom-click.ts); with
+    // tap-again-to-undo the phantom would cancel its own completion. Drop any click within
+    // the ghost window of the last handled one.
     const now = performance.now()
     if (now - (lastTickAt.get(task.id) ?? -Infinity) < GHOST_CLICK_WINDOW_MS) return
     lastTickAt.set(task.id, now)
@@ -325,8 +314,7 @@
   }
 
   function finishComplete(task: Task) {
-    // Don't race a mutation already holding the shared lock (optimistic would bail and
-    // the ticked row would pop back unchecked) — wait for the lock instead.
+    // Wait for any in-flight mutation rather than racing the shared lock.
     if (core.pending) {
       completeTimers.set(
         task.id,
@@ -364,15 +352,10 @@
     if (composerMode !== 'create') removeTask(composerMode)
   }
 
-  // Drag-to-reorder (svelte-dnd-action) — the flat single-zone pattern. The drop list is a
-  // locally-owned `$state` mutated solely by `consider`/`finalize`; it re-projects from the
-  // source `core.tasks` ONLY while no gesture is live (the `dragging` flag, read untracked so
-  // the projection doesn't fight the live drag). Persisting goes through `core.reorder`, which
-  // holds the in-flight lock and reverts `core.tasks` on failure — never a bespoke API call.
-  // The GESTURE differs by input, like every other list: a wide screen grabs the 6-dot grip
-  // (`dragHandleZone` + `dragHandle`); a phone press-and-holds the whole row (`dndzone` +
-  // `delayTouchStart`), where a tap edits and delete lives inside the editor. `isCompact()`
-  // mounts exactly ONE of the two zones.
+  // Drag-to-reorder — the flat single-zone pattern. `dragOrder` re-projects from `core.tasks`
+  // only while no gesture is live (`dragging` read untracked). `core.reorder` persists and
+  // reverts on failure. Wide screen grabs the grip handle; a phone press-and-holds the whole
+  // row. `isCompact()` mounts exactly one of the two zones.
   const compact = $derived(isCompact())
   let dragging = $state(false)
   let dragOrder = $state<Task[]>([])
@@ -446,8 +429,7 @@
   }
 
   function bulkComplete() {
-    // Completing removes the tasks from the Inbox (they won't reload — list_inbox
-    // excludes completed ones), matching single-row completion.
+    // Completing removes the tasks from the Inbox, matching single-row completion.
     void runBatch({ type: 'complete' }, (ids) => {
       core.tasks = core.tasks.filter((t) => !ids.has(t.id))
     })
@@ -632,14 +614,13 @@
   </form>
 
   <!-- Inbox list -->
-  <div class="mt-5 min-h-0 flex-1 overflow-y-auto pb-6">
+  <div class="mt-5 min-h-0 flex-1 overflow-y-auto pb-6" use:dragEdgeScroll>
     {#if core.loading}
       <p class="py-8 text-center text-sm text-sage">Loading…</p>
     {:else if core.tasks.length === 0}
       <EmptyState message="Your inbox is clear." />
     {:else if selecting}
-      <!-- Sticky bulk-action bar: count + select-all on top, the actions below. Sticks to the
-           top of the scrolling list region (top-0, not the header). -->
+      <!-- Sticky bulk-action bar: count + select-all on top, the actions below. -->
       <div
         class="sticky top-0 z-10 rounded-xl border border-lichen bg-fog/95 p-3 shadow-sm backdrop-blur"
       >
@@ -750,8 +731,7 @@
         </button>
       </div>
       {#if compact}
-        <!-- Phone: whole-row press-and-hold drags, a tap opens the editor (which holds
-             delete), so no grip / trailing buttons crowd the row. -->
+        <!-- Phone: whole-row press-and-hold drags; a tap opens the editor. -->
         <ul
           class="flex flex-col gap-2"
           use:dndzone={{

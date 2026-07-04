@@ -127,14 +127,10 @@
     }
   }
 
-  // Drag-to-reorder the label list — this order IS the global label `sort_order`, the
-  // default that drives the grouped day view's section order. The `labels` list is the
-  // owned dnd source (mutated only by consider/finalize during a gesture), so no separate
-  // re-projection is needed. Reordering only makes sense with more than one label, and is
-  // locked while editing a row or a request is in flight. `#tag` in quick-add and the
-  // suggestion menu read the same order. The gesture differs by input, like every list:
-  // wide grabs the 6-dot grip (`dragHandleZone`); a phone press-and-holds the whole row
-  // (`dndzone` + `delayTouchStart`) — `isCompact()` mounts exactly ONE of the two zones.
+  // Drag-to-reorder the label list — this order is the global label `sort_order` (it drives
+  // the grouped day view's section order). `labels` is the owned dnd source, mutated only by
+  // consider/finalize. Locked while editing a row or a request is in flight. Wide grabs the
+  // grip; a phone press-and-holds the whole row — `isCompact()` mounts exactly one zone.
   const compact = $derived(isCompact())
   const reorderable = $derived(labels.length > 1 && editingId === null && !busy)
   let preDrag: Label[] = []

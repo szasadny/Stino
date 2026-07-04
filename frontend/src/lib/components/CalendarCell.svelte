@@ -1,24 +1,11 @@
 <script lang="ts">
-  // One day in the month grid: a wide "open day" header (the day number) plus that
-  // day's tasks as label-colored pills. The pills live in a svelte-dnd-action zone,
-  // so a non-recurring task can be dragged to another day's cell (the parent persists
-  // the new date); a plain tap on a pill opens the day sheet. This cell is used only on
-  // wider screens — a phone shows MonthView's compact dot-grid + readable agenda instead.
-  //
-  // The zone must render EVERY item (svelte-dnd-action needs child↔item parity, or a
-  // dropped task could vanish), so we never slice — pills past the measured fit are
-  // hidden with `invisible` (they keep their child slot but never show) and a "+N more"
-  // footer hints at the rest. How many pills show is MEASURED, not capped: the pill list
-  // is a flex-1 region whose height the cell layout fixes, so we read it with
-  // bind:clientHeight and divide by one rendered pill's height (plus the row gap) to fill
-  // the whole cell before overflowing (pure math in lib/fit.ts). No hardcoded line cap.
-  //
-  // Tapping the day number (or "+N more") opens the day sheet via `onSelect`;
-  // tapping a task pill edits that task via `onEditTask`.
-  //
-  // While this day's floating DayPanel is open (`open`), the cell FREEZES: it renders its
-  // pills statically with no drag zone, because the panel is now the live `calendar` zone
-  // for this day and two zones sharing one day's items would corrupt svelte-dnd-action.
+  // One day in the desktop month grid: the day number plus that day's tasks as label-colored
+  // pills in a `calendar` drag zone, so a non-recurring task can be dragged to another day.
+  // The zone renders every item (svelte-dnd-action needs child↔item parity); pills past the
+  // measured fit are hidden with `invisible` and a "+N more" footer hints at the rest (fit
+  // math in lib/fit.ts). While this day's DayPanel is open (`open`), the cell freezes and
+  // renders pills statically — the panel is then the live zone, and two zones sharing one
+  // day's items would corrupt svelte-dnd-action.
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -67,17 +54,14 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  // Available height of the pill list (layout-fixed, so measuring it can't feed back into
-  // itself), one pill's height, and the list's row gap — all measured so the fit adapts to
-  // any screen and shows "+N more" only once the cell is genuinely full.
+  // Measured list height, one pill's height, and the row gap — so the fit adapts to any screen.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a real rendered pill rather than assume a pixel size. Re-runs when the items
-  // first render (async load) / their count changes / the cell resizes; it only writes the
-  // measurement state (never reads it), so it can't loop.
+  // Measure a real rendered pill rather than assume a pixel size. Only writes the measurement
+  // state (never reads it), so it can't loop.
   $effect(() => {
     void items.length
     void listHeight
@@ -120,9 +104,7 @@
       {date.getDate()}
     </button>
 
-    <!-- Quick-add straight onto this day. Desktop: revealed on cell hover/focus so the grid
-         stays calm. Hidden on a phone here (the month cells are tiny) — tap the day to open
-         its sheet, which has its own "Add a task". -->
+    <!-- Quick-add onto this day, revealed on cell hover/focus. -->
     <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" />
   </div>
 
