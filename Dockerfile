@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- 1. Build the Svelte SPA ---
-FROM node:22-slim AS frontend
+FROM node:26-slim AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci || npm install
