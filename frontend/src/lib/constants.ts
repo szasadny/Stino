@@ -51,6 +51,16 @@ export const GHOST_CLICK_WINDOW_MS = 350
 // doesn't spray queries at the API.
 export const SEARCH_DEBOUNCE_MS = 200
 
+// Inbox completion send-off. Ticking an inbox task doesn't yank the row: it holds
+// for HOLD_MS showing the checkmark pop + strike-through (the moment of "done"),
+// then leaves over EXIT_MS (the row folds shut while fading and drifting away).
+// If a mutation is still in flight when the hold ends, the removal re-checks every
+// RETRY_MS instead of racing the shared lock (which would bounce the row back).
+// Under prefers-reduced-motion both animations are skipped and removal is instant.
+export const INBOX_COMPLETE_HOLD_MS = 600
+export const INBOX_COMPLETE_EXIT_MS = 300
+export const INBOX_COMPLETE_RETRY_MS = 150
+
 // The shared base styling for a text input/textarea — the border, fog fill, and
 // pine focus ring every form field uses. Callers prepend only layout (width,
 // padding overrides) so the look stays in one place. Design tokens only (Hard

@@ -4,6 +4,7 @@ import {
   addWeeks,
   buildMonthGrid,
   buildWeekGrid,
+  clampDayToMonth,
   formatDayFull,
   formatMonthYear,
   formatShortDate,
@@ -29,6 +30,18 @@ describe('toISODate / fromISODate', () => {
     const d = fromISODate(iso)
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 5, 24])
     expect(toISODate(d)).toBe(iso)
+  })
+})
+
+describe('clampDayToMonth', () => {
+  it('keeps the same day-of-month when it exists in the target month', () => {
+    expect(toISODate(clampDayToMonth(24, 2026, 6))).toBe('2026-07-24')
+  })
+
+  it('clamps to the last day of a shorter month', () => {
+    expect(toISODate(clampDayToMonth(31, 2026, 1))).toBe('2026-02-28')
+    expect(toISODate(clampDayToMonth(31, 2028, 1))).toBe('2028-02-29') // leap year
+    expect(toISODate(clampDayToMonth(31, 2026, 3))).toBe('2026-04-30')
   })
 })
 

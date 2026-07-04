@@ -34,6 +34,7 @@
   import { DND_FLIP_MS, DND_TOUCH_HOLD_MS } from '../constants'
   import { isCompact } from '../viewport.svelte'
   import { openWithoutPhantomClick } from '../phantom-click'
+  import { labelLookup } from '../labels'
   import { dayViewGroups, type TaskGroup } from '../grouping'
   import { groupByLabelView, toggleGroupByLabelView } from '../group-view.svelte'
   import { untimedReadingOrder } from '../ordering'
@@ -77,6 +78,12 @@
   const reorderable = $derived(onReorder != null)
   // Phone ⇒ whole-row press-and-hold drag; wide ⇒ grip handle. See the header note.
   const compact = $derived(isCompact())
+
+  // Phone rows render `slim` (one line, no meta) for a uniform day-list look across
+  // Today / the day sheet / the week sections. The flat list carries the label as a
+  // colour dot; the grouped view doesn't (its section header already names the label).
+  const labelFor = $derived(labelLookup(labels))
+  const rowLabel = (task: Task) => (compact && !effectiveGrouped ? labelFor(task) : undefined)
 
   const keyOf = (group: TaskGroup) => (group.label ? String(group.label.id) : 'none')
   const timedOf = (group: TaskGroup) => group.tasks.filter((t) => t.due_time != null)
@@ -213,6 +220,8 @@
         <li>
           <TaskRow
             {task}
+            label={rowLabel(task)}
+            slim={compact}
             onToggle={() => onToggle(task)}
             onEdit={onEdit ? () => onEdit(task) : undefined}
           />
@@ -244,6 +253,8 @@
         <li>
           <TaskRow
             {task}
+            label={rowLabel(task)}
+            slim
             onToggle={() => onToggle(task)}
             onEdit={onEdit ? () => openWithoutPhantomClick(() => onEdit(task)) : undefined}
             holdToDrag={reorderable}

@@ -82,6 +82,16 @@ export function addMonths(
   return { year: base.getFullYear(), month: base.getMonth() }
 }
 
+/**
+ * The same day-of-month placed in another year/month, clamped to that month's
+ * length (Jan 31 → Feb 28). Lets month navigation carry an open day along:
+ * the selected "24th" stays the 24th in the next month.
+ */
+export function clampDayToMonth(day: number, year: number, month: number): Date {
+  const last = new Date(year, month + 1, 0).getDate()
+  return new Date(year, month, Math.min(day, last))
+}
+
 /** True if `d` belongs to the given month (used to dim spill-over cells). */
 export function isSameMonth(d: Date, month: number): boolean {
   return d.getMonth() === month

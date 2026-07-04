@@ -234,8 +234,10 @@ Behaviours that matter:
 ### Pure helpers (`lib/*.ts` — unit-tested with Vitest, `*.test.ts` beside each; `npm test`)
 
 - `date.ts` — all calendar date math: month-grid builder, `monthWeekCount`, month/week nav helpers
-  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `formatWeekRange`), formatters. Local dates only —
-  never `toISOString()` (Hard Rule 7). Views/components call it; no inline date math.
+  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `formatWeekRange`, `clampDayToMonth` — the same
+  day-of-month in another month, clamped, so month navigation can carry an open day along),
+  formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
+  inline date math.
 - `grouping.ts` — `groupByLabel(tasks, labels)` (label sections in label `sort_order`, "No label"
   pinned last, input order kept within groups); `dayViewGroups(tasks, labels, grouped)` (flat = one
   unlabeled section, so one render/drag path serves flat and grouped); `groupByDate(tasks)` (the
@@ -324,8 +326,11 @@ Behaviours that matter:
   build on), `EmptyState` (dashed "nothing here" panel), `ErrorAlert` (bark-toned error banner),
   `DeleteConfirm` (two-step "Delete? Yes/No"), `Cairn` (the logo mark).
 - **Task UI:** `TaskRow` (complete-toggle + title + time + repeat affordance + label chip;
-  `leading`/`trailing` snippets, `selectable` mode, `holdToDrag`), `TaskPill` (compact grid chip
-  with label dot), `TaskComposer` + `TaskComposerDialog` (the shared add/edit form + its modal
+  `leading`/`trailing` snippets, `selectable` mode, `holdToDrag`; `slim` = the one-line phone
+  day-list row — label-colour dot + truncated title + inline time, no meta line; `completing` =
+  the Inbox send-off state — renders as done with the checkmark pop before the row leaves; the
+  toggle is top-aligned on phone, vertically centered from `sm:` up), `TaskPill` (compact grid
+  chip with label dot), `TaskComposer` + `TaskComposerDialog` (the shared add/edit form + its modal
   shell), `RecurrencePicker` (None / Daily / Weekly+weekdays / Monthly by-date or Nth-weekday /
   Custom every-N; emits an RRULE), `LabelChip`, `LabelSelect`, `QuickAddButton`.
 - **Calendar:** `CalendarCell` (wide month cell — interactive pills), `CalendarCellMobile` (phone
@@ -373,9 +378,9 @@ layout per view.
   drag between cells.
 - Phone: the grid of `CalendarCellMobile` cells (each task one line: label dot + title) fills the
   screen by default — no day selected. Tapping a cell opens the TickTick-style **split**: that
-  day's agenda underneath (a reused `DayListSection`). Tapping the selected cell again, the
-  agenda's close "×", or navigating months collapses the split back to the full-height grid; there
-  is no separate day popup on phone Month.
+  day's agenda underneath (a reused `DayListSection`). Tapping the selected cell again or the
+  agenda's close "×" collapses the split back to the full-height grid; there is no separate day
+  popup on phone Month. Navigating months does NOT collapse it — see Period navigation below.
 - Phone drag: the agenda rows and the cells share ONE `type: 'calendar'` zone bound to the same
   `calendar-board`, so a press-and-held agenda row drops onto any cell to reschedule. The cells are
   **drop-only** (`dragDisabled` — their lines are too small to grab); the selected day's cell
@@ -403,7 +408,10 @@ layout per view.
 
 **Period navigation:** phone calendars swipe horizontally (`lib/swipe.ts`); every navigation (swipe
 or header arrows, all widths) goes through `nav-transition.ts`'s `navigateWithSlide` (§7) — a
-directional slide that never mounts the outgoing grid twice.
+directional slide that never mounts the outgoing grid twice. In Month, an open day zoom (the phone
+split agenda / the desktop `DayPanel`) STAYS open across a navigation: the selection follows the
+same day-of-month into the target month (`clampDayToMonth` — Jan 31 → Feb 28), and "Today" with a
+day open lands on today's agenda. Week keeps its existing collapse-on-navigate.
 
 **Day zoom (differs by view and width):**
 

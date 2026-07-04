@@ -6,6 +6,7 @@
   // reorder, remove, the in-flight lock) lives in the shared TaskCore; the Inbox-specific
   // quick-capture, `#tag` label menu, and bulk multi-select stay here.
   import { onMount, tick, untrack } from 'svelte'
+  import { cubicOut } from 'svelte/easing'
   import { SvelteSet } from 'svelte/reactivity'
   import { dndzone, dragHandleZone, dragHandle } from 'svelte-dnd-action'
   import type { DndEvent } from 'svelte-dnd-action'
@@ -21,6 +22,9 @@
   import {
     DND_FLIP_MS,
     DND_TOUCH_HOLD_MS,
+    INBOX_COMPLETE_EXIT_MS,
+    INBOX_COMPLETE_HOLD_MS,
+    INBOX_COMPLETE_RETRY_MS,
     INPUT_CLASS,
     LABEL_NAME_MAX_LENGTH,
     PRIMARY_BTN_CLASS,
@@ -288,8 +292,43 @@
   // Completing an inbox task drops it from the list (TickTick-style) rather than leaving a
   // struck-through row: an unscheduled task shown here is always incomplete (list_inbox
   // filters completed ones out), so this is only ever complete-then-remove — no reopen path.
-  // Optimistic remove, reverted by the shared lock on failure.
+  //
+  // The drop is a two-beat send-off, not an instant yank: the row first renders as done
+  // (`completingIds` → TaskRow's checkmark pop + strike-through) and holds for a moment,
+  // then leaves the list — the optimistic remove, whose unmount plays the fold-away exit
+  // transition on the <li>. Reduced motion skips the hold (and the transitions), restoring
+  // the instant removal. A failure reverts via the shared lock, so the row bounces back.
+  const completingIds = new SvelteSet<number>()
+  const completeTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
   function completeTask(task: Task) {
+    if (completingIds.has(task.id)) {
+      // Ticked again during the hold: undo — nothing has been written yet.
+      clearTimeout(completeTimers.get(task.id))
+      completeTimers.delete(task.id)
+      completingIds.delete(task.id)
+      return
+    }
+    completingIds.add(task.id)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    completeTimers.set(
+      task.id,
+      setTimeout(() => finishComplete(task), reduced ? 0 : INBOX_COMPLETE_HOLD_MS),
+    )
+  }
+
+  function finishComplete(task: Task) {
+    // Don't race a mutation already holding the shared lock (optimistic would bail and
+    // the ticked row would pop back unchecked) — wait for the lock instead.
+    if (core.pending) {
+      completeTimers.set(
+        task.id,
+        setTimeout(() => finishComplete(task), INBOX_COMPLETE_RETRY_MS),
+      )
+      return
+    }
+    completeTimers.delete(task.id)
+    completingIds.delete(task.id)
     void core.optimistic(
       () => {
         core.tasks = core.tasks.filter((t) => t.id !== task.id)
@@ -297,6 +336,19 @@
       () => api.tasks.complete(task.id, task.occurrence_date).then(() => {}),
       'Could not update the task',
     )
+  }
+
+  // Exit transition for a leaving row: fold the height shut while it fades and drifts
+  // gently to the right — calm, no bounce. Zero-duration under reduced motion.
+  function foldAway(node: HTMLElement) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const height = node.offsetHeight
+    return {
+      duration: reduced ? 0 : INBOX_COMPLETE_EXIT_MS,
+      easing: cubicOut,
+      css: (t: number, u: number) =>
+        `overflow: hidden; height: ${t * height}px; opacity: ${t}; transform: translateX(${u * 24}px);`,
+    }
   }
 
   // Delete the task open in the editor (the guard narrows `composerMode` to its id).
@@ -426,7 +478,9 @@
           onkeyup={syncCaret}
           onclick={syncCaret}
           type="text"
-          placeholder="Add a task — “call mum tomorrow 9am #work”"
+          placeholder={compact
+            ? 'Add a task - “gym 9am”'
+            : 'Add a task - “call mum tomorrow 9am #work”'}
           maxlength={TITLE_MAX_LENGTH}
           autocomplete="off"
           aria-label="New task title"
@@ -706,10 +760,11 @@
           onfinalize={reorderFinalize}
         >
           {#each dragOrder as task (task.id)}
-            <li>
+            <li out:foldAway>
               <TaskRow
                 {task}
                 label={labelFor(task)}
+                completing={completingIds.has(task.id)}
                 onToggle={() => completeTask(task)}
                 onEdit={() => openWithoutPhantomClick(() => startEdit(task))}
                 holdToDrag
@@ -730,8 +785,13 @@
           onfinalize={reorderFinalize}
         >
           {#each dragOrder as task (task.id)}
-            <li>
-              <TaskRow {task} label={labelFor(task)} onToggle={() => completeTask(task)}>
+            <li out:foldAway>
+              <TaskRow
+                {task}
+                label={labelFor(task)}
+                completing={completingIds.has(task.id)}
+                onToggle={() => completeTask(task)}
+              >
                 {#snippet leading()}
                   <div
                     use:dragHandle

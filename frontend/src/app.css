@@ -129,8 +129,30 @@
   animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* The completion tick landing — the checkmark scales in with a tiny overshoot as
+ * the circle fills pine. Used only while a row is celebrating its completion
+ * (TaskRow `completing`), so ordinary completed rows render statically. */
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-check-pop {
+  animation: check-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise-in {
+  .animate-rise-in,
+  .animate-check-pop {
     animation: none;
   }
 }

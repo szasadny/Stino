@@ -34,6 +34,8 @@
     selected = false,
     onSelect,
     holdToDrag = false,
+    completing = false,
+    slim = false,
     leading,
     trailing,
   }: {
@@ -46,9 +48,19 @@
     selected?: boolean
     onSelect?: () => void
     holdToDrag?: boolean
+    // The Inbox completion send-off: render as done (filled circle + strike-through)
+    // with the checkmark's pop animation while the row waits out its exit — the task
+    // itself isn't `completed` yet (the write happens when the hold ends).
+    completing?: boolean
+    // One-line phone row for the day lists (week sections, month split agenda, Today):
+    // a label-colour dot + truncated title + inline time, NO meta line (no recurrence
+    // summary, no label chip) — the same at-a-glance line the phone month cells draw.
+    slim?: boolean
     leading?: Snippet
     trailing?: Snippet
   } = $props()
+
+  const done = $derived(task.completed || completing)
 
   // Keep the complete-toggle from arming a press-and-hold drag on the phone day-sheet,
   // whichever low-level start event the dnd library listens for (mirrors TaskPill).
@@ -66,9 +78,33 @@
 </script>
 
 {#snippet content()}
-  <p
-    class="break-words text-sm font-medium {task.completed ? 'text-sage line-through' : 'text-ink'}"
-  >
+  {#if slim}
+    <div class="flex min-w-0 items-center gap-2">
+      {#if label}
+        <span
+          class="h-2 w-2 shrink-0 rounded-full"
+          style="background-color: {label.color}"
+          title={label.name}
+        ></span>
+      {/if}
+      <span
+        class="min-w-0 flex-1 truncate text-sm font-medium {done
+          ? 'text-sage line-through'
+          : 'text-ink'}"
+      >
+        {task.title}
+      </span>
+      {#if task.due_time}
+        <span class="shrink-0 text-xs font-medium tabular-nums text-sage">{task.due_time}</span>
+      {/if}
+    </div>
+  {:else}
+    {@render fullContent()}
+  {/if}
+{/snippet}
+
+{#snippet fullContent()}
+  <p class="break-words text-sm font-medium {done ? 'text-sage line-through' : 'text-ink'}">
     {task.title}
   </p>
   {#if dateLabel || task.due_time || label || task.recurrence_rule}
@@ -135,7 +171,7 @@
       : 'border-lichen bg-surface hover:border-pine/40'}"
   >
     <span
-      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-md border transition {selected
+      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-md border transition sm:mt-0 sm:self-center {selected
         ? 'border-pine bg-pine text-surface'
         : 'border-sage/60 text-transparent'}"
     >
@@ -172,9 +208,9 @@
       onmousedown={guardToggleStart}
       ontouchstart={guardToggleStart}
       role="checkbox"
-      aria-checked={task.completed}
-      aria-label={task.completed ? 'Mark as not done' : 'Mark as done'}
-      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition {task.completed
+      aria-checked={done}
+      aria-label={done ? 'Mark as not done' : 'Mark as done'}
+      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition sm:mt-0 sm:self-center {done
         ? 'border-pine bg-pine text-surface'
         : 'border-sage/60 text-transparent hover:border-pine'}"
     >
@@ -185,7 +221,7 @@
         stroke-width="2.5"
         stroke-linecap="round"
         stroke-linejoin="round"
-        class="h-3 w-3"
+        class="h-3 w-3 {completing ? 'animate-check-pop' : ''}"
         aria-hidden="true"
       >
         <path d="M5 13l4 4L19 7" />

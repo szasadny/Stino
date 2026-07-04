@@ -44,10 +44,14 @@
   const editingSeries = $derived(initial.rule != null)
 
   // Quick-date shortcuts so a date is one tap away without opening the picker.
+  // "Next week" = the same weekday one week from today.
   const todayISO = toISODate(new Date())
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowISO = toISODate(tomorrow)
+  const nextWeek = new Date()
+  nextWeek.setDate(nextWeek.getDate() + 7)
+  const nextWeekISO = toISODate(nextWeek)
 
   function setLabel(id: number | null) {
     draft.labelId = draft.labelId === id ? null : id
@@ -164,6 +168,14 @@
         class="rounded-lg border border-lichen px-2.5 py-1.5 text-xs font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep"
       >
         Tomorrow
+      </button>
+      <button
+        type="button"
+        onclick={() => setDate(nextWeekISO)}
+        title="Same day next week"
+        class="rounded-lg border border-lichen px-2.5 py-1.5 text-xs font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep"
+      >
+        Next week
       </button>
       {#if draft.date}
         <button

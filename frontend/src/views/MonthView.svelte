@@ -18,6 +18,7 @@
     WEEKDAYS,
     addMonths,
     buildMonthGrid,
+    clampDayToMonth,
     formatMonthYear,
     isSameMonth,
     monthWeekCount,
@@ -119,12 +120,16 @@
   // Both navigations run inside a directional view-transition slide (the grid pane
   // carries `vt-calendar`), awaiting the range fetch so the new month slides in
   // already populated. Falls back to the plain instant swap (nav-transition.ts).
+  // An open day zoom (the phone split agenda / the desktop DayPanel) STAYS open
+  // across a navigation: the selection follows the same day-of-month into the new
+  // month (clamped to its length), so a swipe with the agenda up keeps it up.
   function go(delta: number) {
     void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
       const next = addMonths(viewYear, viewMonth, delta)
       viewYear = next.year
       viewMonth = next.month
-      sel.selectedDate = null
+      if (sel.selectedDate)
+        sel.selectedDate = clampDayToMonth(sel.selectedDate.getDate(), next.year, next.month)
       await loadRange()
     })
   }
@@ -134,7 +139,9 @@
     void navigateWithSlide(delta > 0 ? 'forward' : delta < 0 ? 'back' : null, async () => {
       viewYear = today.getFullYear()
       viewMonth = today.getMonth()
-      sel.selectedDate = null
+      // Jumping "home" with a day open lands on today's agenda.
+      if (sel.selectedDate)
+        sel.selectedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
       await loadRange()
     })
   }

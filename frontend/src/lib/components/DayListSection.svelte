@@ -1,9 +1,9 @@
 <script lang="ts">
   // One day rendered as a full-width, readable section — the phone layout for the Week
   // view (each of the seven days) AND the selected day's agenda under the phone Month
-  // split view's grid. A weekday + date header sits over that day's tasks as readable
-  // TaskRows, so a phone shows a day at a glance instead of cramming text into a grid
-  // cell.
+  // split view's grid. A weekday + date header sits over that day's tasks as one-line
+  // `slim` TaskRows (label-colour dot + title + time, no meta), so a phone shows a day
+  // at a glance instead of cramming text into a grid cell.
   //
   // Optional props:
   //  - `onSelect` makes the weekday/date header tap to zoom into the day sheet — the phone
@@ -166,6 +166,7 @@
           <TaskRow
             task={item.task}
             label={labelFor(item.task)}
+            slim
             onToggle={() => onToggle(item.task)}
             onEdit={() => openWithoutPhantomClick(() => onEditTask(item.task))}
             holdToDrag
@@ -183,6 +184,7 @@
           <TaskRow
             task={item.task}
             label={labelFor(item.task)}
+            slim
             onToggle={() => onToggle(item.task)}
             onEdit={() => onEditTask(item.task)}
           />
