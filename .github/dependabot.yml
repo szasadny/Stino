@@ -1,54 +1,57 @@
 version: 2
 
-# Dependabot keeps dependencies current. Each ecosystem below collapses ALL of
-# its updates (patch, minor, and major) into a SINGLE grouped PR per run, so
-# there is one PR for Cargo, one for npm, and one for Docker — not one per
-# package. (Dependabot cannot merge different ecosystems into the same PR.)
+# Dependabot keeps dependencies current, but ONLY within safe ranges: breaking
+# upgrades are ignored per ecosystem below (a major bump like Tailwind 3→4 once
+# broke the Docker build). Each ecosystem collapses its updates into a SINGLE
+# grouped PR per run. Do a major upgrade deliberately, by hand, as its own task.
 updates:
-  # Rust backend
+  # Rust backend — patch-only: most crates here are 0.x, where a "minor" bump
+  # (sqlx 0.8→0.9) is a breaking release under Cargo's semver rules.
   - package-ecosystem: cargo
     directory: /backend
     schedule:
       interval: weekly
     open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     groups:
       backend-deps:
         applies-to: version-updates
         patterns:
           - "*"
-        update-types:
-          - patch
-          - minor
-          - major
 
-  # Svelte frontend
+  # Svelte frontend — patch + minor; majors (Tailwind, Vite, TypeScript) are
+  # breaking and stay manual.
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
     groups:
       frontend-deps:
         applies-to: version-updates
         patterns:
           - "*"
-        update-types:
-          - patch
-          - minor
-          - major
 
-  # Container base image
+  # Container base images — majors (a new Node/Debian line) stay manual.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
     groups:
       docker-deps:
         applies-to: version-updates
         patterns:
           - "*"
-        update-types:
-          - patch
-          - minor
-          - major
