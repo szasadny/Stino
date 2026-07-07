@@ -8,7 +8,7 @@ use sqlx::{SqliteConnection, SqliteExecutor, SqlitePool};
 
 use crate::config;
 use crate::db;
-use crate::domain::{BatchOp, NewTask, Task, TaskPatch};
+use crate::domain::{BatchOp, NewTask, RolloverSummary, Task, TaskPatch};
 use crate::error::{map_row_not_found, AppError, AppResult};
 use crate::services::recurrence;
 use crate::services::validation::{
@@ -254,6 +254,17 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
         BatchOp::Delete => db::task::batch_delete(pool, ids).await,
     };
     result.map_err(map_row_not_found)
+}
+
+/// Move every overdue, uncompleted one-off task onto `today` — the TickTick-style
+/// rollover the client requests on app open. `today` is the browser's local date
+/// (Hard Rule 7 — the backend never computes "today"). Recurring tasks are left
+/// alone: their `due_date` is the series start, and the rule already generates
+/// today's occurrence. Returns the number of tasks moved.
+pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSummary> {
+    let today = validate_date(today)?;
+    let moved = db::task::rollover_overdue(pool, &today).await?;
+    Ok(RolloverSummary { moved })
 }
 
 /// Mark a task done for an occurrence. `occurrence_date` defaults to the task's

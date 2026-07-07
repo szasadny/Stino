@@ -1,6 +1,6 @@
 // The ONE place the app talks HTTP. Every endpoint gets a typed function here;
 // components import from this module and never call fetch directly.
-import type { BatchOp, ImportSummary, Label, Task } from './types'
+import type { BatchOp, ImportSummary, Label, RolloverSummary, Task } from './types'
 
 const BASE = '/api'
 
@@ -100,6 +100,14 @@ export const api = {
     // their time-sort, so only untimed ids are sent.
     reorder: (ids: number[]) =>
       http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+    // Move every uncompleted, non-recurring task with a past due_date onto
+    // `today` — the browser's local date (the backend never computes "today").
+    // Called by the app shell on open/new-day, not by views.
+    rollover: (today: string) =>
+      http<RolloverSummary>('/tasks/rollover', {
+        method: 'POST',
+        body: JSON.stringify({ today }),
+      }),
     // Apply one bulk operation (set label, schedule, complete, delete) to many
     // tasks at once — the Inbox multi-select. Atomic on the server: an unknown
     // id fails the whole batch.

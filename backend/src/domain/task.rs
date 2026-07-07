@@ -56,6 +56,14 @@ pub enum BatchOp {
     Delete,
 }
 
+/// Result of the overdue rollover: how many uncompleted, non-recurring tasks
+/// with a past due date were moved onto today. Mirror `RolloverSummary` in
+/// `frontend/src/lib/types.ts`.
+#[derive(Debug, Clone, Serialize)]
+pub struct RolloverSummary {
+    pub moved: u64,
+}
+
 /// A partial update. Each field uses `Option<Option<T>>` (the nullable ones) to
 /// distinguish three cases the API needs:
 /// `None` ⇒ absent, keep the current value; `Some(None)` ⇒ explicit null, clear

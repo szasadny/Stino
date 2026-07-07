@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { VIEWS, type ViewId } from './lib/constants'
+  import { api } from './lib/api'
+  import { toISODate } from './lib/date'
   import { bumpRefresh } from './lib/refresh.svelte'
   import Cairn from './lib/components/Cairn.svelte'
   import LabelManager from './lib/components/LabelManager.svelte'
@@ -24,7 +27,34 @@
   let importOpen = $state(false)
   let settingsOpen = $state(false)
   const Active = $derived(VIEW_COMPONENTS[current])
+
+  // Overdue rollover: on open — and again when the tab comes back into view on a
+  // later day (a Tailscale tab often stays open across midnight) — every
+  // uncompleted task with a past due date moves onto today. The browser supplies
+  // "today" (Hard Rule 7); at most one call per local day, retried on the next
+  // visibility change if the backend was unreachable.
+  let rolledOverOn = ''
+  async function rolloverOverdue() {
+    const today = toISODate(new Date())
+    if (today === rolledOverOn) return
+    try {
+      const { moved } = await api.tasks.rollover(today)
+      rolledOverOn = today
+      if (moved > 0) bumpRefresh()
+    } catch {
+      // Transient (offline, backend restarting) — the views surface their own
+      // load errors; the next visibility change retries the rollover.
+    }
+  }
+
+  onMount(() => void rolloverOverdue())
+
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') void rolloverOverdue()
+  }
 </script>
+
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 <div class="flex h-svh flex-col overflow-hidden">
   <header

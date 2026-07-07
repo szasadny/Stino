@@ -1676,3 +1676,121 @@ async fn batch_with_no_ids_is_a_harmless_no_op() {
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().expect("array").len(), 1, "nothing deleted");
 }
+
+#[tokio::test]
+async fn rollover_moves_only_overdue_uncompleted_one_offs() {
+    let app = test_app().await;
+
+    let open = create_task(
+        &app,
+        json!({"title":"Overdue open","due_date":"2026-07-01","due_time":"09:00"}),
+    )
+    .await;
+    let done = create_task(
+        &app,
+        json!({"title":"Overdue done","due_date":"2026-07-02"}),
+    )
+    .await;
+    let done_id = done["id"].as_i64().expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req("POST", &format!("/api/tasks/{done_id}/completions")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    create_task(&app, json!({"title":"Due today","due_date":"2026-07-07"})).await;
+    create_task(&app, json!({"title":"Future","due_date":"2026-07-10"})).await;
+    create_task(&app, json!({"title":"Inbox"})).await;
+    create_task(
+        &app,
+        json!({"title":"Daily standup","due_date":"2026-07-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-07"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["moved"], 1, "only the open overdue one-off moves");
+
+    // The moved task sits on today, keeping its wall-clock time.
+    let (_, today) = send(&app, get("/api/tasks?date=2026-07-07")).await;
+    let today = today.as_array().expect("array");
+    let moved = today
+        .iter()
+        .find(|t| t["title"] == "Overdue open")
+        .expect("moved task is on today");
+    assert_eq!(moved["id"], open["id"]);
+    assert_eq!(moved["due_time"], "09:00");
+    assert!(
+        today.iter().any(|t| t["title"] == "Due today"),
+        "today's own task is untouched"
+    );
+
+    // The completed one-off stays done on its original day.
+    let (_, past) = send(&app, get("/api/tasks?date=2026-07-02")).await;
+    let past = past.as_array().expect("array");
+    let done = past
+        .iter()
+        .find(|t| t["title"] == "Overdue done")
+        .expect("completed task stays put");
+    assert_eq!(done["completed"], true);
+
+    // The recurring series is untouched: its start (and past occurrence) remain.
+    let (_, series_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
+    let series_day = series_day.as_array().expect("array");
+    assert!(
+        series_day.iter().any(|t| t["title"] == "Daily standup"),
+        "the series still generates its past occurrence"
+    );
+    assert!(
+        !series_day.iter().any(|t| t["title"] == "Overdue open"),
+        "the moved one-off left its old day"
+    );
+
+    // Inbox and future tasks are untouched.
+    let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
+    assert_eq!(inbox.as_array().expect("array").len(), 1);
+    // (The daily series also expands onto this day, so match by title.)
+    let (_, future) = send(&app, get("/api/tasks?date=2026-07-10")).await;
+    assert!(
+        future
+            .as_array()
+            .expect("array")
+            .iter()
+            .any(|t| t["title"] == "Future"),
+        "the future task keeps its own day"
+    );
+}
+
+#[tokio::test]
+async fn rollover_again_moves_nothing_and_a_bad_date_is_rejected() {
+    let app = test_app().await;
+    create_task(&app, json!({"title":"Overdue","due_date":"2026-07-01"})).await;
+
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-07"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["moved"], 1);
+
+    // Everything already sits on today — a second run is a no-op.
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-07"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["moved"], 0);
+
+    let (status, _) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-13-40"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

@@ -16,6 +16,12 @@ export interface ImportSummary {
   skipped: number
 }
 
+// Result of the overdue rollover (POST /tasks/rollover): how many uncompleted,
+// non-recurring tasks with a past due_date were moved onto today.
+export interface RolloverSummary {
+  moved: number
+}
+
 // A bulk operation applied to many tasks at once (Inbox multi-select), sent to
 // POST /tasks/batch. Mirrors the backend `BatchOpBody` tagged enum: `type` is
 // the discriminator. `label_id: null` clears the label; `schedule` moves the

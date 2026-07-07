@@ -7,7 +7,7 @@
 
 import { formatShortDate, fromISODate } from './date'
 
-export type RecurrenceFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'custom'
+export type RecurrenceFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 export type CustomUnit = 'day' | 'week'
 /** Monthly repeats either on a date-number, or on the Nth weekday. */
 export type MonthlyMode = 'monthday' | 'weekday'
@@ -158,6 +158,9 @@ function buildBase(value: RecurrenceValue): string | null {
       const byday = value.monthWeekday === WORKDAY_CODE ? WORKDAYS.join(',') : value.monthWeekday
       return `FREQ=MONTHLY;BYDAY=${byday};BYSETPOS=${value.position}`
     }
+    case 'yearly':
+      // A plain yearly rule repeats on the start date's month and day.
+      return 'FREQ=YEARLY'
     case 'custom': {
       const freq = value.unit === 'week' ? 'WEEKLY' : 'DAILY'
       const interval = Math.max(1, Math.floor(value.interval) || 1)
@@ -244,6 +247,11 @@ function parseBase(rule: string | null): RecurrenceValue {
     }
     return { ...EMPTY_RECURRENCE, freq: 'weekly', weekdays }
   }
+  // Yearly: only the plain shape (repeats on the start date). A yearly rule
+  // with BY… parts or an interval isn't modeled and stays read-only.
+  if (freq === 'YEARLY' && interval === 1 && ![...parts.keys()].some((k) => k.startsWith('BY'))) {
+    return { ...EMPTY_RECURRENCE, freq: 'yearly' }
+  }
   // Monthly: only the shapes the picker models, and only at interval 1.
   if (freq === 'MONTHLY' && interval === 1) {
     const bysetpos = parts.get('BYSETPOS')
@@ -317,6 +325,8 @@ function summarizeBase(value: RecurrenceValue): string {
         return `Monthly on the ${positionLabel(value.position).toLowerCase()} ${monthWeekdayLabel(value.monthWeekday)}`
       }
       return value.monthday === -1 ? 'Monthly on the last day' : `Monthly on day ${value.monthday}`
+    case 'yearly':
+      return 'Every year'
     case 'custom': {
       const unit = value.unit === 'week' ? 'week' : 'day'
       return value.interval === 1 ? `Every ${unit}` : `Every ${value.interval} ${unit}s`
@@ -450,6 +460,11 @@ const PHRASE_RULES: { re: RegExp; value: (m: RegExpExecArray) => RecurrenceValue
   },
   // "every day" / "daily"
   { re: /\b(?:every\s+day|daily)\b/i, value: () => ({ ...EMPTY_RECURRENCE, freq: 'daily' }) },
+  // "every year" / "yearly" / "annually"
+  {
+    re: /\b(?:every\s+year|yearly|annually)\b/i,
+    value: () => ({ ...EMPTY_RECURRENCE, freq: 'yearly' }),
+  },
   // "every week" / "weekly"
   { re: /\b(?:every\s+week|weekly)\b/i, value: () => ({ ...EMPTY_RECURRENCE, freq: 'weekly' }) },
 ]

@@ -418,6 +418,31 @@ pub async fn batch_set_due_date(
     Ok(())
 }
 
+/// Move every overdue, uncompleted one-off onto `today` in a single UPDATE:
+/// tasks with a `due_date` before `today`, no recurrence rule, and no completion
+/// at their current occurrence. `due_time` is kept — the task keeps its
+/// wall-clock time on the new day. Recurring tasks are untouched (their series
+/// generates today's occurrence itself; `due_date` is the DTSTART). Returns how
+/// many tasks moved.
+pub async fn rollover_overdue(pool: &SqlitePool, today: &str) -> Result<u64, sqlx::Error> {
+    Ok(sqlx::query!(
+        r#"UPDATE task
+           SET due_date = ?, updated_at = datetime('now')
+           WHERE recurrence_rule IS NULL
+             AND due_date IS NOT NULL
+             AND due_date < ?
+             AND NOT EXISTS (
+                 SELECT 1 FROM completion c
+                 WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date
+             )"#,
+        today,
+        today
+    )
+    .execute(pool)
+    .await?
+    .rows_affected())
+}
+
 /// Delete each id in one transaction (`completion` rows cascade). An unknown id
 /// rolls the batch back.
 pub async fn batch_delete(pool: &SqlitePool, ids: &[i64]) -> Result<(), sqlx::Error> {

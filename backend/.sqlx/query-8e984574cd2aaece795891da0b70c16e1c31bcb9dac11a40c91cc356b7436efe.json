@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE task\n           SET due_date = ?, updated_at = datetime('now')\n           WHERE recurrence_rule IS NULL\n             AND due_date IS NOT NULL\n             AND due_date < ?\n             AND NOT EXISTS (\n                 SELECT 1 FROM completion c\n                 WHERE c.task_id = task.id AND c.occurrence_date IS task.due_date\n             )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8e984574cd2aaece795891da0b70c16e1c31bcb9dac11a40c91cc356b7436efe"
+}

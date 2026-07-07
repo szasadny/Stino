@@ -1,7 +1,8 @@
 <script lang="ts">
   // A calm recurrence control for the task edit panel: pick how a task repeats —
   // Does not repeat / Daily / Weekly (toggle weekdays) / Monthly (on a date or
-  // the Nth weekday) / Custom (every N days|weeks). Emits the RRULE string (or
+  // the Nth weekday) / Yearly (on the start date) / Custom (every N days|weeks).
+  // Emits the RRULE string (or
   // null) via onChange; the option⇄RRULE mapping lives in lib/recurrence.ts. A
   // stored rule we don't model is shown read-only and kept intact unless cleared.
   import { untrack } from 'svelte'
@@ -75,6 +76,7 @@
     { id: 'daily', label: 'Daily' },
     { id: 'weekly', label: 'Weekly' },
     { id: 'monthly', label: 'Monthly' },
+    { id: 'yearly', label: 'Yearly' },
     { id: 'custom', label: 'Custom' },
   ]
 

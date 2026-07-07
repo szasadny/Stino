@@ -33,7 +33,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 
 ## Scope
 
-**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; every N days/weeks) · times on tasks · search over title/notes · group-by-label in a day view · time-sorted ordering (timed by time, untimed by manual drag order) · TickTick CSV import.
+**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; yearly on the start date; every N days/weeks) · times on tasks · search over title/notes · group-by-label in a day view · time-sorted ordering (timed by time, untimed by manual drag order) · automatic rollover of overdue uncompleted tasks onto today (on app open/new day; recurring tasks excluded) · TickTick CSV import.
 
 **Out of scope (deliberate — Hard Rule 4):** reminders/notifications/alerts, pomodoro & focus timers, habit tracking, sub-task/checklist depth, priorities beyond what import needs, collaboration/sharing, accounts & auth, ICS subscriptions, AI features.
 

@@ -403,6 +403,21 @@ mod tests {
     }
 
     #[test]
+    fn yearly_repeats_on_the_start_date_each_year() {
+        let got = expand(
+            "FREQ=YEARLY",
+            date("2026-06-24"),
+            date("2026-01-01"),
+            date("2028-12-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-06-24"), date("2027-06-24"), date("2028-06-24")]
+        );
+    }
+
+    #[test]
     fn weekly_first_and_last_day_of_week() {
         // Monday-first: first day = Monday, last day = Sunday.
         let first = expand(

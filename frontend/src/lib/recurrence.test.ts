@@ -19,9 +19,10 @@ describe('buildRRule', () => {
     expect(buildRRule(value({ freq: 'none' }))).toBeNull()
   })
 
-  it('builds daily and weekly rules', () => {
+  it('builds daily, weekly and yearly rules', () => {
     expect(buildRRule(value({ freq: 'daily' }))).toBe('FREQ=DAILY')
     expect(buildRRule(value({ freq: 'weekly' }))).toBe('FREQ=WEEKLY')
+    expect(buildRRule(value({ freq: 'yearly' }))).toBe('FREQ=YEARLY')
   })
 
   it('orders weekly BYDAY Monday-first regardless of input order', () => {
@@ -123,6 +124,17 @@ describe('parseRRule', () => {
     })
   })
 
+  it('parses a plain yearly rule, and leaves shaped yearly rules as "none"', () => {
+    expect(parseRRule('FREQ=YEARLY').freq).toBe('yearly')
+    expect(parseRRule('FREQ=YEARLY;INTERVAL=1').freq).toBe('yearly')
+    // Yearly with an interval or BY… parts isn't modeled — kept read-only.
+    expect(parseRRule('FREQ=YEARLY;INTERVAL=2').freq).toBe('none')
+    expect(parseRRule('FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=24').freq).toBe('none')
+    expect(parseRRule('FREQ=YEARLY;BYDAY=MO;BYSETPOS=1').freq).toBe('none')
+    expect(parseRRule('FREQ=YEARLY;BYWEEKNO=20').freq).toBe('none')
+    expect(parseRRule('FREQ=YEARLY;BYYEARDAY=100').freq).toBe('none')
+  })
+
   it('parses monthly shapes, and leaves unmodeled monthly as "none"', () => {
     expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=15')).toMatchObject({
       freq: 'monthly',
@@ -202,6 +214,7 @@ describe('parseRRule', () => {
       'FREQ=MONTHLY;BYDAY=WE;BYSETPOS=5',
       'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1',
       'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+      'FREQ=YEARLY',
     ]) {
       expect(buildRRule(parseRRule(rule))).toBe(rule)
     }
@@ -218,6 +231,7 @@ describe('summarize', () => {
     expect(summarize(value({ freq: 'weekly', weekdays: ['FR', 'MO', 'TU', 'TH', 'WE'] }))).toBe(
       'Every weekday',
     )
+    expect(summarize(value({ freq: 'yearly' }))).toBe('Every year')
     expect(summarize(value({ freq: 'custom', unit: 'day', interval: 1 }))).toBe('Every day')
     expect(summarize(value({ freq: 'custom', unit: 'week', interval: 2 }))).toBe('Every 2 weeks')
   })
@@ -299,6 +313,13 @@ describe('parseRecurrencePhrase', () => {
     )
     expect(parseRecurrencePhrase('daily')?.rule).toBe('FREQ=DAILY')
     expect(parseRecurrencePhrase('every week')?.rule).toBe('FREQ=WEEKLY')
+  })
+
+  it('recognizes yearly phrases', () => {
+    expect(parseRecurrencePhrase('every year')?.rule).toBe('FREQ=YEARLY')
+    expect(parseRecurrencePhrase('yearly')?.rule).toBe('FREQ=YEARLY')
+    expect(parseRecurrencePhrase('annually')?.rule).toBe('FREQ=YEARLY')
+    expect(parseRecurrencePhrase('renew insurance every year')?.matched).toBe('every year')
   })
 
   it('returns the matched substring so the caller can strip it', () => {

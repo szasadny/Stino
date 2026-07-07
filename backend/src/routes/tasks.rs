@@ -70,6 +70,13 @@ pub struct MoveOccurrence {
     pub new_date: String,
 }
 
+/// Rollover payload: the client's local date (Hard Rule 7 — the browser is the
+/// single source of "today"; the backend never computes it).
+#[derive(Deserialize)]
+pub struct RolloverTasks {
+    pub today: String,
+}
+
 /// Reorder payload: the full ordered list of (untimed) task ids for a list/day.
 /// Each task's `sort_order` becomes its position in this list.
 #[derive(Deserialize)]
@@ -172,6 +179,14 @@ pub async fn reorder(
 ) -> AppResult<impl IntoResponse> {
     task_service::reorder(&state.pool, &body.ids).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn rollover(
+    State(state): State<AppState>,
+    Json(body): Json<RolloverTasks>,
+) -> AppResult<impl IntoResponse> {
+    let summary = task_service::rollover(&state.pool, &body.today).await?;
+    Ok(Json(summary))
 }
 
 pub async fn batch(

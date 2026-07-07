@@ -49,6 +49,8 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
         // Same literal-vs-param story as `/tasks/reorder`: the static `batch`
         // segment wins over `/tasks/{id}`, so the two never collide.
         .route("/tasks/batch", post(tasks::batch))
+        // Literal `rollover` beside `/tasks/{id}`, like `reorder` and `batch`.
+        .route("/tasks/rollover", post(tasks::rollover))
         .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
         .route(
             "/tasks/{id}/completions",
