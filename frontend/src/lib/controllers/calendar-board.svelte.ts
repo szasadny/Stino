@@ -6,6 +6,7 @@ import { untrack } from 'svelte'
 import { type DndEvent } from 'svelte-dnd-action'
 import { api } from '../api'
 import { buildBoard, type CellItem } from '../calendar-board'
+import { groupByLabelView } from '../group-view.svelte'
 import { applyMove, dropKind } from '../move'
 import type { TaskCore } from './task-core.svelte'
 
@@ -19,9 +20,10 @@ export function createCalendarBoard(
 
   // Project tasks → board, but NEVER while a gesture is live: `dragging` is read untracked,
   // so this re-runs on a real data change (a move/toggle landing, a reload) yet can't clobber
-  // svelte-dnd-action's in-flight `e.detail.items`.
+  // svelte-dnd-action's in-flight `e.detail.items`. When the by-label preference is on (the
+  // default), each day is projected into label order — display only, `sort_order` untouched.
   $effect(() => {
-    const next = buildBoard(core.tasks, keys())
+    const next = buildBoard(core.tasks, keys(), groupByLabelView() ? core.labels : undefined)
     if (untrack(() => dragging)) return
     board = next
   })

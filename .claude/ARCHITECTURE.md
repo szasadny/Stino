@@ -240,7 +240,9 @@ Behaviours that matter:
   formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
   inline date math.
 - `grouping.ts` — `groupByLabel(tasks, labels)` (label sections in label `sort_order`, "No label"
-  pinned last, input order kept within groups); `dayViewGroups(tasks, labels, grouped)` (flat = one
+  pinned last, input order kept within groups); `labelDayOrder(tasks, labels)` (one day flattened
+  into label reading order — timed first in their time order, then untimed through `groupByLabel` —
+  the default cell/day projection); `dayViewGroups(tasks, labels, grouped)` (flat = one
   unlabeled section, so one render/drag path serves flat and grouped); `groupByDate(tasks)` (the
   per-day index the month/week grids share). Grouping is client-side presentation — no SQL does it.
 - `recurrence.ts` — option⇄RRULE mapping (`buildRRule` / `parseRRule` / `summarize`) +
@@ -267,7 +269,8 @@ Behaviours that matter:
 - `task-actions.ts` — `toggleCompletion(task)` + `replaceOccurrence(tasks, updated)` (swap the
   `(id, occurrence_date)` row): the complete-toggle primitives `task-core` and Search build on.
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
-- `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on.
+- `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on; an
+  optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default).
 - `fit.ts` — how many task lines fit a measured cell height (accounting for the inter-line row gap) —
   used by every calendar cell (phone month, desktop month, week) so "+N more" appears only once the
   cell is genuinely full. No hardcoded per-cell line cap anywhere.
@@ -300,8 +303,10 @@ Behaviours that matter:
 
 - `viewport.svelte.ts` — `isCompact()`: one app-wide `matchMedia(max-width: COMPACT_MAX_WIDTH)`
   listener; picks the phone vs wide layout.
-- `group-view.svelte.ts` — the shared, persisted flat vs by-label day-list preference, so `DaySheet`
-  and Today flip together (localStorage, like the theme).
+- `group-view.svelte.ts` — the shared, persisted by-label vs flat-List task-order preference
+  (localStorage, like the theme). **By label is the default**; the ONE flag drives the month/week
+  board projection (`createCalendarBoard`) and the day agendas (Today, `DaySheet`), set from the
+  `DayAgenda` toggle or Settings, so every view flips together.
 - `refresh.svelte.ts` — cross-view refresh signal: overlays that mutate data outside a view's own
   core (Search edits, `LabelManager`, a TickTick import) call `bumpRefresh()` on close; each
   standing view re-runs its load via `onRefresh(reload)` (skips the init value to avoid a double
@@ -314,7 +319,9 @@ Behaviours that matter:
   updates. Also `dayCrud(reload)`: the throwing create/update/delete the Month/Week day zoom binds —
   same lock, reloads the range on success, rethrows so the sheet/panel shows its own inline error.
 - `calendar-board.svelte.ts` — `createCalendarBoard(core, keys, reload)`: the month/week drop zones
-  (live drop lists as owned `$state`, re-projected only while no gesture is live).
+  (live drop lists as owned `$state`, re-projected only while no gesture is live). The projection
+  passes `core.labels` to `buildBoard` while the by-label preference (`group-view.svelte.ts`,
+  default on) is set — display only; `sort_order` semantics are untouched.
 - `calendar-selection.svelte.ts` — `createCalendarSelection(core)`: the `labelFor` + per-day index +
   selected-day state Month and Week share; plus `preloadLabels(core)` (graceful label load for the
   calendar's color dots).
@@ -341,8 +348,9 @@ Behaviours that matter:
   phone Month split agenda), `DayAgenda` (a day's list, flat or grouped — see §8), `DaySheet` (the
   phone full-screen day zoom, editor embedded inline), `DayPanel` (the desktop floating non-modal
   day zoom).
-- **Chrome:** `SearchDialog`, `SettingsDialog` (Appearance = `ThemeToggle`, Data = import launcher;
-  opened from the header gear), `ImportDialog` (file picker → `api.import.ticktick(file)` →
+- **Chrome:** `SearchDialog`, `SettingsDialog` (Appearance = `ThemeToggle`, Tasks = the List /
+  By-label order control driving `group-view.svelte.ts`, Data = import launcher; opened from the
+  header gear), `ImportDialog` (file picker → `api.import.ticktick(file)` →
   created/skipped summary), `ThemeToggle`, `LabelManager`.
 
 ### Views (`src/views/`) — every standing view binds a `task-core`
@@ -430,19 +438,23 @@ day open lands on today's agenda. Week keeps its existing collapse-on-navigate.
   (`lib/panel-pos.ts`). No backdrop ⇒ the grid stays live, so a task can be dragged **out of the
   panel onto another day**: the panel is just another `type: 'calendar'` zone bound to the same
   board cell (shared `consider`/`finalize`; every gesture reuses `move.ts`). Add/edit reuse the
-  grid composer; complete uses the shared toggle. Its list is flat, grid-ordered (label = pill
-  color) — never label sections (a single shared zone can't split into per-label zones). While
+  grid composer; complete uses the shared toggle. Its list is flat, grid-ordered — the board's
+  label projection by default (label = pill color) — never label sections (a single shared zone
+  can't split into per-label zones). While
   open, the matching grid cell **freezes** (its `open` prop renders pills statically, no zone) —
   two zones holding one day's items would corrupt drag tracking.
 
 **DayAgenda (phone DaySheet + Today):**
 
-- Flat, drag-sorted list by **default** (timed-first, then the shared `sort_order`), so a day zoom
-  reads the same order as the month/week cell it opened from. A **List / By label** toggle switches
-  to label sections, whose order changes via **up/down controls** on the chip header — not a drag
-  (nesting a section zone inside the task zone would break the inner drag). Flat is modelled as one
-  unlabeled section (`dayViewGroups`), so one render/drag path serves both; the preference is
-  shared + persisted (`group-view.svelte.ts`).
+- Label sections by **default** (the app-wide `group-view.svelte.ts` preference that also orders
+  the month/week cells); a **List / By label** toggle switches to the flat, drag-sorted list
+  (timed-first, then the shared `sort_order`). Section order changes via **up/down controls** on
+  the chip header — not a drag (nesting a section zone inside the task zone would break the inner
+  drag). Flat is modelled as one unlabeled section (`dayViewGroups`), so one render/drag path
+  serves both. One nuance vs the cells: `DayAgenda` renders timed tasks *inside* their label
+  section, while cells/`DayPanel` keep all timed at the top — the untimed sequence (the only
+  persisted order) is identical everywhere. Any drag in by-label mode persists the day's untimed
+  ids in label reading order (`untimedReadingOrder`), which becomes the manual `sort_order`.
 - Untimed reorder adapts to input: wide screens drag the 6-dot grip (`dragHandleZone`); a phone
   press-and-holds the whole row (`dndzone` + `delayTouchStart`). `isCompact()` picks one zone.
   `DaySheet` is phone-only ⇒ always hold-to-drag; the grip shows on wide Today. This grip-vs-hold

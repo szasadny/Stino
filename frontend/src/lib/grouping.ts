@@ -35,6 +35,20 @@ export function groupByLabel(tasks: Task[], labels: Label[]): TaskGroup[] {
 }
 
 /**
+ * One day's tasks in label reading order: timed tasks first, in input order
+ * (callers pass the day in the canonical timed-first/time-sorted sort, so timed
+ * stay sorted by time regardless of label), then the untimed tasks flattened
+ * through `groupByLabel` — label `sort_order`, "No label" last, within-label
+ * input (manual `sort_order`) order preserved. Identity for an all-unlabeled
+ * day. This is the default cell/day order (see lib/group-view.svelte.ts).
+ */
+export function labelDayOrder(tasks: Task[], labels: Label[]): Task[] {
+  const timed = tasks.filter((t) => t.due_time != null)
+  const untimed = tasks.filter((t) => t.due_time == null)
+  return [...timed, ...groupByLabel(untimed, labels).flatMap((g) => g.tasks)]
+}
+
+/**
  * The day agenda's sections for a given view mode. When `grouped`, the label
  * sections (`groupByLabel`); otherwise a SINGLE unlabeled section holding every task
  * in the given order — the default flat list that reads the same as the month/week

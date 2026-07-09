@@ -33,7 +33,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 
 ## Scope
 
-**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; yearly on the start date; every N days/weeks) · times on tasks · search over title/notes · group-by-label in a day view · time-sorted ordering (timed by time, untimed by manual drag order) · automatic rollover of overdue uncompleted tasks onto today (on app open/new day; recurring tasks excluded) · TickTick CSV import.
+**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; yearly on the start date; every N days/weeks) · times on tasks · search over title/notes · by-label ordering as the app-wide default (calendar cells + day views; a persisted List/By-label preference switches back to manual order) · time-sorted ordering (timed by time first; untimed by label, then manual drag order within a label) · automatic rollover of overdue uncompleted tasks onto today (on app open/new day; recurring tasks excluded) · TickTick CSV import.
 
 **Out of scope (deliberate — Hard Rule 4):** reminders/notifications/alerts, pomodoro & focus timers, habit tracking, sub-task/checklist depth, priorities beyond what import needs, collaboration/sharing, accounts & auth, ICS subscriptions, AI features.
 
@@ -116,7 +116,7 @@ Source of truth: `backend/migrations/` (exact DDL and indexes: ARCHITECTURE.md �
 The easiest area for subtle bugs. Rules:
 
 - **`due_date` is a local calendar date** stored as plain text (`2026-06-24`) — **never** converted through UTC. **`due_time` is local wall-clock** (`HH:MM`); combine with the date only at the edges (display, sorting), in the browser's timezone. The backend never computes "today".
-- **Sorting in any view:** timed tasks first by `due_time` ascending, then untimed by `sort_order`.
+- **Sorting in any view:** timed tasks first by `due_time` ascending, then untimed by `sort_order`. Display then projects the untimed tasks into label order (label `sort_order`, unlabeled last) while the default-on by-label preference is set — presentation only; storage and `sort_order` semantics are unchanged, and the backend sort has no label term.
 - **Recurrence is one task + an RRULE**, never materialized rows. The range/date queries expand the rule (`rrule` crate) over the visible window and return **one Task per occurrence** with a derived `occurrence_date` (`due_date` stays the series start) — clients key rows by `(id, occurrence_date)`, never `id` alone. Completing an occurrence writes a `completion` row; it never mutates the task.
 - **Moving a single occurrence** (`POST /api/tasks/{id}/move_occurrence`) detaches just that instance: a `task_exception` for the old date + a new one-off on the new day; the series keeps repeating. A same-day drop of a recurring instance is a no-op. Drop classification (reorder vs reschedule vs detach) is pure logic in `lib/move.ts` (`dropKind`).
 - The UI options ⇄ RRULE mapping lives in `frontend/src/lib/recurrence.ts`; quick-add parses typed recurrence phrases (`parseRecurrencePhrase`) and inline `#tag` labels (`parseQuickAdd`). Full mapping and validation rules: ARCHITECTURE.md §4–§5.

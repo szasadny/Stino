@@ -4,7 +4,8 @@
 // shared zone type those duplicate ids would corrupt cross-zone tracking. We wrap
 // each task in a `CellItem` whose `id` is unique per (task, day). Pure logic so the
 // views stay thin and this is unit-testable.
-import type { Task } from './types'
+import type { Label, Task } from './types'
+import { labelDayOrder } from './grouping'
 
 /** A draggable pill in a day cell. `id` is globally unique (see `cellItemId`). */
 export interface CellItem {
@@ -27,15 +28,25 @@ export function cellItemId(task: Task): string {
  * seeded with an array — including empty days, so they are valid drop targets.
  * Tasks with no `occurrence_date` (unscheduled) and tasks whose day is outside the
  * grid are skipped. Per-day input order (the server's timed-first/sort_order order)
- * is preserved.
+ * is preserved — unless `labelOrder` is given, in which case each day is projected
+ * through `labelDayOrder` (timed stay first by time; untimed regroup by label).
  */
-export function buildBoard(tasks: Task[], dayKeys: string[]): Record<string, CellItem[]> {
-  const board: Record<string, CellItem[]> = {}
-  for (const key of dayKeys) board[key] = []
+export function buildBoard(
+  tasks: Task[],
+  dayKeys: string[],
+  labelOrder?: Label[],
+): Record<string, CellItem[]> {
+  const byDay: Record<string, Task[]> = {}
+  for (const key of dayKeys) byDay[key] = []
   for (const task of tasks) {
     const key = task.occurrence_date
     if (key == null) continue
-    board[key]?.push({ id: cellItemId(task), task })
+    byDay[key]?.push(task)
+  }
+  const board: Record<string, CellItem[]> = {}
+  for (const key of dayKeys) {
+    const day = labelOrder ? labelDayOrder(byDay[key], labelOrder) : byDay[key]
+    board[key] = day.map((task) => ({ id: cellItemId(task), task }))
   }
   return board
 }

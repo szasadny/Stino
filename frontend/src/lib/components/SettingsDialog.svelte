@@ -1,8 +1,9 @@
 <script lang="ts">
-  // Settings: groups appearance (the theme toggle) and data tools (TickTick
-  // import). The dialog shell (header, close, backdrop, open/close) lives in
-  // Modal; the import launcher hands back to the parent so the existing
-  // ImportDialog runs on its own.
+  // Settings: groups appearance (the theme toggle), task ordering, and data
+  // tools (TickTick import). The dialog shell (header, close, backdrop,
+  // open/close) lives in Modal; the import launcher hands back to the parent so
+  // the existing ImportDialog runs on its own.
+  import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
   import Modal from './Modal.svelte'
   import ThemeToggle from './ThemeToggle.svelte'
 
@@ -10,13 +11,46 @@
     $props()
 </script>
 
-<Modal {open} {onClose} title="Settings" subtitle="Appearance and data.">
+<Modal {open} {onClose} title="Settings" subtitle="Appearance, tasks, and data.">
   <div class="space-y-6 px-5 py-5">
     <section>
       <h3 class="text-sm font-medium text-ink">Appearance</h3>
       <p class="mt-0.5 text-xs text-sage">Follows your system unless you pick Light or Dark.</p>
       <div class="mt-3">
         <ThemeToggle />
+      </div>
+    </section>
+
+    <section class="border-t border-lichen pt-5">
+      <h3 class="text-sm font-medium text-ink">Tasks</h3>
+      <p class="mt-0.5 text-xs text-sage">
+        Order each day's list by label, or by your manual order.
+      </p>
+      <div
+        class="mt-3 inline-flex rounded-lg border border-lichen bg-fog p-0.5"
+        role="group"
+        aria-label="Task order"
+      >
+        <button
+          type="button"
+          onclick={() => setGroupByLabelView(false)}
+          aria-pressed={!groupByLabelView()}
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition {!groupByLabelView()
+            ? 'bg-surface text-pine-deep shadow-sm'
+            : 'text-sage hover:text-pine-deep'}"
+        >
+          List
+        </button>
+        <button
+          type="button"
+          onclick={() => setGroupByLabelView(true)}
+          aria-pressed={groupByLabelView()}
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition {groupByLabelView()
+            ? 'bg-surface text-pine-deep shadow-sm'
+            : 'text-sage hover:text-pine-deep'}"
+        >
+          By label
+        </button>
       </div>
     </section>
 

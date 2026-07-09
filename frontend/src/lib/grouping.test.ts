@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayViewGroups, groupByDate, groupByLabel } from './grouping'
+import { dayViewGroups, groupByDate, groupByLabel, labelDayOrder } from './grouping'
 import type { Label, Task } from './types'
 
 const label = (id: number, sort_order: number): Label => ({
@@ -44,6 +44,49 @@ describe('groupByLabel', () => {
   it('omits a label with no tasks', () => {
     const groups = groupByLabel([task(1, 1)], [label(1, 0), label(2, 1)])
     expect(groups.map((g) => g.label?.id)).toEqual([1])
+  })
+})
+
+describe('labelDayOrder', () => {
+  const timed = (id: number, label_id: number | null, due_time: string): Task => ({
+    ...task(id, label_id),
+    due_time,
+  })
+
+  it('returns [] for no tasks', () => {
+    expect(labelDayOrder([], [label(1, 0)])).toEqual([])
+  })
+
+  it('keeps timed tasks first in input (time) order regardless of label', () => {
+    const labels = [label(2, 0), label(1, 1)]
+    const tasks = [
+      timed(10, 1, '09:00'),
+      timed(11, 2, '14:00'),
+      task(12, 2),
+      task(13, 1),
+      task(14, null),
+    ]
+    // Timed stay 10, 11 (time order); untimed regroup: label 2 first, then 1, "No label" last.
+    expect(labelDayOrder(tasks, labels).map((t) => t.id)).toEqual([10, 11, 12, 13, 14])
+  })
+
+  it('orders untimed by label sort_order and preserves within-label input order', () => {
+    const labels = [label(2, 0), label(1, 1)]
+    const tasks = [task(10, 1), task(11, 2), task(12, 1)]
+    expect(labelDayOrder(tasks, labels).map((t) => t.id)).toEqual([11, 10, 12])
+  })
+
+  it('puts unlabeled and unknown-label tasks last, in input order', () => {
+    const labels = [label(1, 0)]
+    const tasks = [task(10, null), task(11, 99), task(12, 1)]
+    expect(labelDayOrder(tasks, labels).map((t) => t.id)).toEqual([12, 10, 11])
+  })
+
+  it('is the identity for an all-unlabeled day', () => {
+    const tasks = [task(10, null), task(11, null), timed(12, null, '08:00')]
+    // Callers pass timed-first input, so identity here means "unchanged order".
+    const input = [tasks[2], tasks[0], tasks[1]]
+    expect(labelDayOrder(input, [label(1, 0)])).toEqual(input)
   })
 })
 

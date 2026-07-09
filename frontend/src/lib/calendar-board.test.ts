@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { appendedUntimedOrder, buildBoard, cellItemId } from './calendar-board'
-import type { Task } from './types'
+import type { Label, Task } from './types'
 
 const task = (id: number, occurrence_date: string | null, over: Partial<Task> = {}): Task => ({
   id,
@@ -54,6 +54,40 @@ describe('buildBoard', () => {
     const board = buildBoard([task(7, '2026-06-01'), task(7, '2026-06-02')], keys)
     expect(board['2026-06-01'][0].id).toBe('7:2026-06-01')
     expect(board['2026-06-02'][0].id).toBe('7:2026-06-02')
+  })
+
+  describe('with labelOrder', () => {
+    const label = (id: number, sort_order: number): Label => ({
+      id,
+      name: `L${id}`,
+      color: '#000000',
+      emoji: null,
+      sort_order,
+    })
+    const labels = [label(2, 0), label(1, 1)]
+
+    it('projects each day into label order, timed leading', () => {
+      const board = buildBoard(
+        [
+          task(1, '2026-06-01', { label_id: 1, due_time: '09:00' }),
+          task(2, '2026-06-01', { label_id: 1 }),
+          task(3, '2026-06-01', { label_id: 2 }),
+          task(4, '2026-06-01'),
+          task(5, '2026-06-02', { label_id: 1 }),
+        ],
+        keys,
+        labels,
+      )
+      // Timed first (input order), then untimed by label sort_order, unlabeled last.
+      expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([1, 3, 2, 4])
+      expect(board['2026-06-02'].map((it) => it.task.id)).toEqual([5])
+    })
+
+    it('still seeds empty days and keeps cellItemIds intact', () => {
+      const board = buildBoard([task(7, '2026-06-01', { label_id: 1 })], keys, labels)
+      expect(board['2026-06-02']).toEqual([])
+      expect(board['2026-06-01'][0].id).toBe('7:2026-06-01')
+    })
   })
 })
 

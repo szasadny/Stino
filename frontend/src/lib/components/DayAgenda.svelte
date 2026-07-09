@@ -1,8 +1,9 @@
 <script lang="ts">
   // A day's task list — the readable single-day view (Today and the month/week day sheet).
-  // Default is a flat, drag-sorted list (timed-first, then manual `sort_order`); a toggle
-  // switches to a grouped-by-label view. The choice is a shared, persisted preference
-  // (lib/group-view). Flat is modelled as one unlabeled section so a single path renders both.
+  // Default is the grouped-by-label view; a toggle switches to the flat, drag-sorted list
+  // (timed-first, then manual `sort_order`). The choice is the shared, persisted app-wide
+  // preference (lib/group-view) that also orders the month/week cells. Flat is modelled as
+  // one unlabeled section so a single path renders both.
   //
   // Drag: untimed tasks reorder within their group, each group its own flat dndzone; timed
   // tasks are pinned by time and render first without a handle. Cross-group drag is disabled
@@ -21,7 +22,7 @@
   import { openWithoutPhantomClick } from '../phantom-click'
   import { labelLookup } from '../labels'
   import { dayViewGroups, type TaskGroup } from '../grouping'
-  import { groupByLabelView, toggleGroupByLabelView } from '../group-view.svelte'
+  import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
   import { untimedReadingOrder } from '../ordering'
   import LabelChip from './LabelChip.svelte'
   import TaskRow from './TaskRow.svelte'
@@ -283,7 +284,7 @@
       >
         <button
           type="button"
-          onclick={() => grouped && toggleGroupByLabelView()}
+          onclick={() => setGroupByLabelView(false)}
           aria-pressed={!grouped}
           class="rounded-md px-2.5 py-1 transition {!grouped
             ? 'bg-surface text-pine-deep shadow-soft'
@@ -293,7 +294,7 @@
         </button>
         <button
           type="button"
-          onclick={() => !grouped && toggleGroupByLabelView()}
+          onclick={() => setGroupByLabelView(true)}
           aria-pressed={grouped}
           class="rounded-md px-2.5 py-1 transition {grouped
             ? 'bg-surface text-pine-deep shadow-soft'
