@@ -126,7 +126,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` rows |
 | PATCH | `/api/tasks/reorder` | body `{ ids: [...] }` (the full ordered list of untimed task ids) → `204`; sets each task's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes) |
 | POST | `/api/tasks/batch` | bulk edit (Inbox multi-select): body `{ ids: [...], op }` where `op` is `type`-tagged — `{type:"label", label_id}` (null clears), `{type:"schedule", due_date}`, `{type:"complete"}`, or `{type:"delete"}` → `204`. Atomic per op (`404` if any id unknown ⇒ nothing changes); empty `ids` is a no-op. `schedule` mirrors the single-task PATCH's completion semantics and rejects a recurring task id with `400` |
-| POST | `/api/tasks/rollover` | move every **overdue, uncompleted, non-recurring** task onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }`. One UPDATE over `due_date < today`, keeping `due_time`; completed tasks stay on their day, recurring series are untouched (the rule already generates today's occurrence). Idempotent; bad date ⇒ `400` |
+| POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + occurrences detached). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** each uncompleted occurrence in the last `config::ROLLOVER_LOOKBACK_DAYS` (7) days is *detached* onto today as its own standalone one-off (same as a `move_occurrence` drop) — one copy per missed day; the series keeps repeating and skips the missed date via a `task_exception`. Completed and already-detached occurrences stay put. Idempotent (the window slides with `today`, so a re-run moves nothing); bad date ⇒ `400` |
 | POST | `/api/tasks/{id}/completions` | mark done → Task (`completed:true`); idempotent |
 | DELETE | `/api/tasks/{id}/completions` | reopen → Task (`completed:false`) |
 | POST | `/api/tasks/{id}/move_occurrence` | move ONE occurrence of a recurring task: body `{ occurrence_date, new_date }` → `201` the new detached one-off Task. `404` unknown id; `400` if not recurring, `occurrence_date` isn't an instance of the series, or already moved |
@@ -371,7 +371,9 @@ Behaviours that matter:
   launchers for `LabelManager`, `SearchDialog`, and `SettingsDialog`. Also owns the **overdue
   rollover**: on mount — and on `visibilitychange` when the tab returns on a later local day — it
   posts `api.tasks.rollover(today)` (at most once per local day, retried after a failure) and
-  bumps the refresh signal when anything moved, so the standing view reloads.
+  bumps the refresh signal when anything moved, so the standing view reloads. The server both
+  relocates overdue one-offs and detaches each missed recurring occurrence from the last 7 days
+  onto today as a standalone one-off (see the endpoint row above).
 - **Search is an overlay, not a tab:** `SearchDialog` debounces `?q=` over `api.search`; flat
   `TaskRow` results (each shows its planned day, or "Inbox"); a row tap opens the editor inline,
   swapping the list so no second modal stacks; saving/deleting re-runs the search; recurring tasks

@@ -22,6 +22,13 @@ pub const TIME_FORMAT: &str = "%H:%M";
 /// 2 MB, which a real multi-year backup can exceed; 32 MB is far beyond any
 /// plausible export while still bounding the upload.
 pub const IMPORT_MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
+/// How many days back the overdue rollover scans for missed recurring
+/// occurrences to detach onto today. A sliding window bounded to the recent past
+/// (not full history): older missed occurrences stay visible on their own day,
+/// and because the window slides with `today` they never re-enter it, so the
+/// rollover stays idempotent. One-off rollover has no such bound — a one-off can
+/// only move once, then it's on today.
+pub const ROLLOVER_LOOKBACK_DAYS: i64 = 7;
 
 /// Runtime configuration, sourced entirely from environment variables so the
 /// same binary runs in local dev and in the container without code changes.

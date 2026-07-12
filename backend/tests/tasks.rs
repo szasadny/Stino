@@ -1701,11 +1701,6 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
     create_task(&app, json!({"title":"Due today","due_date":"2026-07-07"})).await;
     create_task(&app, json!({"title":"Future","due_date":"2026-07-10"})).await;
     create_task(&app, json!({"title":"Inbox"})).await;
-    create_task(
-        &app,
-        json!({"title":"Daily standup","due_date":"2026-07-01","recurrence_rule":"FREQ=DAILY"}),
-    )
-    .await;
 
     let (status, body) = send(
         &app,
@@ -1738,22 +1733,20 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
         .expect("completed task stays put");
     assert_eq!(done["completed"], true);
 
-    // The recurring series is untouched: its start (and past occurrence) remain.
-    let (_, series_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
-    let series_day = series_day.as_array().expect("array");
+    // The moved one-off left its old day.
+    let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
     assert!(
-        series_day.iter().any(|t| t["title"] == "Daily standup"),
-        "the series still generates its past occurrence"
-    );
-    assert!(
-        !series_day.iter().any(|t| t["title"] == "Overdue open"),
+        !old_day
+            .as_array()
+            .expect("array")
+            .iter()
+            .any(|t| t["title"] == "Overdue open"),
         "the moved one-off left its old day"
     );
 
     // Inbox and future tasks are untouched.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().expect("array").len(), 1);
-    // (The daily series also expands onto this day, so match by title.)
     let (_, future) = send(&app, get("/api/tasks?date=2026-07-10")).await;
     assert!(
         future
@@ -1763,6 +1756,138 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
             .any(|t| t["title"] == "Future"),
         "the future task keeps its own day"
     );
+}
+
+/// A missed (uncompleted) recurring occurrence detaches onto today as its own
+/// standalone one-off — exactly like dragging that instance to today. The series
+/// keeps repeating; the missed day is skipped; a completed occurrence stays put.
+#[tokio::test]
+async fn rollover_detaches_missed_recurring_occurrences_onto_today() {
+    let app = test_app().await;
+
+    // A daily series starting three days before "today" (2026-07-07): missed
+    // occurrences on 07-04, 07-05, 07-06 (all inside the 7-day lookback window).
+    let series = create_task(
+        &app,
+        json!({
+            "title":"Daily standup",
+            "due_date":"2026-07-04",
+            "due_time":"09:00",
+            "recurrence_rule":"FREQ=DAILY"
+        }),
+    )
+    .await;
+    let series_id = series["id"].as_i64().expect("id");
+
+    // Complete the 07-05 occurrence — it must NOT roll over.
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{series_id}/completions?occurrence_date=2026-07-05"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-07"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    // 07-04 and 07-06 are missed and uncompleted → two standalone copies. 07-05
+    // is completed, and 07-07 is today (not overdue), so neither rolls.
+    assert_eq!(body["moved"], 2, "one standalone copy per missed day");
+
+    // Today holds the two detached one-offs plus the series' own today-occurrence.
+    let (_, today) = send(&app, get("/api/tasks?date=2026-07-07")).await;
+    let today = today.as_array().expect("array");
+    let standalones: Vec<_> = today
+        .iter()
+        .filter(|t| t["title"] == "Daily standup" && t["recurrence_rule"].is_null())
+        .collect();
+    assert_eq!(
+        standalones.len(),
+        2,
+        "two detached standalone copies on today"
+    );
+    for copy in &standalones {
+        assert_eq!(copy["due_time"], "09:00", "the copy keeps the series' time");
+        assert_ne!(copy["id"], series["id"], "a detached copy is a new task");
+    }
+    assert!(
+        today
+            .iter()
+            .any(|t| t["title"] == "Daily standup" && !t["recurrence_rule"].is_null()),
+        "the series still generates today's occurrence"
+    );
+
+    // The missed days no longer show the recurring occurrence (detached).
+    for missed in ["2026-07-04", "2026-07-06"] {
+        let (_, day) = send(&app, get(&format!("/api/tasks?date={missed}"))).await;
+        assert!(
+            day.as_array()
+                .expect("array")
+                .iter()
+                .all(|t| t["recurrence_rule"].is_null()),
+            "the missed occurrence left {missed}"
+        );
+    }
+
+    // The completed occurrence stays on its own day, done.
+    let (_, kept) = send(&app, get("/api/tasks?date=2026-07-05")).await;
+    let kept = kept.as_array().expect("array");
+    let done = kept
+        .iter()
+        .find(|t| t["title"] == "Daily standup")
+        .expect("completed occurrence stays put");
+    assert_eq!(done["completed"], true);
+}
+
+/// The recurring detach is bounded to the last `ROLLOVER_LOOKBACK_DAYS` (7) days:
+/// a miss older than the window is left on its own day, and a second rollover the
+/// same day detaches nothing more.
+#[tokio::test]
+async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
+    let app = test_app().await;
+
+    // Series starting well before the window; with today = 2026-07-20 the window
+    // is [2026-07-13, 2026-07-19]. 2026-07-01 is older than the window.
+    create_task(
+        &app,
+        json!({"title":"Weekly review","due_date":"2026-07-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    // 07-13 .. 07-19 inclusive = 7 missed days inside the window.
+    assert_eq!(body["moved"], 7, "only the last 7 days detach");
+
+    // The out-of-window miss is untouched on its own day.
+    let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
+    assert!(
+        old_day
+            .as_array()
+            .expect("array")
+            .iter()
+            .any(|t| t["title"] == "Weekly review" && !t["recurrence_rule"].is_null()),
+        "a miss older than the lookback window stays on its day"
+    );
+
+    // A second run the same day detaches nothing more (idempotent).
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["moved"], 0, "re-running the same day is a no-op");
 }
 
 #[tokio::test]

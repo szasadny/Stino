@@ -256,15 +256,81 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
     result.map_err(map_row_not_found)
 }
 
-/// Move every overdue, uncompleted one-off task onto `today` — the TickTick-style
-/// rollover the client requests on app open. `today` is the browser's local date
-/// (Hard Rule 7 — the backend never computes "today"). Recurring tasks are left
-/// alone: their `due_date` is the series start, and the rule already generates
-/// today's occurrence. Returns the number of tasks moved.
+/// Roll overdue, uncompleted tasks onto `today` — the TickTick-style rollover the
+/// client requests on app open. `today` is the browser's local date (Hard Rule 7
+/// — the backend never computes "today"). Two parts:
+///
+/// 1. **One-off tasks:** every overdue, uncompleted one-off moves onto today (one
+///    UPDATE, keeping its `due_time`).
+/// 2. **Missed recurring occurrences:** each uncompleted occurrence in the last
+///    [`config::ROLLOVER_LOOKBACK_DAYS`] days is *detached* onto today as its own
+///    standalone one-off — identical to dragging that instance to today. The
+///    series keeps repeating; the missed date is skipped via a `task_exception`.
+///    One standalone copy per missed day. Completed and already-detached
+///    occurrences are left alone, so a re-run moves nothing (idempotent).
+///
+/// Returns the total number of tasks moved (one-offs relocated + occurrences detached).
 pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSummary> {
     let today = validate_date(today)?;
-    let moved = db::task::rollover_overdue(pool, &today).await?;
+    let mut moved = db::task::rollover_overdue(pool, &today).await?;
+    moved += detach_missed_recurring(pool, &today).await?;
     Ok(RolloverSummary { moved })
+}
+
+/// Detach every uncompleted recurring occurrence in the sliding lookback window
+/// `[today - ROLLOVER_LOOKBACK_DAYS, yesterday]` onto `today`, one standalone
+/// one-off per missed day (see [`rollover`]). Skips occurrences that are already
+/// completed or already detached by a manual move, so it's idempotent across the
+/// day's retries. Returns how many occurrences were detached.
+async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u64> {
+    let today_date = parse_date(today)?;
+    let to_date = today_date - chrono::Duration::days(1);
+    let from_date = today_date - chrono::Duration::days(config::ROLLOVER_LOOKBACK_DAYS);
+    if to_date < from_date {
+        return Ok(0); // window collapsed (non-positive lookback) — nothing to scan
+    }
+    let from = from_date.format(config::DATE_FORMAT).to_string();
+    let to = to_date.format(config::DATE_FORMAT).to_string();
+
+    let mut detached = 0;
+    for task in db::task::list_recurring_through(pool, &to).await? {
+        let (Some(rule), Some(start)) = (task.recurrence_rule.as_deref(), task.due_date.as_deref())
+        else {
+            continue; // a recurring row always has both; skip defensively
+        };
+        // A stored rule that no longer expands must not abort the whole rollover —
+        // skip the series (same defensive stance as `append_recurring`).
+        let dates = match recurrence::expand(rule, parse_date(start)?, from_date, to_date) {
+            Ok(dates) => dates,
+            Err(err) => {
+                tracing::warn!(task_id = task.id, error = %err, "skipping unexpandable recurrence rule during rollover");
+                continue;
+            }
+        };
+        if dates.is_empty() {
+            continue;
+        }
+        let done: HashSet<String> = db::task::completed_occurrences(pool, task.id, &from, &to)
+            .await?
+            .into_iter()
+            .collect();
+        let already_detached: HashSet<String> =
+            db::task::excepted_occurrences(pool, task.id, &from, &to)
+                .await?
+                .into_iter()
+                .collect();
+        // Ascending (as `expand` returns) so the standalone copies land on today
+        // in the order they were originally due.
+        for date in dates {
+            let occurrence = date.format(config::DATE_FORMAT).to_string();
+            if done.contains(&occurrence) || already_detached.contains(&occurrence) {
+                continue;
+            }
+            db::task::move_occurrence(pool, task.id, &occurrence, today).await?;
+            detached += 1;
+        }
+    }
+    Ok(detached)
 }
 
 /// Mark a task done for an occurrence. `occurrence_date` defaults to the task's
