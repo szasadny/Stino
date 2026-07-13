@@ -270,7 +270,8 @@ Behaviours that matter:
   `(id, occurrence_date)` row): the complete-toggle primitives `task-core` and Search build on.
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
 - `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on; an
-  optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default).
+  optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default). In
+  either mode, completed tasks sink to the bottom of their cell (stable, display only).
 - `fit.ts` — how many task lines fit a measured cell height (accounting for the inter-line row gap) —
   used by every calendar cell (phone month, desktop month, week) so "+N more" appears only once the
   cell is genuinely full. No hardcoded per-cell line cap anywhere.

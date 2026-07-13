@@ -50,6 +50,19 @@ describe('buildBoard', () => {
     expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([2, 1])
   })
 
+  it('sinks completed tasks below unfinished ones, keeping order within each half', () => {
+    const board = buildBoard(
+      [
+        task(1, '2026-06-01', { completed: true }),
+        task(2, '2026-06-01'),
+        task(3, '2026-06-01', { completed: true }),
+        task(4, '2026-06-01'),
+      ],
+      keys,
+    )
+    expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([2, 4, 1, 3])
+  })
+
   it('gives a recurring id landing on two days distinct item ids', () => {
     const board = buildBoard([task(7, '2026-06-01'), task(7, '2026-06-02')], keys)
     expect(board['2026-06-01'][0].id).toBe('7:2026-06-01')
@@ -81,6 +94,21 @@ describe('buildBoard', () => {
       // Timed first (input order), then untimed by label sort_order, unlabeled last.
       expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([1, 3, 2, 4])
       expect(board['2026-06-02'].map((it) => it.task.id)).toEqual([5])
+    })
+
+    it('sinks completed tasks below the label-ordered unfinished ones', () => {
+      const board = buildBoard(
+        [
+          task(1, '2026-06-01', { label_id: 2, completed: true }),
+          task(2, '2026-06-01', { label_id: 1 }),
+          task(3, '2026-06-01', { label_id: 2 }),
+          task(4, '2026-06-01', { due_time: '09:00', completed: true }),
+        ],
+        keys,
+        labels,
+      )
+      // Unfinished in label order (timed would lead), then completed in label order.
+      expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([3, 2, 4, 1])
     })
 
     it('still seeds empty days and keeps cellItemIds intact', () => {

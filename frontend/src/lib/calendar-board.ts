@@ -30,6 +30,8 @@ export function cellItemId(task: Task): string {
  * grid are skipped. Per-day input order (the server's timed-first/sort_order order)
  * is preserved — unless `labelOrder` is given, in which case each day is projected
  * through `labelDayOrder` (timed stay first by time; untimed regroup by label).
+ * In either mode, completed tasks sink to the bottom of their day (stable, display
+ * only — `sort_order` is untouched), so unfinished work always leads the cell.
  */
 export function buildBoard(
   tasks: Task[],
@@ -46,7 +48,9 @@ export function buildBoard(
   const board: Record<string, CellItem[]> = {}
   for (const key of dayKeys) {
     const day = labelOrder ? labelDayOrder(byDay[key], labelOrder) : byDay[key]
-    board[key] = day.map((task) => ({ id: cellItemId(task), task }))
+    board[key] = [...day.filter((t) => !t.completed), ...day.filter((t) => t.completed)].map(
+      (task) => ({ id: cellItemId(task), task }),
+    )
   }
   return board
 }
