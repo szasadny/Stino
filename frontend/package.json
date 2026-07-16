@@ -22,7 +22,7 @@
     "@tsconfig/svelte": "^5.0.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.16",
-    "prettier": "^3.9.4",
+    "prettier": "^3.9.5",
     "prettier-plugin-svelte": "^3.5.2",
     "svelte": "^5.16.0",
     "svelte-check": "^4.7.2",
