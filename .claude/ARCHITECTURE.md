@@ -1,7 +1,7 @@
 # Stinō — Architecture
 
-The concrete contract behind [CLAUDE.md](./CLAUDE.md): system shape, data model, API, recurrence
-semantics, import mapping, frontend module map, and calendar layout/drag rules. CLAUDE.md is the
+The concrete contract behind [AGENTS.md](../AGENTS.md): system shape, data model, API, recurrence
+semantics, import mapping, frontend module map, and calendar layout/drag rules. AGENTS.md is the
 day-to-day guidance; this file is the source of truth. Update it in the same change as the code.
 
 ## 1. System shape
@@ -25,7 +25,7 @@ Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ 
 
 ## 2. Backend layering
 
-Dependencies point downward only. Binding "must NOT" rules: CLAUDE.md § Architecture.
+Dependencies point downward only. Binding "must NOT" rules: AGENTS.md § Architecture.
 
 | Layer | Path | Owns |
 | --- | --- | --- |
@@ -383,7 +383,7 @@ Behaviours that matter:
 ## 8. Calendar layouts & drag-and-drop
 
 The invariants (one layout per width, flat zones, one live zone per day, `hidden` not unmounted,
-owned `$state` drop lists) are in CLAUDE.md § Architecture. This is the per-view wiring.
+owned `$state` drop lists) are in AGENTS.md § Architecture. This is the per-view wiring.
 
 **Breakpoint.** `COMPACT_MAX_WIDTH` = 639px (below Tailwind `sm`). `isCompact()` picks exactly ONE
 layout per view.

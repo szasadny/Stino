@@ -2,20 +2,31 @@
 
 A personal, self-hosted task + calendar web app for one person, reachable only over Tailscale, running in a single Docker container. Guiding principle: **calm and core** — the month calendar and the task list, done well, with a calm mountain-forest feel, and nothing else. When a detail is unspecified, **do it the way TickTick does it**, then strip anything that isn't core. (The name **Stinō** — ō = U+014D, reads "Stee-noo" — appears only in user-facing copy; the logo is a **cairn**, three stacked trail stones.)
 
-## Start Here — Task Routing
+> **This file is the single source of truth for agent instructions.** `CLAUDE.md` is a thin shim that imports it. Reference doc (read on demand, never inline fully): [.claude/ARCHITECTURE.md](./.claude/ARCHITECTURE.md) — API contract, exact DDL, recurrence semantics, import mapping, frontend module map, calendar layout/drag rules. Update it in the same change when those change.
 
-Match the task against this table and do the listed action **before** reading code or writing anything:
+## Agent roles (orchestrator / executor)
+
+This repo is set up for a two-model workflow via `.codex/config.toml` and `.codex/agents/`:
+
+- **Main session / orchestrator = GPT-5.6-Sol (high)** — understands the task, produces the plan, delegates implementation, and reviews results. Never implements large diffs itself when an executor can.
+- **`executor` = GPT-5.6-Luna (high)** — implements one well-scoped plan step at a time (files named, approach decided). Delegate implementation here; give it the exact files, the pattern to copy, and the tests to run.
+- **`explorer` = GPT-5.6-Luna (low)** — read-only recon; use for "find where X happens" sweeps instead of burning planner context.
+
+Delegation rules: plan first, then hand the executor self-contained steps (it does not see your conversation). Review every executor diff against the Hard Rules before reporting done. Trivial one-file fixes: just do them in the main session, no delegation overhead.
+
+## Task routing
+
+Match the task and do the listed action **before** reading code or writing anything:
 
 | If the task involves… | Then first… |
 | --- | --- |
-| Frontend / UI work (view, component, styling, layout, mobile) | Follow the `frontend-design` skill and stay inside the tokens in [§ Design Language](#design-language--calm-mountain-forest) |
-| A DB schema change (table, column, index) | Read [§ Data Model](#data-model) + Hard Rule 3; add a **new** SQLx migration, never edit an applied one |
+| Frontend / UI work (view, component, styling, layout, mobile) | Stay inside [§ Design Language](#design-language--calm-mountain-forest) tokens; for a new UI primitive (modal, popover, form, scroll effect) read skill `modern-web-guidance` (`.agents/skills/`) |
+| A DB schema change (table, column, index) | Read [§ Data Model](#data-model) + Hard Rule 3; add a **new** SQLx migration, never edit an applied one; regenerate `.sqlx/` (`cargo sqlx prepare`) |
 | Deciding where new code belongs | [§ Architecture & Module Boundaries](#architecture--module-boundaries) — every concern has exactly one home |
 | Dates, times, or recurrence | Read [§ Time, Dates & Recurrence](#time-dates--recurrence) — easy to get subtly wrong |
-| The API contract, exact DDL, frontend module map, calendar layout/drag detail, import detail | Read [ARCHITECTURE.md](./ARCHITECTURE.md) — the source of truth; update it in the same change |
-| Reviewing your own diff before finishing | Run `/code-review` (bugs) and `/simplify` (cleanups) |
-| CLAUDE.md drifting from reality | Run `/revise-claude-md` |
-| Confirming a change works in the real app | Run `/run` (launch it) or `/verify` (drive it and observe) |
+| API contract, exact DDL, frontend module map, calendar layout/drag detail, import detail | Read [.claude/ARCHITECTURE.md](./.claude/ARCHITECTURE.md) — source of truth; update it in the same change |
+| Confirming a change works in the real app (incl. drag-and-drop, phone widths) | Skill `verify` (`.agents/skills/verify/SKILL.md`) — scratch DB + Playwright recipe |
+| Adding or removing a folder | Skill `maintaining-agents-md` afterwards |
 
 ## Hard Rules
 
@@ -23,7 +34,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 
 1. **Handlers stay thin.** Parse input, call one service, shape the response. Business logic lives in `services/`; all SQL in `db/`. No SQL in handlers, no `axum` types in services.
 2. **Frontend HTTP only through `lib/api.ts`.** No `fetch`/`axios` in components. Label colors, enums, and shared types come from one source, never hardcoded twice.
-3. **Migrations are additive and permanent.** Never edit an applied migration — add a new one. Never `DROP`/`DELETE`/`TRUNCATE` or make a data-losing type change unless the user explicitly asks for that exact removal. The app holds real, imported personal data.
+3. **Migrations are additive and permanent.** Never edit an applied migration — add a new one. Never `DROP`/`DELETE`/`TRUNCATE` or make a data-losing type change unless the user explicitly asks for that exact removal. The app holds real, imported personal data — never run anything against `backend/data/` or `data/` (the live DB); tests and verification use a temp/scratch DB.
 4. **Core only — no bloat.** Reminders, notifications, alerts, pomodoro, habits, collaboration, AI assistants, "smart" lists are **out of scope**. Don't add them even if TickTick has them. If a feature feels like an addition rather than the calendar/task core, stop and ask.
 5. **Mobile is first-class.** Every view must be usable on a phone (touch targets, single-column reflow, legible calendar). Design mobile-first, then widen.
 6. **Stay inside the design tokens.** Colors, spacing, and radii come from the Tailwind theme tokens. No ad-hoc hex in components. One exception: label colors (user data), from the fixed palette.
@@ -38,8 +49,6 @@ Breaking any of these is never acceptable, including during debugging or quick f
 **Out of scope (deliberate — Hard Rule 4):** reminders/notifications/alerts, pomodoro & focus timers, habit tracking, sub-task/checklist depth, priorities beyond what import needs, collaboration/sharing, accounts & auth, ICS subscriptions, AI features.
 
 ## Architecture & Module Boundaries
-
-> The concrete API contract, DDL, recurrence semantics, import mapping, frontend module map, and calendar layout/drag rules live in [ARCHITECTURE.md](./ARCHITECTURE.md) — the source of truth. Keep the two files in sync.
 
 One process, one container. Axum serves the built Svelte SPA as static files and the JSON API under `/api`.
 
@@ -60,7 +69,7 @@ Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ 
 
 **Frontend boundaries:**
 
-- **All HTTP through `lib/api.ts`** (typed, one function per endpoint). **Shared types in `lib/types.ts`.** **Constants in `lib/constants.ts`.** Reusable UI in `lib/components/` — views compose components, never re-implement them.
+- **All HTTP through `lib/api.ts`** (typed, one function per endpoint). Shared types in `lib/types.ts`; constants in `lib/constants.ts`. Reusable UI in `lib/components/` — views compose components, never re-implement them.
 - **Shared view orchestration lives in `lib/controllers/`** (rune factories, `*.svelte.ts`). `createTaskCore()` owns task/label state + load/toggle/reorder/remove/save behind ONE in-flight lock with uniform optimistic-then-revert updates; `createCalendarBoard()` adds the month/week drop zones; `createGridComposer()` owns the month/week add/edit dialog. Every standing view (Today/Month/Week/Inbox) binds to a core — never fork this logic back into a view.
 - **Responsive rule:** calendar views go compact at ≤ `COMPACT_MAX_WIDTH` (639px, below Tailwind's `sm`). The reactive `isCompact()` (`lib/viewport.svelte.ts`) picks exactly **ONE layout per view** — never CSS-toggle both layouts (that mounts duplicate drag zones). Per-view layout + drag map: ARCHITECTURE.md §8.
 - **Drag-and-drop invariants** (details and per-view wiring: ARCHITECTURE.md §8):
@@ -77,22 +86,18 @@ Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ 
 | Layer | Technology |
 | --- | --- |
 | Backend | Rust + Axum (async) on Tokio |
-| DB access | SQLx with compile-time-checked queries + SQLite |
-| Migrations | SQLx migrations (`migrations/`, applied at startup) |
+| DB access | SQLx compile-time-checked queries + SQLite; SQLx migrations (`migrations/`, applied at startup) |
 | Recurrence | `rrule` crate (RFC-5545 RRULE parsing + expansion) |
-| Frontend | Svelte 5 + Vite (SPA) + TypeScript |
-| Styling | Tailwind CSS (theme tokens — see Design Language) |
+| Frontend | Svelte 5 + Vite (SPA) + TypeScript; Tailwind CSS (theme tokens) |
 | Reorder / drag | `svelte-dnd-action` |
-| Natural-language dates | `chrono-node` (client-side quick-add parsing) |
-| Packaging | Single multi-stage Docker image |
-| Access | No auth; reachable over Tailscale only |
-| Persistence | SQLite file on a mounted Docker volume |
+| Natural-language dates | `chrono-node` (client-side quick-add parsing only) |
+| Packaging / access | Single multi-stage Docker image; no auth, Tailscale-only; SQLite on a mounted volume |
 
 **External Solutions First:** prefer a maintained crate/package over hand-rolling. Recurrence → `rrule` (never write a date-recursion engine); CSV → `csv` + `serde`; NL dates → `chrono-node` (client-side only, never parse free text on the server); date math → `chrono`. If a maintained package solves ≥80% of a problem, use it and flag the dependency.
 
 ## Environment
 
-**Dev:** backend `cargo run` (API on :8080); frontend `vite dev` (:5173, proxies `/api` so SPA and API feel like one origin). Config from env: `DATABASE_URL`, `DATA_DIR`, `STATIC_DIR`, `PORT`, optional `ALLOWED_HOSTS`. `.env` holds local values — never commit it. There is deliberately **no `TZ` config** — the backend never computes "today": dates are stored and returned as plain local text, the browser supplies the local timezone, and the importer uses the CSV's own timezone column.
+**Dev:** backend `cargo run` (API on :8080); frontend `vite dev` (:5173, proxies `/api`). Config from env: `DATABASE_URL`, `DATA_DIR`, `STATIC_DIR`, `PORT`, optional `ALLOWED_HOSTS`. `.env` holds local values — never commit it. There is deliberately **no `TZ` config** — the backend never computes "today": dates are stored and returned as plain local text, the browser supplies the local timezone, and the importer uses the CSV's own timezone column.
 
 **Prod:** one container (`docker compose up --build`). Multi-stage Dockerfile: build the SPA → build the Rust binary → slim runtime serving both. SQLite on a **mounted volume**; migrations run at startup; exposed only on Tailscale.
 
@@ -125,7 +130,7 @@ The easiest area for subtle bugs. Rules:
 
 `POST /api/import/ticktick` takes a raw TickTick CSV backup. **Add-only** (never deletes — Hard Rule 3), per-row tolerant (a bad row is counted in `skipped`, not fatal), returns a created/skipped summary. Reminder/priority columns are ignored (out of scope). Full column mapping, timezone handling, and atomicity rules: ARCHITECTURE.md §6.
 
-## Project Structure
+## Project structure
 
 ```text
 backend/
@@ -157,11 +162,14 @@ frontend/
     app.css            # Tailwind entry + theme CSS variables
   index.html, vite.config.ts, tailwind.config.js
 
+.agents/skills/        # portable agent skills (symlinks into .claude/skills/ — one source)
+.claude/               # ARCHITECTURE.md + skills/ (canonical skill files) + Claude Code settings
+.codex/                # Sol orchestrator config + custom agent definitions
 Dockerfile             # multi-stage: build SPA → build Rust → slim runtime
 docker-compose.yml     # mounts the SQLite volume, sets env
 ```
 
-Full frontend module map (every helper, what it exports, who uses it): ARCHITECTURE.md §7. **Navigation rule:** read only the folder relevant to the task; grep before scanning.
+Full frontend module map (every helper, what it exports, who uses it): ARCHITECTURE.md §7. **Navigation rule:** read only the folder relevant to the task; grep before scanning. Prefer the `explorer` agent for broad sweeps.
 
 ## Design Language — calm mountain forest
 
@@ -208,9 +216,9 @@ A quiet morning in a pine forest: soft light, mist, stone, evergreen. Calm, spac
 
 **General:** config via env, never commit secrets; no dead code, commented-out blocks, or half-finished features in main; no magic values — constants live in `config.rs` (backend) / `constants.ts` (frontend).
 
-## Testing & Lint
+## Testing & lint
 
-Run before considering a change done:
+Run before considering a change done; treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change.
 
 1. **Backend lint:** `cd backend && cargo fmt --check && cargo clippy -- -D warnings`
 2. **Backend tests:** `cd backend && cargo test` — integration tests against a temp SQLite DB.
@@ -218,24 +226,14 @@ Run before considering a change done:
 4. **Frontend unit tests:** `cd frontend && npm test` — Vitest over the pure `lib/*.ts` helpers. Node env, no DOM; component testing is out of scope.
 5. **Frontend build smoke:** `cd frontend && npm run build`
 
-Treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change. **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test` or a Vitest case.
+**SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details: ARCHITECTURE.md §9). **Turn manual checks into tests:** verified a recurrence or import edge case by hand? Capture it as a `cargo test` or a Vitest case.
 
-## Working Approach
+## Working approach
 
 **Before writing:** read only the files you'll touch plus their direct dependencies; grep for the existing pattern and match it; pick a maintained package over building in-house. **Ask when genuinely split** — if two sound designs have real trade-offs, present them rather than picking arbitrarily. When TickTick's behaviour is the unambiguous reference, just match it.
 
 **While writing:** scope changes tightly; keep handlers thin and SQL in `db/`; stay inside the design tokens; keep clippy/svelte-check green as you go. Never weaken a boundary "to test quickly" — find the root cause.
 
-**Definition of done (all must hold):** lint green; tests cover the change; no boundary violations; schema change ⇒ a new additive migration; works on a phone-width screen; tokens used, no stray hex; CLAUDE.md/ARCHITECTURE.md updated in the same change if a folder, boundary, or entity changed.
+**Definition of done (all must hold):** lint green; tests cover the change; no boundary violations; schema change ⇒ a new additive migration + regenerated `.sqlx/`; works on a phone-width screen; tokens used, no stray hex; AGENTS.md/ARCHITECTURE.md updated in the same change if a folder, boundary, or entity changed. **Never commit unless the user explicitly asks.**
 
-## Maintaining CLAUDE.md
-
-- When a top-level folder, a layer boundary, the data model, or a core decision changes, update this file in the **same** change. Run `/revise-claude-md` to audit it against reality.
-- Living guidance only: no changelogs, no task notes, no "done" lists — git tracks what changed.
-- For deep situational context spanning many prompts, create `.claude/<topic>.md` and add one reference line here; delete it when no longer relevant.
-
-## Toolchain
-
-- **Installed:** Rust 1.96 (cargo, clippy, rustfmt, rust-analyzer) via rustup; `sqlx-cli` 0.8.6 (sqlite/rustls); Node 22 + npm 10; `typescript-language-server` 5.3 + `tsc` 6.0 in `~/.local/bin` (on PATH); Docker 29.
-- **Claude plugins enabled** (user scope): `rust-analyzer-lsp`, `typescript-lsp`, `frontend-design`, `claude-md-management`.
-- **SQLx offline cache:** compile-time `query!` checks use the committed `backend/.sqlx/`; regenerate with `cargo sqlx prepare` after changing any query (details: ARCHITECTURE.md §9).
+**Maintaining these docs:** when a top-level folder, a layer boundary, the data model, or a core decision changes, update this file in the **same** change (folder add/remove → skill `maintaining-agents-md`). Living guidance only: no changelogs, no task notes — git tracks what changed. For deep situational context spanning many prompts, create `.claude/<topic>.md` and add one reference line here; delete it when no longer relevant.
