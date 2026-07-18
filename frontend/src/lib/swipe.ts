@@ -1,9 +1,5 @@
-// Horizontal-swipe gesture for the phone calendars (swipe left ⇒ next month/week,
-// right ⇒ previous). The decision — is this drag a real horizontal swipe, and
-// which way — is pure math (`swipeDirection`), kept separate and unit-tested; the
-// `swipe` Svelte action is just the thin touch-event plumbing around it. Touch-only:
-// it never fires for a mouse/trackpad, so desktop (which navigates via the header
-// arrows and has drag-and-drop on cells) is untouched.
+// Touch-only horizontal swipe for phone calendar navigation; drag classification is
+// pure and unit-tested in `swipeDirection`.
 import type { Action } from 'svelte/action'
 import { dragIsLive } from './drag-scroll'
 

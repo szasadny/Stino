@@ -1,10 +1,5 @@
 <script lang="ts">
-  // A calm recurrence control for the task edit panel: pick how a task repeats —
-  // Does not repeat / Daily / Weekly (toggle weekdays) / Monthly (on a date or
-  // the Nth weekday) / Yearly (on the start date) / Custom (every N days|weeks).
-  // Emits the RRULE string (or
-  // null) via onChange; the option⇄RRULE mapping lives in lib/recurrence.ts. A
-  // stored rule we don't model is shown read-only and kept intact unless cleared.
+  // Unmodelled RRULEs stay read-only and are preserved until explicitly cleared.
   import { untrack } from 'svelte'
   import {
     buildRRule,
@@ -32,11 +27,7 @@
     onChange: (rule: string | null) => void
   } = $props()
 
-  // Seeds from `value` once, then uncontrolled — it owns the structured state and emits an
-  // RRULE via onChange. Remounts per edit session, so it never reacts to `value` changing.
   const parsed = untrack(() => parseRRule(value))
-  // A non-empty rule that didn't map to a known mode — preserve it rather than
-  // silently rewriting it. Cleared explicitly by the user.
   let unknownRule = $state(
     untrack(() => (value && parseRRule(value).freq === 'none' ? value : null)),
   )
@@ -63,12 +54,10 @@
     until,
   })
   const summary = $derived(summarize(current))
-  // True when exactly Mon–Fri are picked — lights up the "Weekdays" preset.
   const isWeekdaysPreset = $derived(
     weekdays.length === WORKDAYS.length && WORKDAYS.every((c) => weekdays.includes(c)),
   )
 
-  // 1..31 then "Last day" (value -1) — the day-of-month select options.
   const MONTHDAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1)
 
   const MODES: { id: RecurrenceFreq; label: string }[] = [
@@ -87,8 +76,6 @@
     freq = next
     if (next === 'custom' && interval < 1) interval = 2
     if (next === 'monthly') {
-      // Seed sensible defaults from the task's date so Monthly doesn't always
-      // start at day 1.
       const d = monthlyDefaultsFor(startDate)
       monthday = d.monthday
       position = d.position
@@ -123,7 +110,6 @@
     emit()
   }
   function onUntil(event: Event) {
-    // A native date input emits ISO `YYYY-MM-DD` (our wire format); empty ⇒ never.
     until = (event.target as HTMLInputElement).value || null
     emit()
   }

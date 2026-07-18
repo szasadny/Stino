@@ -1,6 +1,4 @@
-//! Task search: a case-insensitive `LIKE` across `title` and `notes` — enough at
-//! personal scale (FTS5 only if it ever feels slow, per ARCHITECTURE §9). Never
-//! imports `axum` or writes SQL.
+//! Case-insensitive task search over title and notes.
 
 use sqlx::SqlitePool;
 

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Today: everything due today, via DayAgenda — the same grouped layout as the day sheet,
-  // but a standing view rather than a dialog. All task orchestration lives in the shared
-  // TaskCore.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { formatDayFull, toISODate } from '../lib/date'
@@ -25,12 +22,10 @@
   const hasTasks = $derived(core.tasks.length > 0)
 
   onMount(load)
-  // Reload after a mutating overlay (Search/Labels/Import) closes over this view.
   onRefresh(load)
 
   function load() {
     return core.loadWith(async () => {
-      // Labels are needed to group; load both together for the day's view.
       const [tasks, labels] = await Promise.all([api.tasks.forDate(todayKey), api.labels.list()])
       return { tasks, labels }
     }, 'Could not load today')

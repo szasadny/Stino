@@ -1,8 +1,4 @@
-// Theme preference. "System" follows the OS (prefers-color-scheme); "Light" /
-// "Dark" are manual overrides that win over the OS. The choice persists in
-// localStorage and is reflected as a `data-theme` attribute on <html> that the
-// CSS variables key off (see app.css). A tiny inline bootstrap in index.html
-// applies a saved override before first paint so there's no flash.
+// Theme preference persisted in localStorage and reflected on <html> for CSS tokens.
 
 export type ThemePref = 'system' | 'light' | 'dark'
 

@@ -1,9 +1,4 @@
-// Quick-add: turn one line of natural-language capture ("call mum tomorrow 9am")
-// into a task draft. Date/time parsing is CLIENT-SIDE with chrono-node (per
-// CLAUDE.md "External Solutions First" — never parse free text on the server).
-// Dates/times are formatted as LOCAL `YYYY-MM-DD` / `HH:MM` (Hard Rule 7):
-// chrono yields a local Date and we read its local components, never via UTC.
-// Pure (given `ref`) so it stays unit-testable.
+// Quick-add parsing is client-side (chrono-node) and preserves local date/time fields.
 import * as chrono from 'chrono-node'
 import { formatShortDate, fromISODate, toISODate } from './date'
 import { parseRecurrencePhrase, summarizeRule } from './recurrence'
@@ -16,8 +11,7 @@ export interface QuickAddDraft {
   recurrence_rule: string | null // RRULE parsed from a phrase like "every Monday"; null ⇒ one-off
 }
 
-// A `#tag` token: a run of non-space, non-`#` chars. TickTick-style inline label
-// capture — single-token (no spaces), so it parses cleanly out of the title.
+// TickTick-style single-token inline label.
 const LABEL_TOKEN = /#([^\s#]+)/g
 
 /**

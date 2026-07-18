@@ -1,5 +1,4 @@
-//! Binary entry point. All wiring lives in the library crate (`lib.rs`) so it
-//! can be exercised by integration tests; `main` just runs it.
+//! Binary entry point; server wiring lives in the library crate.
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

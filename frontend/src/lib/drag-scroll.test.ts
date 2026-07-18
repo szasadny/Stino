@@ -7,7 +7,6 @@ import {
   MAX_STEP_PX,
 } from './drag-scroll'
 
-// A tall container: 100..900 with the default 72px zones.
 const TOP = 100
 const BOTTOM = 900
 
@@ -27,7 +26,6 @@ describe('edgeScrollStep', () => {
   })
 
   it('ramps speed linearly with depth into the zone', () => {
-    // Halfway into the bottom zone -> half the max step.
     expect(edgeScrollStep(BOTTOM - EDGE_ZONE_PX / 2, TOP, BOTTOM)).toBeCloseTo(MAX_STEP_PX / 2)
     expect(edgeScrollStep(TOP + EDGE_ZONE_PX / 2, TOP, BOTTOM)).toBeCloseTo(-MAX_STEP_PX / 2)
   })
@@ -40,7 +38,6 @@ describe('edgeScrollStep', () => {
   })
 
   it('lets the deeper-penetrated edge win in a container shorter than two zones', () => {
-    // 100px tall with 72px zones: the zones overlap across the whole container.
     expect(edgeScrollStep(110, 100, 200)).toBeLessThan(0) // near the top -> up
     expect(edgeScrollStep(190, 100, 200)).toBeGreaterThan(0) // near the bottom -> down
   })
@@ -51,7 +48,6 @@ describe('edgeScrollStep', () => {
   })
 })
 
-// A 64px strip above bottom=800, 250ms hold — MonthView's real parameters.
 const ZONE = 64
 const HOLD = 250
 const DWELL_BOTTOM = 800

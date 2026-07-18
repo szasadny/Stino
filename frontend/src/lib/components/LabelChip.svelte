@@ -1,7 +1,5 @@
 <script lang="ts">
-  // Reusable label pill: a color dot, an optional emoji, and the label name. The
-  // dot uses the label's own color (user data — the one allowed exception to the
-  // design tokens); the surrounding chrome stays in the calm forest palette.
+  // Label color is user data; surrounding chrome uses theme tokens.
   let {
     name,
     color,

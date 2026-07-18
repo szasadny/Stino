@@ -1,5 +1,4 @@
-//! Thin HTTP handlers for label CRUD: parse the request, call one service, shape
-//! the response. No business logic, no SQL.
+//! Thin label CRUD handlers; validation and persistence live below the route.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;

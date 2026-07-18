@@ -8,9 +8,8 @@ A personal, self-hosted task + calendar web app for one person, reachable only o
 
 This repo is set up for a two-model workflow via `.codex/config.toml` and `.codex/agents/`:
 
-- **Main session / orchestrator = GPT-5.6-Sol (high)** — understands the task, produces the plan, delegates implementation, and reviews results. Never implements large diffs itself when an executor can.
+- **Main session / orchestrator = GPT-5.6-Sol** — understands the task, produces the plan, delegates implementation, and reviews results. Never implements large diffs itself when an executor can.
 - **`executor` = GPT-5.6-Luna (high)** — implements one well-scoped plan step at a time (files named, approach decided). Delegate implementation here; give it the exact files, the pattern to copy, and the tests to run.
-- **`explorer` = GPT-5.6-Luna (low)** — read-only recon; use for "find where X happens" sweeps instead of burning planner context.
 
 Delegation rules: plan first, then hand the executor self-contained steps (it does not see your conversation). Review every executor diff against the Hard Rules before reporting done. Trivial one-file fixes: just do them in the main session, no delegation overhead.
 

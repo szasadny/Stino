@@ -1,7 +1,5 @@
-//! Shared input-validation primitives so the trim + empty-check + length-check
-//! and the local date/time parsing rules live in **one** place instead of being
-//! re-implemented per service. Pure functions: no SQL, no `axum`. The length
-//! caps and date/time formats come from [`crate::config`].
+//! Shared input validation and local date/time parsing. Limits and formats come
+//! from [`crate::config`].
 
 use chrono::{NaiveDate, NaiveTime};
 

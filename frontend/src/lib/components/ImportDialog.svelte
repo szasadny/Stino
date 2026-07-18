@@ -1,7 +1,4 @@
 <script lang="ts">
-  // TickTick CSV import: pick a file → api.import.ticktick → a friendly
-  // created/skipped summary. The dialog shell (header, close, backdrop) lives in
-  // Modal; this owns the picker, the request, and the result.
   import { api } from '../api'
   import type { ImportSummary } from '../types'
   import { PRIMARY_BTN_CLASS } from '../constants'
@@ -16,7 +13,6 @@
   let error = $state<string | null>(null)
   let summary = $state<ImportSummary | null>(null)
 
-  // Reset to a clean slate each time the dialog opens.
   function reset() {
     file = null
     error = null
@@ -43,7 +39,6 @@
     }
   }
 
-  // "Imported 12 tasks and 3 labels." — only mentions the parts that happened.
   function describe(s: ImportSummary): string {
     const parts: string[] = [count(s.created.tasks, 'task')]
     if (s.created.labels > 0) parts.push(count(s.created.labels, 'label'))
@@ -72,7 +67,6 @@
 
   <div class="px-5 py-5">
     {#if summary}
-      <!-- Result -->
       <div class="rounded-xl border border-moss/40 bg-moss/10 px-4 py-3">
         <p class="text-sm font-medium text-pine-deep">{describe(summary)}</p>
         {#if summary.skipped > 0}
@@ -95,7 +89,6 @@
         </button>
       </div>
     {:else}
-      <!-- File picker -->
       <p class="text-sm text-ink">
         Export your data from TickTick as a CSV backup, then choose the file here.
       </p>

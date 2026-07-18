@@ -1,9 +1,5 @@
-// The month/week grid as drag-and-drop zones: one mutable list of items per day,
-// keyed by ISO date. svelte-dnd-action tracks items by their `id` property, but a
-// recurring task carries the SAME numeric id on every occurrence day — so under a
-// shared zone type those duplicate ids would corrupt cross-zone tracking. We wrap
-// each task in a `CellItem` whose `id` is unique per (task, day). Pure logic so the
-// views stay thin and this is unit-testable.
+// Grid drag zones use ids qualified by occurrence date because recurring rows reuse
+// the same task id across days.
 import type { Label, Task } from './types'
 import { labelDayOrder } from './grouping'
 

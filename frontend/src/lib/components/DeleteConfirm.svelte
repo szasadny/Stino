@@ -1,9 +1,5 @@
 <script lang="ts">
-  // The two-step "Delete? Yes / No" affordance: the first click arms, the second
-  // confirms — so a destructive action always takes a deliberate second tap. Owns
-  // its own armed state; the caller just supplies `onConfirm` (and `busy` to lock
-  // the button while the delete is in flight). `compact` switches to the denser
-  // sizing used in list rows (the Labels manager) vs the roomier task editor.
+  // The first click arms deletion; the second confirms it.
   let {
     onConfirm,
     busy = false,

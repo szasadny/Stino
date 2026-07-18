@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Settings: groups appearance (the theme toggle), task ordering, and data
-  // tools (TickTick import). The dialog shell (header, close, backdrop,
-  // open/close) lives in Modal; the import launcher hands back to the parent so
-  // the existing ImportDialog runs on its own.
   import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
   import Modal from './Modal.svelte'
   import ThemeToggle from './ThemeToggle.svelte'

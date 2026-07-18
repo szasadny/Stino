@@ -1,5 +1,4 @@
-//! Thin HTTP handler for task search: parse `?q=`, call the search service,
-//! return the matching tasks. No business logic, no SQL.
+//! Thin task-search handler; query and persistence logic live in the service.
 
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;

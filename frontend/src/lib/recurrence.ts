@@ -1,9 +1,5 @@
-// The one place that maps the small set of UI recurrence options to/from an
-// RFC-5545 RRULE string. The backend is the source of truth for *validating* and
-// *expanding* a rule (via the `rrule` crate); this presentation helper only
-// builds the rule the picker emits and parses one back so an existing task's
-// rule can populate the picker. Keep the option⇄RRULE mapping here, not inlined
-// in components.
+// UI recurrence options ⇄ RFC-5545 RRULE mapping. Validation and expansion remain
+// backend responsibilities.
 
 import { formatShortDate, fromISODate } from './date'
 
@@ -339,11 +335,7 @@ export function summarizeRule(rule: string | null): string {
   return summarize(parseRRule(rule))
 }
 
-// --- Natural-language quick-add parsing ------------------------------------
-// Recognize a recurrence phrase typed in quick-add ("first Monday of every
-// month", "the 15th of every month") and turn it into an RRULE. Rule-based, not
-// chrono — chrono only does one-off dates. Every match runs through buildRRule
-// so RRULE strings are never hand-assembled outside it.
+// Natural-language recurrence phrases for quick-add; all matches use buildRRule.
 
 /** A recurrence found in free text: the rule plus the exact substring to strip. */
 export interface RecurrenceMatch {

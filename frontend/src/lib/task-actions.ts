@@ -1,6 +1,4 @@
-// Task list actions shared by every view that shows tasks, so the
-// complete/reopen flow and the occurrence-keyed list update live in one place
-// instead of being copy-pasted into Inbox / Today / Month / Week / Search.
+// Shared occurrence-aware task list actions.
 import { api } from './api'
 import type { Task } from './types'
 

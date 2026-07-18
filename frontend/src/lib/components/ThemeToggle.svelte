@@ -1,6 +1,4 @@
 <script lang="ts">
-  // A segmented System / Light / Dark control. Owns the live preference and
-  // applies it through theme.ts; the choice persists across reloads.
   import { getThemePref, setThemePref, THEME_OPTIONS, type ThemePref } from '../theme'
 
   let pref = $state<ThemePref>(getThemePref())

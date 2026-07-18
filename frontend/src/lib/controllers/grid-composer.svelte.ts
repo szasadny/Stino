@@ -1,10 +1,4 @@
-// The add/edit task dialog for the calendar grid views (Month/Week), lifted into one
-// place so the two views don't each re-implement it. A rune factory in the same grain as
-// createCalendarBoard(core, keys, reload): it owns the small editor state and routes
-// create/update/delete through the shared TaskCore lock, reloading the range on success
-// (the server assigns the id / re-expands recurrence, so a refetch is the correct resync).
-// It exposes the derived dialog props (open/title/submitLabel/initial/onDelete) so each
-// view's <TaskComposerDialog> binding is a trivial pass-through.
+// Shared Month/Week task-dialog state and CRUD routing through TaskCore.
 import { api, type TaskInput } from '../api'
 import { taskToDraft, type ComposerDraft } from '../composer'
 import type { Task } from '../types'
@@ -28,8 +22,7 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
     editing = null
   }
 
-  // Create/update through the lock; a reload re-expands the range so the new/changed task
-  // lands on the right day. Closes only on success — a failure stays open via core.error.
+  // Reload after persistence so recurrence expansion and server-assigned ids are current.
   async function submit(input: TaskInput): Promise<void> {
     const e = editing
     if (!e) return

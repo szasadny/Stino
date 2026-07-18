@@ -1,9 +1,4 @@
-// Grouping a day's tasks by label — the driving requirement for the day zoom.
-// Pure logic (one source of truth) so the view stays thin and Today (slice 6)
-// can reuse it. Labeled groups come first in the user's label order; the
-// "No label" group is always last. Task order within a group is preserved —
-// callers pass tasks already in the timed-first sort, so each group stays
-// timed-first too.
+// Shared day grouping: labels follow user order; the unlabeled group is last.
 import type { Label, Task } from './types'
 
 /** A label section of a day. `label` is `null` for the trailing "No label" group. */

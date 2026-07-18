@@ -1,11 +1,5 @@
 <script lang="ts">
-  // One task in a month/week cell as its own label-colored pill. The label color is user data
-  // (a soft tint), the title stays on the themed `ink` token so it's legible on either cell
-  // ground (like LabelChip, no `dark:` classes). A round checkbox ticks the occurrence off
-  // straight from the calendar via `onToggle`. When `draggable`, the entire pill is both the
-  // drag handle and the click-to-open target; the checkbox is the exception, swallowing the
-  // pointer start so ticking never starts a drag. Desktop grids only (a phone uses the
-  // compact cell + agenda).
+  // The checkbox must swallow pointer-start events so ticking never starts a drag.
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import { labelTint } from '../labels'
@@ -25,7 +19,6 @@
   } = $props()
 
   const color = $derived(label?.color ?? null)
-  // Soft label-colour wash over the cell surface (shared recipe — see labelTint).
   const tintStyle = $derived(labelTint(color))
 
   const openLabel = $derived(
@@ -35,14 +28,10 @@
   )
   const toggleLabel = $derived(`Mark "${task.title}" as ${task.completed ? 'not done' : 'done'}`)
 
-  // The whole pill is the drag handle when movable; `draggable` is fixed per render, so
-  // reading it once at mount is correct.
   function dragHandleIf(node: HTMLElement) {
     if (draggable) return dragHandle(node)
   }
 
-  // Open on a plain click/Enter/Space (svelte-dnd-action suppresses the click that ends a
-  // real drag, so this only fires on a true tap).
   function openOnKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -50,7 +39,6 @@
     }
   }
 
-  // Keep the checkbox from ever starting a drag, whichever low-level start event fires.
   function swallowStart(e: Event) {
     e.stopPropagation()
   }
@@ -89,7 +77,6 @@
 {/snippet}
 
 {#snippet pill()}
-  <!-- The whole pill: drag handle + open target in one element. The checkbox is the exception. -->
   <div
     use:dragHandleIf
     role="button"

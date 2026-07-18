@@ -37,27 +37,17 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
     let api = Router::new()
         .route("/health", get(health::health))
         .route("/labels", get(labels::list).post(labels::create))
-        // Literal `/labels/reorder` sits beside the `/labels/{id}` param route;
-        // matchit gives the literal segment priority, so they never collide (same
-        // story as `/tasks/reorder`).
         .route("/labels/reorder", patch(labels::reorder))
         .route("/labels/{id}", patch(labels::update).delete(labels::delete))
         .route("/tasks", get(tasks::list).post(tasks::create))
-        // Static `/tasks/reorder` is registered alongside the `/tasks/{id}` param
-        // route; matchit gives the literal segment priority, so it never collides.
         .route("/tasks/reorder", patch(tasks::reorder))
-        // Same literal-vs-param story as `/tasks/reorder`: the static `batch`
-        // segment wins over `/tasks/{id}`, so the two never collide.
         .route("/tasks/batch", post(tasks::batch))
-        // Literal `rollover` beside `/tasks/{id}`, like `reorder` and `batch`.
         .route("/tasks/rollover", post(tasks::rollover))
         .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
         .route(
             "/tasks/{id}/completions",
             post(tasks::complete).delete(tasks::uncomplete),
         )
-        // Detach a single recurring occurrence onto another day (drag one instance of a
-        // repeating task). Literal segment under `{id}`, like `completions`.
         .route("/tasks/{id}/move_occurrence", post(tasks::move_occurrence))
         .route("/search", get(search::list))
         // A real TickTick backup can exceed axum's default 2 MB body limit, so

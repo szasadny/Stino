@@ -1,8 +1,5 @@
 <script lang="ts">
-  // The one task editor — add a task in full or edit an existing one, everywhere a task is
-  // created or changed. A presentational form: it owns a local draft and emits a normalized
-  // `TaskInput` via `onSubmit`; the caller does the API call (HTTP stays in views/api).
-  // Validation/normalization lives in lib/composer.ts.
+  // Presentational form; validation and normalization live in lib/composer.ts.
   import { untrack } from 'svelte'
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
@@ -27,19 +24,14 @@
     busy?: boolean
     onSubmit: (input: TaskInput) => void
     onCancel: () => void
-    // Present only when editing — shows a Delete button.
     onDelete?: () => void
   } = $props()
 
-  // Seeded once; the form is remounted per editing session, so it never reacts to `initial`
-  // changing under it (untrack makes that explicit).
   const draft = $state<ComposerDraft>(untrack(() => emptyDraft(initial)))
 
   const canSubmit = $derived(draft.title.trim().length > 0 && !busy)
   const editingSeries = $derived(initial.rule != null)
 
-  // Quick-date shortcuts so a date is one tap away without opening the picker.
-  // "Next week" = the same weekday one week from today.
   const todayISO = toISODate(new Date())
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -57,8 +49,6 @@
     syncTime()
   }
 
-  // A time can't outlive its date — clear it so the field never shows a value that
-  // would be silently dropped on submit (the picker shows its own "needs a date").
   function syncTime() {
     if (!draft.date) draft.time = ''
   }

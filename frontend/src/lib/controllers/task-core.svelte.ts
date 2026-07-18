@@ -1,8 +1,4 @@
-// The one task-orchestration controller, shared by Today / Month / Week / Inbox so the
-// load + mutate + error + in-flight handling lives in exactly one place instead of being
-// re-implemented (and drifting) per view. A rune factory rather than a component: the views
-// need identical orchestration but very different markup, so each instantiates this at
-// component-init and binds its reactive getters + actions. HTTP stays behind lib/api.ts.
+// Shared task orchestration for Today, Month, Week, and Inbox; HTTP stays behind api.ts.
 //
 // Two invariants every mutation upholds:
 //  • ONE `pending` lock — every mutating action (toggle, reorder, move, remove, save) bails
@@ -30,8 +26,7 @@ export function createTaskCore() {
   let loading = $state(true)
   let error = $state<string | null>(null)
   let pending = $state(false)
-  // Monotonic token: only the newest load may write state, so rapid navigation can't let a
-  // slow earlier response land last.
+  // Only the newest load may write state.
   let loadToken = 0
 
   async function loadWith(
@@ -53,8 +48,7 @@ export function createTaskCore() {
     }
   }
 
-  // The one optimistic mutation primitive. Returns false if it bailed (lock held) or failed,
-  // true on success — callers use it to decide e.g. whether to close an editor.
+  // Optimistic mutation primitive; returns false when locked or failed.
   async function optimistic(
     apply: () => void,
     persist: () => Promise<void>,
@@ -84,9 +78,7 @@ export function createTaskCore() {
     }
   }
 
-  // A bare locked async run for bespoke flows that own their own list update (the Inbox's
-  // quick-add, composer submit, and bulk ops, which append/filter locally rather than reload
-  // or optimistically revert). Holds the lock and routes errors through `error`.
+  // Locked runner for flows that update their own list and do not reload.
   async function run(fn: () => Promise<void>, failMsg: string): Promise<boolean> {
     if (pending) return false
     pending = true
@@ -102,8 +94,7 @@ export function createTaskCore() {
     }
   }
 
-  // A landed persist must never read as a failure: after it, a reload error surfaces
-  // only as the soft refresh-failed banner. Shared by `save` and `saveOrThrow`.
+  // A landed persist reports reload failures through the soft refresh message.
   async function softReload(reload: () => Promise<void>) {
     try {
       await reload()
@@ -112,12 +103,8 @@ export function createTaskCore() {
     }
   }
 
-  // For create/update, where the server assigns the id / expands recurrence, so a reload is
-  // the correct resync rather than an optimistic insert. Holds the lock across persist+reload.
-  // The two stages fail differently: a persist failure returns false (the editor stays open
-  // to retry), but once persist landed the save DID happen — a reload failure still returns
-  // true (so editors close and a resubmit can't duplicate) and only sets the soft
-  // refresh-failed `error`.
+  // Create/update holds the lock through persist and reload because the server assigns ids
+  // and expands recurrence. A reload failure after persistence still reports success.
   async function save(
     persist: () => Promise<void>,
     reload: () => Promise<void>,
@@ -140,13 +127,7 @@ export function createTaskCore() {
     }
   }
 
-  // Like `save`, but for a caller that renders its OWN error rather than `core.error` — the
-  // day-sheet composer, whose error must show inline over the grid, not behind the modal.
-  // Same `pending` lock, but a persist failure RETHROWS so the caller can catch it.
-  // Serialized with every other mutation: if a change is already in flight it throws
-  // (the caller keeps its editor open to retry) rather than running unlocked. As in `save`,
-  // a reload failure after a landed persist returns normally (the caller's editor closes —
-  // a retry would duplicate) and surfaces the soft refresh-failed `error`.
+  // Variant for callers that render their own persist errors; it shares the mutation lock.
   async function saveOrThrow(
     persist: () => Promise<void>,
     reload: () => Promise<void>,

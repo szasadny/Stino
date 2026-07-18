@@ -1,7 +1,4 @@
 <script lang="ts">
-  // The small "+" in a calendar day header — adds a task straight onto that day. Revealed on
-  // cell hover/focus (the parent cell is a Tailwind `group`); `alwaysOnMobile` also shows it
-  // on a phone (the roomy week grid), otherwise it's desktop-only (the dense month grid).
   let {
     onAdd,
     label,

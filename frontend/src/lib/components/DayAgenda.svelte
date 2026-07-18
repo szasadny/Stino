@@ -1,19 +1,6 @@
 <script lang="ts">
-  // A day's task list — the readable single-day view (Today and the month/week day sheet).
-  // Default is the grouped-by-label view; a toggle switches to the flat, drag-sorted list
-  // (timed-first, then manual `sort_order`). The choice is the shared, persisted app-wide
-  // preference (lib/group-view) that also orders the month/week cells. Flat is modelled as
-  // one unlabeled section so a single path renders both.
-  //
-  // Drag: untimed tasks reorder within their group, each group its own flat dndzone; timed
-  // tasks are pinned by time and render first without a handle. Cross-group drag is disabled
-  // (a distinct dnd `type` per group). On a drop we emit the full day's untimed ids in grouped
-  // reading order via `onReorder`. Wide screen grabs the grip handle; a phone press-and-holds
-  // the whole row. `isCompact()` mounts exactly one zone per group.
-  //
-  // Label-section order is changed with up/down controls, NOT by dragging the section: a
-  // section contains its task dndzone, so nesting would break the inner drag. "No label" is
-  // never reorderable and always renders last.
+  // Each label group owns a flat dnd zone; distinct types prevent cross-group drops.
+  // Timed tasks stay pinned above untimed tasks; sections use buttons because nested zones are unsupported.
   import { untrack } from 'svelte'
   import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
@@ -38,7 +25,7 @@
   }: {
     tasks: Task[]
     labels: Label[]
-    // While a mutation is in flight, lock drag-start so a reorder can't race it.
+    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     onToggle: (task: Task) => void
     onEdit?: (task: Task) => void
@@ -47,39 +34,28 @@
   } = $props()
 
   const grouped = $derived(groupByLabelView())
-  // Grouping is only offered when a task carries a known label — otherwise it just
-  // reproduces the flat list.
   const canGroup = $derived.by(() => {
     const known = new Set(labels.map((l) => l.id))
     return tasks.some((t) => t.label_id != null && known.has(t.label_id))
   })
-  // Honour the persisted `grouped` preference only when this day can group; the toggle is
-  // hidden otherwise, so a preference set elsewhere mustn't strand unlabeled tasks.
   const effectiveGrouped = $derived(grouped && canGroup)
   const groups = $derived(dayViewGroups(tasks, labels, effectiveGrouped))
   const reorderable = $derived(onReorder != null)
   const compact = $derived(isCompact())
 
-  // The flat list carries the label on each row (a colour wash, plus a chip on wide); the
-  // grouped view doesn't (its section header names the label instead).
   const labelFor = $derived(labelLookup(labels))
   const rowLabel = (task: Task) => (!effectiveGrouped ? labelFor(task) : undefined)
 
   const keyOf = (group: TaskGroup) => (group.label ? String(group.label.id) : 'none')
   const timedOf = (group: TaskGroup) => group.tasks.filter((t) => t.due_time != null)
 
-  // The labeled sections in display order; the "No label" group is non-reorderable and
-  // pinned last (rendered outside this list).
   type LabelSection = { id: number; group: TaskGroup }
   const labelSections = $derived(
     groups.filter((g) => g.label != null).map((g) => ({ id: g.label!.id, group: g })),
   )
   const noLabelGroup = $derived(groups.find((g) => g.label == null) ?? null)
-  // Section up/down is only worthwhile with a handler AND more than one section.
   const reorderableLabels = $derived(onReorderLabels != null && labelSections.length > 1)
 
-  // Move a labeled section one slot up/down and persist the new visible-label order; the
-  // owning view folds it into the global label order. No-op at the ends.
   function moveSection(index: number, delta: -1 | 1) {
     const ids = labelSections.map((s) => s.id)
     const target = index + delta
@@ -88,8 +64,7 @@
     onReorderLabels?.(ids)
   }
 
-  // Per-group untimed lists the dndzones own. Rebuilt from `groups` only when no drag is
-  // live (`dragging` read untracked), so it can't clobber the live `e.detail.items`.
+  // Rebuild owned lists only when no drag is live, or consider/finalize would be clobbered.
   let dragging = $state(false)
   let untimed = $state<Record<string, Task[]>>({})
   $effect(() => {
@@ -107,8 +82,7 @@
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
     untimed[key] = e.detail.items
     dragging = false // clear before notifying so a resulting data change can re-project
-    // The whole day's untimed ids in grouped reading order (group order, then each
-    // group's live order) — exactly what api.tasks.reorder expects.
+    // Persist untimed ids in grouped reading order.
     const liveGroups = groups.map((group) => ({
       label: group.label,
       tasks: untimed[keyOf(group)] ?? [],
@@ -137,7 +111,6 @@
 {#snippet sectionBody(group: TaskGroup, sectionIndex: number | null)}
   {@const key = keyOf(group)}
   {@const timed = timedOf(group)}
-  <!-- Section header — grouped view only. -->
   {#if effectiveGrouped}
     <div class="mb-2 flex items-center gap-1.5 px-0.5">
       {#if group.label}
@@ -208,8 +181,6 @@
     </ul>
   {/if}
 
-  <!-- Untimed tasks: drag-to-reorder within this group (a distinct `type` keeps items from
-       jumping groups). Phone drags the whole row; wide grabs the grip. One zone mounts. -->
   {#if compact}
     <ul
       class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
@@ -275,7 +246,6 @@
   <p class="py-6 text-center text-sm text-sage">No tasks on this day.</p>
 {:else}
   {#if canGroup}
-    <!-- List vs. by-label toggle. Only shown when a task carries a label. -->
     <div class="mb-3 flex justify-end">
       <div
         class="inline-flex rounded-lg border border-lichen bg-fog p-0.5 text-xs font-medium"

@@ -1,6 +1,4 @@
-//! The single application error type, mapped to HTTP only here at the boundary.
-//! Services return `AppResult<T>` and never touch `axum`; the `IntoResponse`
-//! impl lives in this one place so handlers can `?` straight through.
+//! Application errors map to HTTP at this boundary; services return `AppResult`.
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};

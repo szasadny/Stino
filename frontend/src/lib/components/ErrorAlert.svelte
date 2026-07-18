@@ -1,8 +1,5 @@
 <script lang="ts">
-  // The shared error banner — the bark-toned alert every view and dialog shows
-  // on a failed load or action. The base styling lives here once; callers pass
-  // only positioning (margins) through `class`. Renders nothing when `error` is
-  // null/empty, so it can sit unconditionally in markup.
+  // Empty errors render nothing so callers can include the banner unconditionally.
   let { error, class: className = '' }: { error: string | null; class?: string } = $props()
 </script>
 

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // Inbox: unscheduled tasks (due_date IS NULL). Giving a task a date schedules it onto the
-  // calendar and out of the Inbox. Task orchestration lives in the shared TaskCore;
-  // quick-capture, the `#tag` label menu, and bulk multi-select are Inbox-specific.
   import { onMount, tick, untrack } from 'svelte'
   import { cubicOut } from 'svelte/easing'
   import { SvelteSet } from 'svelte/reactivity'
@@ -45,14 +42,10 @@
 
   const core = createTaskCore()
 
-  // Quick capture. A natural-language date in the title is parsed client-side;
-  // `capturePreview` shows what it resolved to. A `#tag` attaches a label.
   let newTitle = $state('')
   const draft = $derived(parseQuickAdd(newTitle))
   const capturePreview = $derived(describeDraft(draft))
 
-  // A label can be set two ways: picked from the suggestion menu (`captureLabelId`, shown as
-  // a chip) or typed as a `#tag` and resolved on submit (`draft.label`).
   let captureLabelId = $state<number | null>(null)
   let inputEl = $state<HTMLInputElement | null>(null)
   let captureContainer = $state<HTMLDivElement | null>(null)
@@ -60,17 +53,13 @@
   let menuDismissed = $state(false)
   let highlight = $state(0)
 
-  // The tag the cursor is currently inside, or null. Drives the suggestion menu.
   const activeTag = $derived(activeLabelToken(newTitle, caret))
 
-  // Case-insensitive lookup of an existing label by name.
   function existingLabel(name: string): Label | undefined {
     const wanted = name.trim().toLowerCase()
     return core.labels.find((l) => l.name.toLowerCase() === wanted)
   }
 
-  // The label the capture will apply: the chip if one is chosen, else the typed `#tag`
-  // resolved to an existing label, or a "pending" new one to be created.
   const captureLabel = $derived.by((): { label: Label } | { pending: string } | null => {
     if (captureLabelId != null) {
       const chip = core.labels.find((l) => l.id === captureLabelId)
@@ -81,8 +70,6 @@
     return found ? { label: found } : { pending: draft.label }
   })
 
-  // Menu items for the active tag: existing labels matching the partial, plus a "Create" row
-  // when the partial names a label that doesn't exist yet.
   const suggestions = $derived.by(() => {
     if (!activeTag || menuDismissed) return []
     const query = activeTag.query.trim().toLowerCase()
@@ -97,23 +84,16 @@
 
   const menuOpen = $derived(suggestions.length > 0)
 
-  // Dismiss the suggestion menu when a click lands outside the capture field (Escape is
-  // handled on the input itself). Mirrors LabelSelect's pattern.
   function onWindowClick(event: MouseEvent) {
     if (menuOpen && captureContainer && !captureContainer.contains(event.target as Node)) {
       menuDismissed = true
     }
   }
 
-  // The full editor (TaskComposerDialog): 'create' adds a task, a number edits the task with
-  // that id. `composerInitial` seeds the form.
   let composerMode = $state<'create' | number>('create')
   let composerInitial = $state<Partial<ComposerDraft>>({})
   let composerOpen = $state(false)
 
-  // Multi-select / bulk-edit mode. While `selecting`, rows become checkboxes and a sticky bar
-  // applies one action (label, schedule, complete, delete) to every selected task at once.
-  // `bulkDate` backs the schedule input; the delete action gets its own two-step confirm.
   let selecting = $state(false)
   const selectedIds = new SvelteSet<number>()
   let bulkDate = $state('')
@@ -124,7 +104,6 @@
   const labelFor = $derived(labelLookup(core.labels))
 
   onMount(load)
-  // Reload after a mutating overlay (Search/Labels/Import) closes over this view.
   onRefresh(load)
 
   function load() {
@@ -134,8 +113,6 @@
     }, 'Could not load your inbox')
   }
 
-  // Keep `caret` in step with the cursor so the suggestion menu tracks the tag being typed;
-  // any keystroke also un-dismisses a menu closed with Escape.
   function syncCaret() {
     caret = inputEl?.selectionStart ?? newTitle.length
   }
@@ -144,12 +121,9 @@
     syncCaret()
     menuDismissed = false
     highlight = 0
-    // Typing a fresh `#tag` re-drives the label from text, so drop a chosen chip.
     if (activeLabelToken(newTitle, caret)) captureLabelId = null
   }
 
-  // Find (or create) a label by name, reusing the palette-by-position convention the importer
-  // uses so on-the-fly colors stay stable. Returns null on failure.
   async function resolveLabel(name: string): Promise<Label | null> {
     const clean = name.trim().slice(0, LABEL_NAME_MAX_LENGTH)
     const found = existingLabel(clean)
@@ -165,8 +139,6 @@
     }
   }
 
-  // Choose a menu item: an existing label, or create a new one. Either way set the chip, cut
-  // the half-typed `#tag` out of the title, and restore the cursor.
   async function chooseSuggestion(item: (typeof suggestions)[number]) {
     const label = item.type === 'label' ? item.label : await resolveLabel(item.name)
     if (!label) return
@@ -185,8 +157,6 @@
     captureLabelId = null
   }
 
-  // Keyboard within the capture input: drive the suggestion menu when it's open (so Enter
-  // picks a tag instead of submitting the form).
   function onCaptureKeydown(event: KeyboardEvent) {
     if (!menuOpen) return
     if (event.key === 'ArrowDown') {
@@ -204,8 +174,6 @@
     }
   }
 
-  // Resolve the capture's label to an id: the chosen chip, else a typed `#tag` (created on the
-  // fly). Returns undefined only when label creation failed.
   async function resolveCaptureLabelId(): Promise<number | null | undefined> {
     if (captureLabelId != null) return captureLabelId
     if (!draft.label) return null
@@ -213,8 +181,6 @@
     return label ? label.id : undefined
   }
 
-  // Quick capture: parse the line, attach its label, and create straight away. A parsed date
-  // schedules it onto its day, so it leaves the Inbox.
   async function addTask(event: SubmitEvent) {
     event.preventDefault()
     if (!draft.title) return
@@ -234,8 +200,6 @@
     }, 'Could not add the task')
   }
 
-  // Open the full editor to add a task, seeded from whatever's in the quick bar (so "call mum
-  // tomorrow #work" carries its parsed title/date/time/label into the form).
   function openDetails() {
     const labelId =
       captureLabelId ?? (draft.label ? (existingLabel(draft.label)?.id ?? null) : null)
@@ -250,7 +214,6 @@
     composerOpen = true
   }
 
-  // Open the full editor for an existing Inbox task.
   function startEdit(task: Task) {
     composerInitial = taskToDraft(task)
     composerMode = task.id
@@ -258,8 +221,6 @@
     core.error = null
   }
 
-  // Submit from the editor — create or update depending on the mode. Scheduling a task (giving
-  // it a date) moves it out of the Inbox, so it drops from this list.
   async function onComposerSubmit(input: TaskInput) {
     if (!input.title) return
     await core.run(async () => {
@@ -282,10 +243,6 @@
     if (await core.remove(id)) composerOpen = false
   }
 
-  // Completing an inbox task removes it from the list (it's always incomplete here — no
-  // reopen path). The removal is delayed: the row renders as done (`completingIds`) and
-  // holds briefly, then the optimistic remove unmounts it with the fold-away exit
-  // transition. Reduced motion skips the hold. Tapping again during the hold undoes.
   const completingIds = new SvelteSet<number>()
   const completeTimers = new Map<number, ReturnType<typeof setTimeout>>()
   const lastTickAt = new Map<number, number>()
@@ -334,8 +291,6 @@
     )
   }
 
-  // Exit transition for a leaving row: fold the height shut while it fades and drifts
-  // gently to the right — calm, no bounce. Zero-duration under reduced motion.
   function foldAway(node: HTMLElement) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const height = node.offsetHeight
@@ -347,15 +302,10 @@
     }
   }
 
-  // Delete the task open in the editor (the guard narrows `composerMode` to its id).
   function deleteEditing() {
     if (composerMode !== 'create') removeTask(composerMode)
   }
 
-  // Drag-to-reorder — the flat single-zone pattern. `dragOrder` re-projects from `core.tasks`
-  // only while no gesture is live (`dragging` read untracked). `core.reorder` persists and
-  // reverts on failure. Wide screen grabs the grip handle; a phone press-and-holds the whole
-  // row. `isCompact()` mounts exactly one of the two zones.
   const compact = $derived(isCompact())
   let dragging = $state(false)
   let dragOrder = $state<Task[]>([])
@@ -375,8 +325,6 @@
     dragging = false // clear before persisting so the revert/resync can re-project
     void core.reorder(dragOrder.map((t) => t.id))
   }
-
-  // --- Multi-select / bulk edit ---
 
   function enterSelect() {
     selecting = true
@@ -401,9 +349,6 @@
     else for (const t of core.tasks) selectedIds.add(t.id)
   }
 
-  // Apply one bulk op to the selected tasks, then update the list locally (`apply`) and leave
-  // select mode. Local updates avoid a reload flash: a label change keeps the rows,
-  // scheduling/deleting removes them, completing marks them.
   async function runBatch(op: BatchOp, apply: (ids: Set<number>) => void) {
     if (selectedIds.size === 0) return
     const ids = [...selectedIds]
@@ -423,13 +368,11 @@
   function bulkSchedule() {
     if (!bulkDate) return
     void runBatch({ type: 'schedule', due_date: bulkDate }, (ids) => {
-      // A date moves each task onto the calendar, so it leaves the Inbox.
       core.tasks = core.tasks.filter((t) => !ids.has(t.id))
     })
   }
 
   function bulkComplete() {
-    // Completing removes the tasks from the Inbox, matching single-row completion.
     void runBatch({ type: 'complete' }, (ids) => {
       core.tasks = core.tasks.filter((t) => !ids.has(t.id))
     })
@@ -452,13 +395,11 @@
 
   <ErrorAlert error={core.error} class="mt-4" />
 
-  <!-- Capture a new task -->
   <form
     class="mt-5 shrink-0 rounded-xl border border-lichen bg-surface p-3 shadow-soft"
     onsubmit={addTask}
   >
     <div class="flex items-center gap-2">
-      <!-- Relative wrapper anchors the #tag suggestion menu under the input. -->
       <div class="relative min-w-0 flex-1" bind:this={captureContainer}>
         <input
           bind:this={inputEl}
@@ -613,14 +554,12 @@
     {/if}
   </form>
 
-  <!-- Inbox list -->
   <div class="mt-5 min-h-0 flex-1 overflow-y-auto pb-6" use:dragEdgeScroll>
     {#if core.loading}
       <p class="py-8 text-center text-sm text-sage">Loading…</p>
     {:else if core.tasks.length === 0}
       <EmptyState message="Your inbox is clear." />
     {:else if selecting}
-      <!-- Sticky bulk-action bar: count + select-all on top, the actions below. -->
       <div
         class="sticky top-0 z-10 rounded-xl border border-lichen bg-fog/95 p-3 shadow-sm backdrop-blur"
       >
@@ -706,7 +645,6 @@
         {/if}
       </div>
 
-      <!-- Selectable list: tap a row to toggle it; no drag / inline edit here. -->
       <ul class="mt-3 flex flex-col gap-2">
         {#each core.tasks as task (task.id)}
           <li>
@@ -731,7 +669,6 @@
         </button>
       </div>
       {#if compact}
-        <!-- Phone: whole-row press-and-hold drags; a tap opens the editor. -->
         <ul
           class="flex flex-col gap-2"
           use:dndzone={{

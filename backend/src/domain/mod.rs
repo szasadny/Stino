@@ -1,5 +1,4 @@
-//! Plain data shapes (structs + enums). Depends on nothing else in the crate —
-//! no `axum`, `services`, or `db`.
+//! Plain data shapes (structs and enums), independent of HTTP and persistence.
 
 mod import;
 mod label;

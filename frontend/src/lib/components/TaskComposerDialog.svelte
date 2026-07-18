@@ -1,7 +1,4 @@
 <script lang="ts">
-  // The task editor in a modal. Used wherever the editor opens outside an existing dialog:
-  // Inbox, Today, and a task tapped on the month/week grid. (The day sheet embeds the bare
-  // TaskComposer inline instead, to avoid stacking dialogs.)
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
   import type { ComposerDraft } from '../composer'
@@ -27,7 +24,6 @@
     busy?: boolean
     onSubmit: (input: TaskInput) => void
     onClose: () => void
-    // Present only when editing — surfaces a Delete button in the composer footer.
     onDelete?: () => void
   } = $props()
 </script>
@@ -41,7 +37,6 @@
 >
   <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
     {#if open}
-      <!-- Mount fresh each open so the draft seeds from the latest `initial`. -->
       <TaskComposer
         {labels}
         {initial}

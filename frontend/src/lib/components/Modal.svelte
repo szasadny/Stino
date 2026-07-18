@@ -1,9 +1,4 @@
 <script lang="ts">
-  // The one modal shell. Owns the native <dialog> (top layer + Escape for free),
-  // the open/close effect, the standard header (title + optional subtitle + close
-  // button), and the backdrop/animation styles — so Settings, Labels, Import, and
-  // the day sheet stop re-implementing all of that. The body is a `children`
-  // snippet; `panelClass`/`containerClass` tune width and scroll per dialog.
   import type { Snippet } from 'svelte'
 
   let {
@@ -18,14 +13,10 @@
   }: {
     open: boolean
     onClose: () => void
-    // Fired once each time the dialog transitions to open — for dialogs that load
-    // or reset state on open (Labels loads its list; Import clears its result).
     onOpen?: () => void
     title: string
     subtitle?: string
-    // Extra <dialog> classes (width / positioning / max-height).
     panelClass?: string
-    // Extra classes on the inner flex column (e.g. a max-height so the body scrolls).
     containerClass?: string
     children: Snippet
   } = $props()

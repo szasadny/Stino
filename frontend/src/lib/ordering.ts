@@ -1,9 +1,4 @@
-// The one manual order, shared by every view. Untimed tasks carry a global
-// `sort_order`; timed tasks are pinned by their time. A reorder anywhere persists
-// the FULL set of a day's untimed ids in grouped reading order — the same label
-// reading order the month/week cells display by default (`labelDayOrder` via
-// group-view), so display and the persisted order agree; in List mode the flat
-// cell shows the raw `sort_order` sequence. Pure logic so it's unit-testable.
+// Shared manual order: timed tasks sort by time; untimed tasks use `sort_order`.
 import type { TaskGroup } from './grouping'
 import type { Task } from './types'
 

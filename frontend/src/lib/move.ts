@@ -1,8 +1,5 @@
-// Pure logic for a calendar grid drag: classify a drop into a commit plan, and apply a
-// cross-day move optimistically. Kept out of the views so it's unit-testable and the
-// drag handlers stay thin. On the grid a drag onto ANOTHER day moves (reschedules) the
-// task; a drag WITHIN the same day reorders that day's untimed tasks — the two gestures
-// share one zone, so this is where they're told apart.
+// Pure grid-drag classification and optimistic cross-day moves. Same-day drops reorder;
+// cross-day drops reschedule or detach recurring instances.
 import { TRIGGERS, type DndEvent } from 'svelte-dnd-action'
 import { appendedUntimedOrder, type CellItem } from './calendar-board'
 import { sortForView } from './ordering'

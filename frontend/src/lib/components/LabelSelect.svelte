@@ -1,8 +1,5 @@
 <script lang="ts">
-  // A label picker that, unlike a native <select>, shows each option's color dot
-  // and emoji while choosing — so a label is recognizable at a glance, not just
-  // by name. Closes on outside-click or Escape. Used wherever a task's label is
-  // assigned (Inbox capture + edit). Display-only chrome lives in LabelChip.
+  // Outside-click and Escape close the custom picker.
   import type { Label } from '../types'
   import LabelChip from './LabelChip.svelte'
 
@@ -28,8 +25,6 @@
     open = false
   }
 
-  // The window listeners run after the trigger's own onclick: when opening, the
-  // target is inside `container`, so this won't immediately re-close it.
   function onWindowPointer(event: MouseEvent) {
     if (open && container && !container.contains(event.target as Node)) open = false
   }

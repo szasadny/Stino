@@ -1,25 +1,8 @@
-//! TickTick CSV import: map a TickTick backup export into our model.
-//!
-//! **Add-only** — it never deletes existing data (Hard Rule 3) — and **per-row
-//! tolerant**: a row that can't be mapped (e.g. no title) is skipped, not fatal,
-//! and the summary reports how many. Labels dedupe by name (case-insensitive);
-//! tasks are add-only (the export carries no id we trust), so a re-run appends.
-//!
-//! Dates/times honour the export's timezone (Hard Rule 7 — our stored local date
-//! must match what the user saw, never slip a day). TickTick writes a Due Date as
-//! a **UTC instant** (`…+0000`) plus a `Timezone` column (e.g. `Europe/Amsterdam`)
-//! and displays it converted into that zone — so we convert the instant into the
-//! task's timezone before reading its local date (and time, when timed). This
-//! holds for **all-day** tasks too: TickTick stores those as *local midnight in
-//! UTC* (e.g. `2026-06-17T22:00:00+0000` is midnight 18 Jun in Amsterdam), so a
-//! literal read of the UTC date was the "imported a day too soon" bug — every
-//! all-day task landed on the previous day. **Floating** tasks (`Is Floating`)
-//! carry a zone-independent wall-clock and are kept literally; we also fall back
-//! to a literal read when the timezone is missing/unknown or the instant won't
-//! parse, degrading rather than losing the task.
-//!
-//! Validation and ordering are not duplicated here: each mapped row is created
-//! through [`task_service::create`], the one place that enforces the task rules.
+//! TickTick CSV import into the task model. Imports are add-only and tolerate
+//! unmappable rows; labels are reused case-insensitively. TickTick due dates are
+//! UTC instants plus a timezone, including all-day local midnight, so conversion
+//! happens before extracting date/time. Floating or invalid-zone values remain
+//! literal. Each row goes through [`task_service::create`] for validation.
 
 use std::collections::HashMap;
 

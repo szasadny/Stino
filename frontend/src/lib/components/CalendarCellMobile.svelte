@@ -1,12 +1,6 @@
 <script lang="ts">
-  // One day in the phone month grid. Too narrow for full pills, so each task shows as a
-  // compact line (title on a label-colour tint); the whole cell is one tap target selecting
-  // the day. It's also a drop-only `calendar` zone (`dragDisabled` — the lines are too small
-  // to grab), so a task held from the split agenda can be dropped here to reschedule. The zone
-  // renders every item (child↔item parity); lines past the measured fit are hidden with
-  // `invisible`, the "+N more" row a sibling below the <ul> (inside it would break parity).
-  // While this day's agenda is open (`open`), the cell freezes and renders statically — the
-  // agenda is then the live zone (same rule as the desktop DayPanel freeze). Fit math: lib/fit.ts.
+  // Keep child/item parity for the drop-only mobile zone; hide overflow lines with `invisible`.
+  // When the day's agenda is open, freeze this cell so only the agenda owns the zone.
   import { dndzone, SHADOW_ITEM_MARKER_PROPERTY_NAME, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -32,7 +26,7 @@
     items: CellItem[]
     inCurrentMonth: boolean
     isToday: boolean
-    // True while this day's agenda is open in the split view: the cell freezes (no zone).
+    // The open day is owned by the agenda, so this cell must not mount a second zone.
     open?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
@@ -40,14 +34,13 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  // Measured list height, one line's height, and the row gap — so the fit adapts to any screen.
+  // Measurements let fit logic adapt to the rendered cell size.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a real rendered pill rather than assume a pixel size. Only writes the measurement
-  // state (never reads it), so it can't loop.
+  // Measure a rendered line; this effect only writes measurement state.
   $effect(() => {
     void items.length
     void listHeight
@@ -67,8 +60,7 @@
 
 {#snippet line(item: CellItem, hidden: boolean)}
   {@const label = labelFor(item.task)}
-  <!-- `shrink-0`: pills keep their natural height. As flex children they'd otherwise compress
-       when the cell overflows, feeding a too-small height back into the measurement effect. -->
+  <!-- Keep natural line height so fit measurements match the rendered list. -->
   <li
     class="shrink-0 truncate rounded px-1 py-px text-[10px] leading-tight {label
       ? ''
@@ -100,7 +92,6 @@
   </span>
 
   {#if open}
-    <!-- Frozen: the split view's day agenda owns this day's drag zone; render statically. -->
     <ul
       bind:this={listEl}
       bind:clientHeight={listHeight}

@@ -1,6 +1,4 @@
-// Label lookup shared by the views that decorate task rows with their label
-// (Inbox / Month / Week / Search), so the id→label map and the "no label / a
-// deleted label" handling live in one place.
+// Shared label lookup and deleted-label handling.
 import { LABEL_PALETTE } from './palette.js'
 import type { Label, Task } from './types'
 
@@ -15,12 +13,7 @@ export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): string {
   return LABEL_PALETTE[next % LABEL_PALETTE.length].hex
 }
 
-// Soft label-colour wash (~25%) used as the BACKGROUND wherever a task shows its label
-// colour as a pill/row — the calendar pills (TaskPill), the phone month cell lines, and
-// the day/inbox task rows (TaskRow). One source so every surface tints identically. `40`
-// is the 8-digit-hex alpha byte (~25%): enough colour to read the label at a glance while
-// the themed `ink` title stays legible over it on the light OR dark ground (same safe
-// approach as LabelChip — no per-component `dark:` classes).
+// Shared ~25% label-colour wash for pills and task rows; themed text remains legible.
 export const LABEL_TINT_ALPHA = '40'
 
 /** Inline `background-color` style for a label colour, or `''` when unlabelled (the caller

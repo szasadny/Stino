@@ -1,15 +1,6 @@
 <script lang="ts">
-  // Reusable task row: a complete-toggle, the title, and a meta line. View-specific actions
-  // go in the `trailing` snippet; an optional `leading` snippet (e.g. a drag handle) sits
-  // before the checkbox. `onEdit` makes the title/meta a button that opens the editor.
-  // `dateLabel` adds the planned day (Search spans every day, so it passes one). In
-  // `selectable` mode (Inbox multi-select) the toggle becomes a square checkbox and the whole
-  // row calls `onSelect`.
-  //
-  // `holdToDrag` makes the row a phone press-and-hold drag target: the toggle swallows the
-  // pointer start so ticking never arms a drag, and the tap-to-edit surface renders as a
-  // `div role=button`, not a `<button>` — svelte-dnd-action refuses to start a drag from an
-  // element with a defined `.value` (every `<button>` has one; same reason TaskPill is a div).
+  // `holdToDrag` uses a role-button surface because svelte-dnd-action will not drag from a
+  // native button; the toggle still swallows pointer-start events.
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
@@ -40,10 +31,7 @@
     selected?: boolean
     onSelect?: () => void
     holdToDrag?: boolean
-    // Render as done (filled circle + strike-through) while the Inbox row waits out its exit;
-    // the task itself isn't `completed` yet (the write happens when the hold ends).
     completing?: boolean
-    // One-line phone row for the day lists: title + inline time, no meta line.
     slim?: boolean
     leading?: Snippet
     trailing?: Snippet
@@ -52,13 +40,10 @@
   const done = $derived(task.completed || completing)
   const tint = $derived(labelTint(label?.color))
 
-  // Keep the complete-toggle from arming a press-and-hold drag on the phone day-sheet,
-  // whichever low-level start event the dnd library listens for (mirrors TaskPill).
   function guardToggleStart(e: Event) {
     if (holdToDrag) e.stopPropagation()
   }
 
-  // Open the editor on Enter/Space when the tap surface is a `div role=button`.
   function editOnKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -69,7 +54,6 @@
 
 {#snippet content()}
   {#if slim}
-    <!-- One line, no dot: the row's own label-colour wash carries the label. -->
     <div class="flex min-w-0 items-center gap-2">
       <span
         class="min-w-0 flex-1 truncate text-sm font-medium {done
@@ -88,8 +72,7 @@
 {/snippet}
 
 {#snippet fullContent()}
-  <!-- While completing, the strike is the ANIMATED line (strike-draw) instead of the
-       static text-decoration, so the two never double up. -->
+  <!-- Animated strike is separate so it does not double the static decoration. -->
   <p
     class="break-words text-sm font-medium transition-colors duration-300 {task.completed
       ? 'text-sage line-through'
@@ -231,8 +214,6 @@
     </button>
 
     {#if onEdit && holdToDrag}
-      <!-- Phone hold-to-drag: the tap surface must be a plain element, not a <button>, or
-           svelte-dnd-action won't start a drag from it; role/tabindex/keydown restore a11y. -->
       <div
         role="button"
         tabindex="0"

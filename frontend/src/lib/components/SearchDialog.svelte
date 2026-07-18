@@ -1,8 +1,5 @@
 <script lang="ts">
-  // Search overlay, opened from the header icon (field auto-focused). The query is debounced
-  // and hits GET /api/search; each result row shows its planned day since results span every
-  // date. Recurring tasks show as their series row. Tapping a row opens the editor inline
-  // (swapping the result list), so we never stack a second modal.
+  // Results edit inline to avoid stacking a second modal.
   import { onDestroy } from 'svelte'
   import { api, type TaskInput } from '../api'
   import type { Label, Task } from '../types'
@@ -28,25 +25,17 @@
   let loading = $state(false)
   let error = $state<string | null>(null)
   let busy = $state(false)
-  // True once a search has run for the current term, so we can tell "haven't
-  // typed yet" (prompt) apart from "searched, found nothing" (no results).
   let searched = $state(false)
-  // The task being edited inline, or null while browsing results. Editing swaps
-  // the result list for the composer (no stacked modal); saving/deleting re-runs
-  // the search so the list stays consistent with the query.
   let editing = $state<Task | null>(null)
 
   const labelFor = $derived(labelLookup(labels))
 
-  // Each result spans a different day, so label every row with its planned date
-  // (or "Inbox" for an unscheduled task) — context can't imply it here.
   function dateLabelFor(task: Task): string {
     return task.due_date ? formatShortDate(fromISODate(task.due_date)) : 'Inbox'
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined
-  // A monotonic token bumped on every keystroke; a slow earlier response whose
-  // token no longer matches is dropped, so results can't arrive out of order.
+  // Drop stale responses when a newer query has been issued.
   let token = 0
 
   $effect(() => {
@@ -64,7 +53,6 @@
   onDestroy(() => clearTimeout(timer))
 
   function onOpen() {
-    // Start fresh each time, then focus the field so you can type immediately.
     reset()
     inputEl?.focus()
     void loadLabels()
@@ -84,9 +72,7 @@
   async function loadLabels() {
     try {
       labels = await api.labels.list()
-    } catch {
-      // Labels are only decorative here (chips); a failure shouldn't block search.
-    }
+    } catch {}
   }
 
   function onInput(event: Event) {
@@ -120,8 +106,7 @@
     }
   }
 
-  // One in-flight guard for every mutation here (toggle / inline save / delete), routing
-  // failures to `error`. This overlay doesn't bind a TaskCore, so the scaffolding lives here.
+  // Serialize overlay mutations because this view has no TaskCore.
   async function run(fn: () => Promise<void>, failMsg: string) {
     if (busy) return
     busy = true
@@ -141,9 +126,6 @@
     }, 'Could not update the task')
   }
 
-  // Re-run the current search to refresh results after an edit/delete, so a
-  // renamed/rescheduled task shows its new state (or drops if it no longer
-  // matches). Only reachable from a result, so the query term is non-empty.
   function refresh() {
     const term = query.trim()
     if (term) void runSearch(term, ++token)
@@ -177,7 +159,6 @@
 >
   <div class="flex max-h-[84vh] flex-col">
     {#if editing}
-      <!-- Editing a result: a back-to-results header replaces the search box -->
       <div class="flex items-center gap-2 border-b border-lichen px-4 py-3">
         <button
           type="button"
@@ -220,7 +201,6 @@
         </button>
       </div>
     {:else}
-      <!-- Search box doubles as the dialog header -->
       <div class="flex items-center gap-2 border-b border-lichen px-4">
         <svg
           viewBox="0 0 24 24"
@@ -268,7 +248,6 @@
 
     <ErrorAlert {error} class="mx-4 mt-4" />
 
-    <!-- Body: the inline editor when a result is open, otherwise the results -->
     <div class="flex-1 overflow-y-auto px-4 py-4">
       {#if editing}
         <TaskComposer

@@ -1,8 +1,4 @@
-// Pure placement math for the desktop day panel (DayPanel): given the anchor day
-// cell's rect, the panel's measured size, and the viewport, return the fixed
-// top/left (viewport pixels) that keeps the panel beside the cell and fully on
-// screen. Kept out of the component so the geometry is unit-testable and the
-// component stays thin.
+// Pure placement math for the desktop day panel; keeps the panel within the viewport.
 
 export interface Box {
   top: number

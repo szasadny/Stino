@@ -1,13 +1,5 @@
-// Edge auto-scroll for drag gestures. svelte-dnd-action's built-in scroller only
-// kicks in while the pointer sits within ~30px INSIDE a scroll container's edge —
-// practically impossible to hit with a thumb mid-drag, so on a phone a held task
-// couldn't reach off-screen days. The `dragEdgeScroll` action widens that: attach it
-// to the scroll container and, while a dnd drag is live, holding the pointer near
-// (or slightly past) the container's top/bottom edge scrolls it, with speed
-// proportional to how deep into the edge zone the pointer sits. The decision — does
-// this pointer position scroll, which way, how fast — is pure math
-// (`edgeScrollStep`), kept separate and unit-tested; the action is just the thin
-// event/rAF plumbing around it.
+// Edge auto-scroll for dnd gestures. The pure `edgeScrollStep` calculation is
+// unit-tested; the action only wires pointer events and rAF updates.
 import type { Action } from 'svelte/action'
 import { DRAGGED_ELEMENT_ID } from 'svelte-dnd-action'
 
@@ -16,10 +8,7 @@ import { DRAGGED_ELEMENT_ID } from 'svelte-dnd-action'
 export const EDGE_ZONE_PX = 72
 export const MAX_STEP_PX = 14
 
-// How far OUTSIDE the container's box the pointer may drift (past the bottom of the
-// screen, over a header) while still driving the scroll — a thumb overshoots the
-// edge it is aiming for. Beyond this the pointer is over something else entirely
-// (another drop zone), so scrolling would yank the list around behind it.
+// Allow a small overshoot outside the container while the pointer aims at its edge.
 export const OUTSIDE_SLACK_PX = 40
 
 /**

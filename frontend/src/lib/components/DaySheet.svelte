@@ -1,9 +1,5 @@
 <script lang="ts">
-  // The day-zoom sheet (the phone Week's zoom). Shows a day's tasks grouped by label (via
-  // DayAgenda) and adds/edits one in place. The editor renders inline, not in its own dialog,
-  // so we never stack a modal; `onCreate`/`onUpdate` bubble up to the owning view, which does
-  // the API call and reloads, refreshing this sheet via its `tasks` prop. Driven by `date`
-  // (null = closed).
+  // Inline editing avoids stacking a modal over the phone day sheet.
   import type { Label, Task } from '../types'
   import type { TaskInput } from '../api'
   import { taskToDraft } from '../composer'
@@ -31,7 +27,6 @@
     date: Date | null
     tasks: Task[]
     labels: Label[]
-    // Forwarded to DayAgenda to lock drag-start while a mutation is in flight.
     pending?: boolean
     onToggle: (task: Task) => void
     onReorder?: (ids: number[]) => void
@@ -42,13 +37,11 @@
     onClose: () => void
   } = $props()
 
-  // null = browsing the agenda; otherwise the editor is open for an add or an edit.
   type Composing = { mode: 'add' } | { mode: 'edit'; task: Task }
   let composing = $state<Composing | null>(null)
   let busy = $state(false)
   let error = $state<string | null>(null)
 
-  // Whenever the sheet switches days (or closes), drop any in-progress edit/add.
   $effect(() => {
     date
     composing = null
@@ -80,8 +73,6 @@
     }
   }
 
-  // Delete the task being edited, then drop back to the agenda (the owning view
-  // reloads, refreshing this sheet's `tasks` prop).
   async function remove() {
     if (!composing || composing.mode !== 'edit' || busy) return
     busy = true

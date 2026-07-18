@@ -1,19 +1,10 @@
-// Directional month/week navigation as a calm slide instead of an instant swap.
-// Uses the View Transitions API scoped to the calendar pane — the element carrying
-// the `vt-calendar` class (`view-transition-name: calendar-pane`; app.css owns the
-// keyframes): the old period's snapshot slides out while the new one slides in from
-// the direction of travel. Because the API animates *snapshots*, the outgoing grid
-// never exists twice in the DOM — no duplicate `svelte-dnd-action` zones. The state
-// change (including the range fetch) runs *inside* the transition and is awaited,
-// so the incoming pane already shows the loaded tasks — no post-slide pop-in.
-// Progressive enhancement: without browser support, or when the user prefers
-// reduced motion, the update just applies instantly (the pre-existing behaviour).
+// View-Transitions navigation for calendar periods. State and range fetch run inside
+// the transition so snapshots avoid duplicate drag zones and the new pane is populated.
 import { tick } from 'svelte'
 
 export type NavDirection = 'forward' | 'back'
 
-// Distinguishes overlapping navigations: a rapid second swipe skips the running
-// transition, and only the newest navigation may clear the direction attribute.
+// A token prevents an older navigation from clearing a newer direction attribute.
 let navToken = 0
 
 export async function navigateWithSlide(

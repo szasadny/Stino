@@ -37,7 +37,6 @@ describe('groupByLabel', () => {
     expect(groups.map((g) => g.label?.id ?? null)).toEqual([2, 1, null])
     expect(groups[0].tasks.map((t) => t.id)).toEqual([11])
     expect(groups[1].tasks.map((t) => t.id)).toEqual([10])
-    // Unknown label (99) falls into "No label"; input order is preserved.
     expect(groups[2].tasks.map((t) => t.id)).toEqual([12, 13])
   })
 
@@ -66,7 +65,6 @@ describe('labelDayOrder', () => {
       task(13, 1),
       task(14, null),
     ]
-    // Timed stay 10, 11 (time order); untimed regroup: label 2 first, then 1, "No label" last.
     expect(labelDayOrder(tasks, labels).map((t) => t.id)).toEqual([10, 11, 12, 13, 14])
   })
 
@@ -84,7 +82,6 @@ describe('labelDayOrder', () => {
 
   it('is the identity for an all-unlabeled day', () => {
     const tasks = [task(10, null), task(11, null), timed(12, null, '08:00')]
-    // Callers pass timed-first input, so identity here means "unchanged order".
     const input = [tasks[2], tasks[0], tasks[1]]
     expect(labelDayOrder(input, [label(1, 0)])).toEqual(input)
   })
@@ -103,7 +100,6 @@ describe('dayViewGroups', () => {
     const groups = dayViewGroups(tasks, [label(1, 0), label(2, 1)], false)
     expect(groups).toHaveLength(1)
     expect(groups[0].label).toBeNull()
-    // Order is preserved exactly — matches what the month/week cells render.
     expect(groups[0].tasks.map((t) => t.id)).toEqual([10, 11, 12])
   })
 

@@ -1,16 +1,6 @@
-// Whether a day's tasks are ordered by label (the DEFAULT) or shown in the flat,
-// drag-sorted order — timed-first, then the one manual `sort_order` every view
-// shares (see lib/ordering.ts). This ONE preference drives every surface: the
-// month/week board projection (createCalendarBoard → buildBoard's label ordering)
-// and the day agendas (Today, phone day sheet), so all views flip together. The
-// flat List order remains available via the toggle (DayAgenda) or Settings.
-//
-// Module-level reactive state (like lib/viewport.svelte.ts), persisted to
-// localStorage like the theme so the choice survives a reload. Client-only SPA,
-// so reading storage at import time is safe. Exported through functions because
-// a reassigned `let` can't be exported as live reactive state.
+// Shared persisted preference for label-grouped vs flat day ordering.
 
-// Mirror this key if it ever changes; no other reader depends on the exact string.
+// Keep this key aligned with any other readers.
 const STORAGE_KEY = 'stino-day-grouping'
 
 function read(): boolean {

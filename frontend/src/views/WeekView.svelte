@@ -1,7 +1,4 @@
 <script lang="ts">
-  // The week view — a focused seven-day layout. Monday-first; seven columns on a wide screen
-  // reflow to a stacked column on a phone. Same gestures as the month grid, all via the
-  // shared TaskCore + calendar board; this view is thin glue + markup.
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { addWeeks, buildWeekGrid, formatWeekRange, startOfWeek, toISODate } from '../lib/date'
@@ -31,19 +28,13 @@
 
   const core = createTaskCore()
   const cal = createCalendarBoard(core, () => weekKeys, loadRange)
-  // The grid add/edit dialog ('add' = header "+", date prefilled; 'edit' = tapped pill).
   const composer = createGridComposer(core, loadRange)
 
   const sel = createCalendarSelection(core)
-  // The ISO key of the zoomed day, or null — drives the desktop DayPanel and freezes the
-  // matching grid cell (so the panel is the only live drag zone for that day).
+  // Freeze the zoomed cell so DayPanel is the only live drag zone for that day.
   const selectedKey = $derived(sel.selectedDate ? toISODate(sel.selectedDate) : null)
-  // The day-zoom sheet's add/edit/delete: throwing CRUD through the shared lock (reloads the
-  // range on success), so the sheet stays serialized with grid toggles/drags.
   const dayCrud = core.dayCrud(loadRange)
 
-  // Mount + overlay-close refresh: fetch the week's tasks and the labels together (an overlay
-  // may have changed either). Navigation uses the tasks-only loadRange.
   const loadAll = () =>
     core.loadWith(async () => {
       const [tasks, labels] = await Promise.all([
@@ -64,8 +55,6 @@
     )
   }
 
-  // Navigate inside a directional view-transition slide, awaiting the range fetch so the new
-  // week slides in already populated.
   function go(delta: number) {
     void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
       anchor = addWeeks(anchor, delta)

@@ -1,7 +1,4 @@
 <script lang="ts">
-  // The calm "nothing here" panel, shared by the list views (Inbox, Today,
-  // Search) so the empty-state styling is defined once. The cairn mark keeps it
-  // on-brand and warm rather than a bare dashed box.
   import Cairn from './Cairn.svelte'
 
   let { message }: { message: string } = $props()

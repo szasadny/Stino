@@ -1,25 +1,13 @@
-//! All SQL for the `task` and `completion` tables. Queries are compile-time
-//! checked; `"col!"` overrides force NOT-NULL/typed inference where SQLite
-//! reports a column as nullable (RETURNING, expressions, the `EXISTS` flag).
-//!
-//! `completed` is derived per row: a `completion` exists for this task at its
-//! current occurrence (`occurrence_date IS due_date` — the `IS` operator is
-//! null-safe, so an Inbox task with `due_date IS NULL` matches a NULL
-//! occurrence).
+//! SQL for `task` and `completion`. `completed` is derived from a completion at
+//! the current occurrence (`occurrence_date IS due_date`, null-safe for Inbox).
 
 use sqlx::{SqliteExecutor, SqlitePool};
 
 use super::assert_affected;
 use crate::domain::Task;
 
-// Every task SELECT returns the same columns, including a derived `completed`
-// flag (EXISTS a completion at this task's current occurrence). The column list
-// is repeated verbatim across the queries below because `query_as!` requires a
-// string literal it can check at compile time — a shared `const`, a `concat!`,
-// or a `macro_rules!` wrapper can't be spliced in (the macro verified this:
-// `query_as!` does not expand its SQL argument, it must be a literal). DRYing it
-// would mean dropping to a runtime `query_as` and losing the compile-time check,
-// which isn't worth it — so the projection is intentionally duplicated.
+// The projection is repeated because `query_as!` requires a literal SQL string
+// for compile-time checking.
 
 /// Inbox: unscheduled, not-yet-completed tasks (`due_date IS NULL`), in manual
 /// `sort_order`. Completed captures drop out — a done inbox task doesn't return.
@@ -501,7 +489,6 @@ pub async fn insert(
     recurrence_rule: Option<&str>,
     sort_order: i64,
 ) -> Result<Task, sqlx::Error> {
-    // A freshly inserted task is never completed, so the flag is the literal 0.
     sqlx::query_as!(
         Task,
         r#"INSERT INTO task (title, notes, label_id, due_date, due_time, recurrence_rule, sort_order)

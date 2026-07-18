@@ -12,7 +12,6 @@ describe('visibleLineCount', () => {
   })
 
   it('shows all when everything fits exactly', () => {
-    // capacity = floor(80 / 16) = 5 >= 5
     expect(visibleLineCount(5, 80, 16)).toBe(5)
   })
 
@@ -21,17 +20,14 @@ describe('visibleLineCount', () => {
   })
 
   it('fills the whole measured height on overflow (the "+N more" row lives outside it)', () => {
-    // capacity = 5, total 10 -> 5 visible, 5 more
     expect(visibleLineCount(10, 80, 16)).toBe(5)
   })
 
   it('caps one-over-capacity at capacity', () => {
-    // capacity = 5, total 6 -> 5 visible, 1 more
     expect(visibleLineCount(6, 80, 16)).toBe(5)
   })
 
   it('floors fractional capacity', () => {
-    // floor(50 / 16) = 3 capacity, total 5 -> 3 visible
     expect(visibleLineCount(5, 50, 16)).toBe(3)
   })
 
@@ -44,8 +40,6 @@ describe('visibleLineCount', () => {
   })
 
   it('accounts for the row gap between lines', () => {
-    // 4 lines of 16px + 3 gaps of 4px = 76px <= 80, a 5th would need +20 -> 96 > 80.
-    // Without the gap the naive floor(80/16)=5 would over-count and clip a line.
     expect(visibleLineCount(10, 80, 16, 4)).toBe(4)
   })
 

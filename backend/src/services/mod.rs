@@ -1,5 +1,4 @@
-//! Business logic: validation, recurrence expansion, import mapping, etc.
-//! Calls the `db` layer; never imports `axum` types or writes raw SQL.
+//! Business logic over the `db` layer; no HTTP types or raw SQL.
 
 pub mod import_service;
 pub mod label_service;

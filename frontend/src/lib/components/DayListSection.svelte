@@ -1,15 +1,5 @@
 <script lang="ts">
-  // One day as a full-width, readable section — the phone layout for the Week view and the
-  // selected day's agenda under the phone Month split grid. A weekday + date header over that
-  // day's tasks as one-line `slim` TaskRows.
-  //
-  // Optional props:
-  //  - `onSelect` makes the header tap to zoom into the day sheet.
-  //  - `onAdd` shows the quick-add "+" beside the header; `onClose` a close "×".
-  //  - `emptyLabel` shows placeholder text on an empty day; omit for a header-only row.
-  //  - `onConsider`/`onFinalize` (with `dateKey`) turn the rows into a `calendar` drop zone
-  //    bound to the owning view's board, so a task can be dragged to another day or reordered.
-  //    Drag is a whole-row press-and-hold so a tap still edits and a swipe still scrolls.
+  // Optional handlers turn the section into a calendar drop zone or day-sheet trigger.
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { dndzone, type DndEvent } from 'svelte-dnd-action'
@@ -39,7 +29,7 @@
     dateKey: string
     items: CellItem[]
     isToday: boolean
-    // While a mutation is in flight, lock drag-start so a move can't race it.
+    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onToggle: (task: Task) => void
@@ -47,7 +37,6 @@
     onSelect?: () => void
     onAdd?: () => void
     onClose?: () => void
-    // When both are given (with dateKey), the rows become a cross-day drop zone.
     onConsider?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     onFinalize?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     emptyLabel?: string
@@ -128,10 +117,7 @@
   </div>
 
   {#if draggable}
-    <!-- Cross-day / within-day drag zone: all day-sections share the `calendar` type. Kept a
-         valid drop target when empty via min-height. Relative wrapper so the empty-day
-         placeholder overlays the zone as a pointer-events-none sibling (a child would break
-         svelte-dnd-action's child↔item parity). -->
+    <!-- Keep the empty-day placeholder outside the zone; children must match dnd items. -->
     <div class="relative">
       <ul
         class="min-h-[2.75rem] space-y-2"

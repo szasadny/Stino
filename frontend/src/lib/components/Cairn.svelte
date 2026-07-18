@@ -1,8 +1,5 @@
 <script lang="ts">
-  // The Stinō mark: a cairn — three stacked trail stones. Each stone is a distinct
-  // forest tone (pine / moss / sage) and they sit with clear gaps and a slight
-  // natural lean, so it reads as a balanced stack of stones — never one smooth
-  // blob. The tones are theme tokens, so the mark adapts in dark mode.
+  // Theme-token fills keep the three-stone mark legible in dark mode.
   let { class: className = '' }: { class?: string } = $props()
 </script>
 

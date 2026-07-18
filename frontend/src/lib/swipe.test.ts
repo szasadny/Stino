@@ -18,7 +18,6 @@ describe('swipeDirection', () => {
   })
 
   it('ignores a mostly-vertical drag so scrolling never flips the month', () => {
-    // dx clears the threshold but dy dominates ⇒ this is a scroll, not a swipe.
     expect(swipeDirection(60, 120)).toBeNull()
   })
 

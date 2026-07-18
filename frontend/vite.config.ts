@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-// In dev the SPA runs on Vite (5173) and proxies /api to the Axum backend,
-// so the browser sees a single origin — no CORS, same as production.
+// Proxy API calls in dev so the browser sees the same origin as production.
 export default defineConfig({
   plugins: [svelte()],
   server: {

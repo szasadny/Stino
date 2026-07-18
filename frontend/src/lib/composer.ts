@@ -1,9 +1,4 @@
-// The shared task editor's data layer — pure, so it stays unit-testable and the
-// `TaskComposer` component holds no validation logic of its own. A `ComposerDraft`
-// is the editable shape (plain strings the form binds to); `draftToInput`
-// normalizes it into the API's `TaskInput`, mirroring the backend rules so the UI
-// never sends an invalid combination (a time or a recurrence rule both require a
-// date — see task_service::{require_date_for_time, validate_recurrence}).
+// Pure task-editor data layer. `draftToInput` mirrors backend date requirements.
 import type { TaskInput } from './api'
 import type { Task } from './types'
 

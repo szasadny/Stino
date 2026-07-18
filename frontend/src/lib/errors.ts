@@ -1,5 +1,4 @@
-// One place to turn a thrown value into a user-facing message, so every view
-// stops re-declaring the same two-line helper.
+// Convert thrown values to user-facing messages in one place.
 
 /** The message from an `Error`, or `fallback` for anything else thrown. */
 export function errorMessage(err: unknown, fallback: string): string {

@@ -1,6 +1,4 @@
-//! Stinō backend library crate. Module declarations live here (not in `main.rs`)
-//! so integration tests in `tests/` can build the router against a temp database
-//! — a binary-only crate can't be imported by its own tests.
+//! Backend library crate; keeping wiring here lets integration tests import it.
 
 pub mod config;
 pub mod db;
@@ -38,16 +36,11 @@ pub async fn run() -> anyhow::Result<()> {
     }
     .create_if_missing(true)
     .foreign_keys(true)
-    // WAL + NORMAL: commits append to the write-ahead log and defer fsync to
-    // checkpoint instead of fsync-ing on every autocommit (the default
-    // DELETE/FULL). A bulk import is thousands of single-row inserts; under the
-    // default that's thousands of fsyncs (minutes), under WAL it's a handful.
-    // Durable across app/OS crashes; only a power loss mid-checkpoint risks the
-    // last commits — fine for a single-user personal app (Hard Rule 8 holds).
+    // WAL + NORMAL avoids an fsync for every import row while retaining crash
+    // durability for normal app/OS failures.
     .journal_mode(SqliteJournalMode::Wal)
     .synchronous(SqliteSynchronous::Normal)
-    // With up to 5 pooled connections one writer can hold the lock; wait for it
-    // rather than failing the request with SQLITE_BUSY.
+    // Wait for a writer instead of failing with SQLITE_BUSY.
     .busy_timeout(Duration::from_secs(5));
 
     let pool = SqlitePoolOptions::new()
@@ -56,7 +49,6 @@ pub async fn run() -> anyhow::Result<()> {
         .await
         .context("connecting to SQLite")?;
 
-    // Migrations are embedded at compile time from ./migrations.
     sqlx::migrate!()
         .run(&pool)
         .await

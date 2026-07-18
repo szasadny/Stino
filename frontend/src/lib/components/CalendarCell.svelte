@@ -1,11 +1,6 @@
 <script lang="ts">
-  // One day in the desktop month grid: the day number plus that day's tasks as label-colored
-  // pills in a `calendar` drag zone, so a non-recurring task can be dragged to another day.
-  // The zone renders every item (svelte-dnd-action needs child↔item parity); pills past the
-  // measured fit are hidden with `invisible` and a "+N more" footer hints at the rest (fit
-  // math in lib/fit.ts). While this day's DayPanel is open (`open`), the cell freezes and
-  // renders pills statically — the panel is then the live zone, and two zones sharing one
-  // day's items would corrupt svelte-dnd-action.
+  // Keep child/item parity for svelte-dnd-action; hide overflow pills with `invisible`.
+  // When DayPanel is open, this cell freezes so only the panel owns the day's zone.
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -40,13 +35,12 @@
     items: CellItem[]
     inCurrentMonth: boolean
     isToday: boolean
-    // True while this day's floating DayPanel is open: the cell freezes (no drag zone).
+    // The open day is owned by DayPanel, so this cell must not mount a second zone.
     open?: boolean
-    // While a mutation is in flight, lock drag-start so a move can't race it.
+    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
-    // Add a task straight onto this day (the header "+"), skipping the day sheet.
     onAdd: () => void
     onEditTask: (task: Task) => void
     onToggle: (task: Task) => void
@@ -54,14 +48,13 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  // Measured list height, one pill's height, and the row gap — so the fit adapts to any screen.
+  // Measurements let fit logic adapt to the rendered cell size.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a real rendered pill rather than assume a pixel size. Only writes the measurement
-  // state (never reads it), so it can't loop.
+  // Measure a rendered pill; this effect only writes measurement state.
   $effect(() => {
     void items.length
     void listHeight
@@ -104,7 +97,6 @@
       {date.getDate()}
     </button>
 
-    <!-- Quick-add onto this day, revealed on cell hover/focus. -->
     <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" />
   </div>
 
@@ -123,7 +115,6 @@
   {/snippet}
 
   {#if open}
-    <!-- Frozen: the floating DayPanel owns this day's drag zone; render pills statically. -->
     <ul
       bind:this={listEl}
       bind:clientHeight={listHeight}

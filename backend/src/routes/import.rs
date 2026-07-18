@@ -1,5 +1,4 @@
-//! Thin handler for the TickTick CSV import: take the raw uploaded bytes, hand
-//! them to the import service, return the JSON summary. No business logic here.
+//! Thin TickTick CSV upload handler; mapping lives in the import service.
 
 use axum::body::Bytes;
 use axum::extract::State;

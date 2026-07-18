@@ -17,7 +17,6 @@ const task = (id: number, occurrence_date: string | null, completed = false): Ta
 
 describe('replaceOccurrence', () => {
   it('replaces only the row matching (id, occurrence_date)', () => {
-    // Same id, two occurrence days: only the matching one flips.
     const list = [task(1, '2026-06-01'), task(1, '2026-06-02'), task(2, null)]
     const out = replaceOccurrence(list, task(1, '2026-06-02', true))
 

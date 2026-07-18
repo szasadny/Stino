@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Manage labels: create, rename, recolor, delete. The dialog shell (header,
-  // close, backdrop, open/close) lives in Modal; this owns the list and the
-  // create/edit forms. Loads its list and focuses the name field each time it
-  // opens (via Modal's onOpen).
   import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import { api, type LabelInput } from '../api'
   import {
@@ -32,13 +28,10 @@
   let error = $state<string | null>(null)
   let busy = $state(false)
 
-  // Create draft.
   let newName = $state('')
   let newColor = $state<string>(LABEL_PALETTE[0].hex)
   let newEmoji = $state('')
 
-  // Inline edit state (one row at a time). The delete-confirm is owned by each
-  // row's DeleteConfirm component, so no per-row confirm state lives here.
   let editingId = $state<number | null>(null)
   let editName = $state('')
   let editColor = $state('')
@@ -127,10 +120,7 @@
     }
   }
 
-  // Drag-to-reorder the label list — this order is the global label `sort_order` (it drives
-  // the grouped day view's section order). `labels` is the owned dnd source, mutated only by
-  // consider/finalize. Locked while editing a row or a request is in flight. Wide grabs the
-  // grip; a phone press-and-holds the whole row — `isCompact()` mounts exactly one zone.
+  // `labels` is the owned dnd source; consider/finalize mutate it while edits and requests lock drag.
   const compact = $derived(isCompact())
   const reorderable = $derived(labels.length > 1 && editingId === null && !busy)
   let preDrag: Label[] = []
@@ -145,7 +135,6 @@
     preDrag = []
     labels = e.detail.items
     const ids = labels.map((l) => l.id)
-    // A drop in the same spot needs no write.
     if (ids.join() === before.map((l) => l.id).join()) return
     busy = true
     error = null
@@ -251,7 +240,6 @@
 >
   <ErrorAlert {error} class="mx-5 mt-4" />
 
-  <!-- Create a new label -->
   <form
     class="border-b border-lichen px-5 py-4"
     onsubmit={(e) => {
@@ -287,7 +275,6 @@
     </div>
   </form>
 
-  <!-- Existing labels -->
   <div class="flex-1 overflow-y-auto px-5 py-4">
     {#if loading}
       <p class="py-6 text-center text-sm text-sage">Loading…</p>
@@ -348,7 +335,6 @@
         {/if}
       {/snippet}
       {#if compact}
-        <!-- Phone: press-and-hold anywhere on a row (its buttons excepted) to drag. -->
         <ul
           class="space-y-2"
           use:dndzone={{

@@ -20,7 +20,6 @@ const task = (id: number, occurrence_date: string | null, over: Partial<Task> = 
 
 const item = (t: Task): CellItem => ({ id: cellItemId(t), task: t })
 
-// A minimal stand-in for svelte-dnd-action's finalize event.
 const event = (
   items: CellItem[],
   trigger: (typeof TRIGGERS)[keyof typeof TRIGGERS],
@@ -40,7 +39,6 @@ describe('dropKind', () => {
   it('reorders within the day on a same-day untimed drop (the cell owns untimed order)', () => {
     const a = task(1, '2026-06-02')
     const moved = task(9, '2026-06-02')
-    // Dropped so the moved pill now leads the cell: untimed order is [9, 1].
     const e = event([item(moved), item(a)], TRIGGERS.DROPPED_INTO_ZONE, cellItemId(moved))
     expect(dropKind(e, '2026-06-02', [a, moved])).toEqual({ kind: 'reorder', ids: [9, 1] })
   })
@@ -113,7 +111,6 @@ describe('applyMove', () => {
     const moved = out.find((t) => t.id === 9)!
     expect(moved.due_date).toBe('2026-06-02')
     expect(moved.occurrence_date).toBe('2026-06-02')
-    // Sorted: the dest day's untimed run is [1, 2, 9] (moved last).
     expect(out.filter((t) => t.occurrence_date === '2026-06-02').map((t) => t.id)).toEqual([
       1, 2, 9,
     ])

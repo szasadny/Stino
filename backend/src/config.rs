@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 
-// Domain constants — the single source of truth for validation limits and the
-// local date/time wire formats, shared across the service layer so no value is
-// written twice. (Runtime, environment-driven settings live in `Config` below.)
+// Shared validation limits and local date/time wire formats.
 
 /// Cap titles so list rows stay legible; notes are unbounded (free text).
 pub const MAX_TITLE_LEN: usize = 200;

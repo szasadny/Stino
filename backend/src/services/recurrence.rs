@@ -1,13 +1,6 @@
-//! Recurrence: parse / validate an RFC-5545 RRULE and expand it over a date
-//! window. The `rrule` crate does the RFC heavy lifting — we never hand-roll a
-//! date-recursion engine (External Solutions First).
-//!
-//! Per Hard Rule 7 occurrences are **calendar dates**, not instants: the series
-//! start is anchored at UTC midnight and we only ever read each occurrence's
-//! *date* back. Because nothing is converted between timezones, no occurrence can
-//! be shifted to the wrong day. (The single configured `TZ` governs how a date is
-//! displayed, not how the rule expands — a daily rule lands on the same calendar
-//! dates everywhere.)
+//! Parse, validate, and expand RFC-5545 RRULEs over local calendar-date windows.
+//! Occurrences are anchored at UTC midnight and only their date component is
+//! used, so timezone conversion cannot shift an occurrence to another day.
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeZone};
 use rrule::{Frequency, RRule, RRuleSet, Tz, Unvalidated};
@@ -104,8 +97,7 @@ pub fn expand(
     if to < from {
         return Ok(Vec::new());
     }
-    // `after`/`before` are inclusive in the rrule crate; the explicit date filter
-    // below is the exact, authoritative bound (belt and suspenders).
+    // Apply the explicit date bounds after expansion as the authoritative filter.
     let set = build(rule, dtstart)?
         .after(at_midnight(from))
         .before(at_midnight(to));
@@ -125,9 +117,7 @@ pub fn expand(
         .map(|dt| dt.date_naive())
         .filter(|d| *d >= from && *d <= to)
         .collect();
-    // Belt and braces: distinct datetimes mapping onto one date would render
-    // duplicate rows. Occurrences come back ascending, so adjacent dedup is
-    // complete.
+    // Collapse distinct datetimes that map to the same calendar date.
     dates.dedup();
     Ok(dates)
 }

@@ -2,20 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Theme tokens as RGB channel triplets so Tailwind's `/opacity` modifiers keep
- * working — the tokens are defined as `rgb(var(--x) / <alpha-value>)` in
- * tailwind.config.js. Dark mode ("forest at night") simply re-points the same
- * variables under prefers-color-scheme, so every `bg-fog` / `text-ink` adapts
- * automatically with no per-component `dark:` classes.
- *
- * Default is System (the prefers-color-scheme block below). Settings → Light/Dark
- * sets a `data-theme` attribute on <html> (see theme.ts) that overrides the OS:
- * the media query is guarded with `:not([data-theme])` so an explicit choice wins.
- * Accents (pine/moss/…) are LIFTED to read on the dark ground — pine/pine-deep go
- * light so the existing `bg-pine text-surface` buttons stay readable (dark text on
- * a light fill). Label colors are user data and intentionally NOT themed.
- */
+/* RGB channels keep Tailwind opacity modifiers working; themes re-point the same vars. */
 :root {
   color-scheme: light;
   --fog: 244 246 243;
@@ -28,23 +15,14 @@
   --ink: 43 51 46;
   --sage: 107 119 112;
   --lichen: 221 227 221;
-  /* Modal/overlay scrim (pine-deep's light value). Intentionally NOT re-pointed
-   * in the dark blocks below: a backdrop should always darken the page, never
-   * invert to a light wash, so this stays fixed across themes. */
+  /* Keep the backdrop scrim dark in every theme. */
   --scrim: 30 58 52;
-  /* Calendar cell grounds. Light: in-month cells are the crisp surface, other
-   * months recede to fog. Dark SWAPS these (below) — in-month uses the deep night
-   * ground and other-month days are the lighter slate, so the current month reads
-   * as the calm dark field rather than a grid of grey panels. */
+  /* Cell grounds swap in dark mode so the current month remains the focus. */
   --cell: 251 252 250;
   --cell-out: 244 246 243;
 }
 
-/* System mode (no explicit choice): follow the OS.
- * "Forest at night" — the ground is a calm, COOL blue-charcoal (night sky and
- * shadow), deliberately NOT green-tinted: green-on-black reads as an old terminal.
- * Evergreen stays only in the ACCENTS (pine/moss), so the forest shows as colour
- * against the cool night, and text is a soft, cool off-white rather than glaring. */
+/* System mode follows the OS when no explicit theme is selected. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
@@ -63,9 +41,7 @@
   }
 }
 
-/* Manual override (Settings → Dark) — wins over the OS regardless of source order
- * via the attribute selector's higher specificity. Light needs no block: it falls
- * through to :root above, and the media query's :not([data-theme]) skips it. */
+/* Explicit dark mode wins over the system media query. */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --fog: 18 23 28;
@@ -91,9 +67,7 @@
     @apply bg-fog text-ink antialiased;
   }
 
-  /* A single, restrained atmosphere so the app never sits on a dead-flat fill: one
-   * soft cool gradient from the top — "light between the peaks" by day, a faint
-   * moonlit sky at night. Token-driven (adapts to dark), fixed + behind content. */
+  /* A token-driven gradient adds a restrained background atmosphere. */
   body::before {
     content: '';
     position: fixed;
@@ -104,16 +78,7 @@
   }
 }
 
-/* Gentle, calm entrance — a short fade + tiny rise. Used for view mounts (never
- * bouncy, per the design language). Respects reduced motion.
- *
- * Fill mode is `backwards`, not `both`, on purpose: a forwards-filling transform
- * animation stays permanently "in effect", so the browser keeps the animated
- * element as a containing block for its descendants — which traps a nested modal
- * <dialog> (the day sheet) into this element's coordinate space instead of the
- * viewport, so on a scrolled phone it opens next to the tapped cell rather than
- * pinned to the screen. The final frame is the default (`transform: none`), so
- * dropping the forwards fill is visually identical but lets the element go idle. */
+/* `backwards` avoids leaving an animated ancestor as a containing block for dialogs. */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -129,11 +94,6 @@
   animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-/* The completion send-off (TaskRow `completing`, driven by the Inbox) — three beats
- * that read clearly without turning bouncy: the checkmark scales in while the WHOLE
- * circle pops and casts one soft expanding pine ring (a single ripple, not a pulse),
- * and a strike line draws itself across the title. Ordinary completed rows render
- * statically; calendar/today toggles keep their plain color transition. */
 @keyframes check-pop {
   from {
     opacity: 0;
@@ -170,8 +130,7 @@
   animation: check-burst 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Strike line drawing left→right through the title. A separate bar (not
- * text-decoration, which can't animate) so the strike visibly lands. */
+/* Separate bar because text-decoration cannot animate. */
 .strike-draw {
   position: relative;
 }
@@ -205,31 +164,20 @@
   }
 }
 
-/* Directional slide for month/week navigation (View Transitions API — the
- * plumbing lives in lib/nav-transition.ts). The calendar pane carries
- * `vt-calendar`; while a navigation transition runs, the old period slides out
- * and the new one slides in from the direction of travel, clipped to the pane's
- * box. Browsers without the API never start a transition, so they keep the
- * plain instant swap; reduced motion is honoured in nav-transition.ts. */
+/* View Transition slide for the calendar pane; unsupported browsers swap instantly. */
 .vt-calendar {
   view-transition-name: calendar-pane;
 }
 
-/* Only the calendar pane participates — opting the root out keeps the rest of
- * the page LIVE during the ~0.3s slide (a captured element is skipped for
- * painting and hit-testing, so with the default root snapshot the whole page
- * would go inert and eat a fast follow-up swipe). The swipe listeners sit on
- * the section around the pane for the same reason. */
+/* Exclude the root snapshot so the rest of the page stays interactive during the slide. */
 :root {
   view-transition-name: none;
 }
 
-/* The snapshot overlay itself must not swallow pointer events either. */
 ::view-transition {
   pointer-events: none;
 }
 
-/* The slide stays inside the pane, like content moving past a window. */
 ::view-transition-image-pair(calendar-pane) {
   overflow: clip;
 }

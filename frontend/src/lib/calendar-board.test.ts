@@ -91,7 +91,6 @@ describe('buildBoard', () => {
         keys,
         labels,
       )
-      // Timed first (input order), then untimed by label sort_order, unlabeled last.
       expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([1, 3, 2, 4])
       expect(board['2026-06-02'].map((it) => it.task.id)).toEqual([5])
     })
@@ -107,7 +106,6 @@ describe('buildBoard', () => {
         keys,
         labels,
       )
-      // Unfinished in label order (timed would lead), then completed in label order.
       expect(board['2026-06-01'].map((it) => it.task.id)).toEqual([3, 2, 4, 1])
     })
 

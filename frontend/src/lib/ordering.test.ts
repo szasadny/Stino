@@ -34,7 +34,6 @@ describe('untimedReadingOrder', () => {
       { label: label(2), tasks: [task(20)] },
       { label: null, tasks: [task(30)] },
     ]
-    // 10 is timed (excluded); the rest keep group-then-within-group order.
     expect(untimedReadingOrder(groups)).toEqual([11, 12, 20, 30])
   })
 
@@ -63,21 +62,17 @@ describe('applyUntimedOrder', () => {
 
   it('ignores unknown ids and never reorders a timed task into the untimed run', () => {
     const tasks = [timed(1, '09:00'), task(2)]
-    // 99 is unknown; 1 is timed — both skipped from the untimed run.
     const result = applyUntimedOrder(tasks, [99, 1, 2])
     expect(result.map((t) => t.id)).toEqual([1, 2])
   })
 
   it('preserves untimed tasks on OTHER days when reordering one day of a range', () => {
-    // A whole-range list (as month/week views hold): reordering 2026-06-02's untimed
-    // must not drop 2026-06-05's untimed task.
     const tasks = [
       task(1, { occurrence_date: '2026-06-02', due_date: '2026-06-02', sort_order: 0 }),
       task(2, { occurrence_date: '2026-06-02', due_date: '2026-06-02', sort_order: 1 }),
       task(9, { occurrence_date: '2026-06-05', due_date: '2026-06-05', sort_order: 0 }),
     ]
     const result = applyUntimedOrder(tasks, [2, 1])
-    // Day 06-02 flipped to [2, 1]; day 06-05's task is still present.
     expect(result.map((t) => t.id)).toEqual([2, 1, 9])
     expect(result.find((t) => t.id === 9)).toBeTruthy()
   })
@@ -92,8 +87,6 @@ describe('sortForView', () => {
       task(2, { sort_order: 5 }), // 2026-06-01, untimed
       timed(1, '08:00'), // 2026-06-01, timed, earlier
     ]
-    // Day 06-01: timed 08:00 (1), timed 09:00 (3), then untimed (2);
-    // day 06-02: untimed by sort_order — 4 (0) then 5 (1).
     expect(sortForView(tasks).map((t) => t.id)).toEqual([1, 3, 2, 4, 5])
   })
 

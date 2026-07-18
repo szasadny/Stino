@@ -1,7 +1,5 @@
-// The month/week drop-zone layer on top of a TaskCore: one mutable CellItem[] per day,
-// projected from the core's tasks, plus the drag handlers. A grid drag MOVES a task to
-// another day (see move.ts) — within-day order is owned by the day view. Instantiate at
-// component-init in Month/Week so its $effect attaches to that view's lifecycle.
+// Grid drop zones layered over TaskCore. A cross-day drag moves a task; same-day order
+// belongs to the day view. Instantiate at component init so the effect follows the view.
 import { untrack } from 'svelte'
 import { type DndEvent } from 'svelte-dnd-action'
 import { api } from '../api'
@@ -18,10 +16,7 @@ export function createCalendarBoard(
   let board = $state<Record<string, CellItem[]>>({})
   let dragging = $state(false)
 
-  // Project tasks → board, but NEVER while a gesture is live: `dragging` is read untracked,
-  // so this re-runs on a real data change (a move/toggle landing, a reload) yet can't clobber
-  // svelte-dnd-action's in-flight `e.detail.items`. When the by-label preference is on (the
-  // default), each day is projected into label order — display only, `sort_order` untouched.
+  // Never re-project while dnd owns an in-flight list; by-label ordering is display-only.
   $effect(() => {
     const next = buildBoard(core.tasks, keys(), groupByLabelView() ? core.labels : undefined)
     if (untrack(() => dragging)) return
@@ -39,16 +34,12 @@ export function createCalendarBoard(
     const plan = dropKind(e, key, core.tasks)
     if (plan.kind === 'none') return
     if (plan.kind === 'reorder') {
-      // Same-cell drop: persist the day's new untimed order (range-safe — other days are
-      // untouched). The guarded effect re-projects the board from the reordered tasks.
+      // Persist same-day untimed order without touching other days.
       void core.reorder(plan.ids)
       return
     }
     if (plan.kind === 'move-occurrence') {
-      // Dragging ONE instance of a recurring task: detach it server-side (the series keeps
-      // repeating, this instance becomes a one-off on the new day), then reload — the
-      // server assigns the new task's id and re-expands the series, so a refetch is the
-      // correct resync rather than an optimistic guess.
+      // Detach one recurring occurrence, then reload to receive the new one-off id.
       void core.save(
         () =>
           api.tasks.moveOccurrence(plan.taskId, plan.occurrenceDate, plan.newDate).then(() => {}),
@@ -57,9 +48,7 @@ export function createCalendarBoard(
       )
       return
     }
-    // Optimistic move: apply locally (the guarded effect re-projects the board to match),
-    // then persist the new date and, for an untimed task, the dest day's order. No reload —
-    // that's what made the move "jump back" before.
+    // Apply and persist the move optimistically; untimed tasks also persist destination order.
     void core.optimistic(
       () => {
         core.tasks = applyMove(core.tasks, plan.movedId, key)
@@ -70,11 +59,8 @@ export function createCalendarBoard(
         try {
           await api.tasks.reorder(plan.reorderIds)
         } catch (err) {
-          // The date update already landed, so the plain snapshot revert would lie (the
-          // server has the task on the new day). Kick off a range reload BEFORE rethrowing:
-          // it bumps the load token synchronously, so `optimistic`'s catch skips the revert
-          // and the fetched server truth wins. loadWith doesn't take the `pending` lock, so
-          // this can't deadlock. The rethrow still surfaces the move error.
+          // The date write landed; reload before rethrowing so server state replaces the
+          // optimistic snapshot rather than reverting to the old day.
           void reload()
           throw err
         }

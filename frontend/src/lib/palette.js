@@ -1,13 +1,5 @@
-// The fixed, nature-derived label palette — the SINGLE frontend source of the
-// label colors a user can assign. Imported by `constants.ts` (the UI swatches)
-// and by `tailwind.config.js` (the `label.*` utility colors), so the hexes live
-// in exactly one place on the frontend. Plain JS, not TS, because the Tailwind
-// config is loaded outside the TypeScript pipeline and must be able to import it
-// at runtime.
-//
-// The backend keeps its own copy (`backend/src/domain/label.rs`) for color
-// validation — it can't import JS — and a unit test there guards it against
-// drifting from this list. Keep the two in sync.
+// Single frontend source for assignable label colors; Tailwind imports this plain JS
+// module. Keep it aligned with backend label validation.
 export const LABEL_PALETTE = [
   { name: 'pine', hex: '#2F5D50' },
   { name: 'moss', hex: '#6F8F6B' },

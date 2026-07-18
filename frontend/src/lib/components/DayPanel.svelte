@@ -1,11 +1,6 @@
 <script lang="ts">
-  // The desktop day-zoom: a small floating, non-modal card anchored beside the tapped cell.
-  // With no backdrop the grid behind stays interactive, so a task can be dragged out onto
-  // another day's cell — this panel is just another `type: 'calendar'` zone bound to the same
-  // board cell the grid uses, so move.ts handles every gesture. The open day's grid cell must
-  // freeze while the panel is up (two zones sharing one day's items would corrupt
-  // svelte-dnd-action), which the view does via the cell's `open` prop. Phone uses the
-  // full-screen DaySheet instead. Placement math: lib/panel-pos.ts.
+  // This non-modal panel shares the day's `calendar` zone with the grid; the open cell freezes
+  // to avoid duplicate svelte-dnd-action zones. Phone uses DaySheet instead.
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -32,10 +27,9 @@
     dateKey: string
     items: CellItem[]
     labelFor: (task: Task) => Label | undefined
-    // While a mutation is in flight, lock drag-start so a move can't race it.
+    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     dragging?: boolean
-    // The view's calendar-board handlers — shared with the grid cells, keyed by day.
     onConsider: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
     onToggle: (task: Task) => void
@@ -50,7 +44,6 @@
       : `${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
   )
 
-  // Anchor the fixed-position card beside its day cell.
   let panelW = $state(0)
   let panelH = $state(0)
   let pos = $state<{ left: number; top: number } | null>(null)
@@ -67,7 +60,6 @@
   }
 
   $effect(() => {
-    // Re-anchor when the tapped day or the measured panel size changes.
     dateKey
     panelW
     panelH
@@ -77,7 +69,6 @@
   $effect(() => {
     const onWin = () => recompute()
     window.addEventListener('resize', onWin)
-    // Capture-phase: catch scrolls on inner containers too, so the card tracks its cell.
     window.addEventListener('scroll', onWin, true)
     return () => {
       window.removeEventListener('resize', onWin)
@@ -85,8 +76,7 @@
     }
   })
 
-  // Escape closes the panel — but only when no modal dialog (the composer) is open on
-  // top of it, so its own Escape isn't stolen.
+  // Do not steal Escape while a composer dialog is open above the panel.
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.querySelector('dialog[open]')) onClose()

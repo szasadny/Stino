@@ -1,6 +1,5 @@
-//! All SQL for the `label` table. Queries are compile-time-checked against the
-//! schema; the `"col!"` overrides force NOT-NULL inference (SQLite + RETURNING
-//! otherwise reports columns as nullable).
+//! SQL for the `label` table. `"col!"` overrides force NOT-NULL inference where
+//! SQLite otherwise reports nullable columns.
 
 use sqlx::{SqliteExecutor, SqlitePool};
 

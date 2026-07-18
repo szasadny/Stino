@@ -1,7 +1,4 @@
-// Pure layout math for the phone month cell (CalendarCellMobile): given the
-// measured available height and a measured per-line height, how many task lines
-// should it render. Kept pure and unit-tested so the cell fits its content to any
-// screen size with NO hardcoded line cap — the count is derived from real pixels.
+// Pure layout math for phone month cells; capacity comes from measured pixels.
 
 /**
  * How many of `total` task lines to show in `listHeight` px, given a measured

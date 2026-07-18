@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { panelPosition, type Box, type Size } from './panel-pos'
 
-// A day cell somewhere in the middle-left of a roomy viewport.
 const cell = (over: Partial<Box> = {}): Box => ({
   top: 200,
   left: 300,
@@ -23,7 +22,6 @@ describe('panelPosition', () => {
   })
 
   it('flips to the left of the cell when the right would overflow', () => {
-    // A cell hugging the right edge: right+gap+panel would exceed viewport width.
     const c = cell({ left: 1160, right: 1240 })
     const { left } = panelPosition(c, panel, viewport)
     expect(left).toBe(1160 - 8 - 300) // cell.left - gap - panel.width
@@ -33,8 +31,6 @@ describe('panelPosition', () => {
     const narrow: Size = { width: 360, height: 800 }
     const c = cell({ left: 40, right: 320 })
     const { left } = panelPosition(c, panel, narrow, 8, 8)
-    // Right overflows (320+8+300+8 > 360) so it flips left to 40-8-300 = -268,
-    // then clamps to the left margin.
     expect(left).toBe(8)
   })
 

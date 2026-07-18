@@ -1,5 +1,4 @@
-//! Thin HTTP handlers for task CRUD + completion: parse the request, call one
-//! service, shape the response. No business logic, no SQL.
+//! Thin task CRUD and completion handlers.
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;

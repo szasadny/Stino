@@ -1,4 +1,4 @@
-// Shared types mirroring the API contract — single source of truth on the client.
+// Shared client types mirroring the API contract.
 
 export interface Label {
   id: number
@@ -8,24 +8,18 @@ export interface Label {
   sort_order: number
 }
 
-// Result of a TickTick CSV import (mirrors the backend `ImportSummary`). The
-// import is add-only, so a re-run appends; `skipped` counts rows that couldn't
-// be mapped (e.g. a row with no title).
+// TickTick import summary; imports are add-only and unmappable rows are skipped.
 export interface ImportSummary {
   created: { tasks: number; labels: number; completions: number }
   skipped: number
 }
 
-// Result of the overdue rollover (POST /tasks/rollover): how many uncompleted,
-// non-recurring tasks with a past due_date were moved onto today.
+// Number of overdue non-recurring tasks moved to today.
 export interface RolloverSummary {
   moved: number
 }
 
-// A bulk operation applied to many tasks at once (Inbox multi-select), sent to
-// POST /tasks/batch. Mirrors the backend `BatchOpBody` tagged enum: `type` is
-// the discriminator. `label_id: null` clears the label; `schedule` moves the
-// tasks out of the Inbox onto `due_date`.
+// Tagged bulk operation for Inbox multi-select.
 export type BatchOp =
   | { type: 'label'; label_id: number | null }
   | { type: 'schedule'; due_date: string }

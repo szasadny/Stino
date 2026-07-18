@@ -1,6 +1,4 @@
-//! Task business rules: validate input, merge partial updates, apply the view
-//! sort rule, expand recurring tasks over a window, and record completions.
-//! Never imports `axum` or SQL.
+//! Task validation, sorting, recurrence expansion, and completion rules.
 
 use std::collections::HashSet;
 

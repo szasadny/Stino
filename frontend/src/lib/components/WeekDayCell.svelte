@@ -1,10 +1,5 @@
 <script lang="ts">
-  // One day in the desktop week grid: a weekday + date header and that day's tasks as
-  // label-colored pills in a `calendar` drag zone, so a non-recurring task can be dragged to
-  // another day (a phone shows WeekView's stacked DayListSection instead). The zone renders
-  // every item (child↔item parity); pills past the measured fit are hidden with `invisible`
-  // and a "+N more" footer hints at the rest (fit math in lib/fit.ts). While this day's
-  // DayPanel is open (`open`), the cell freezes and renders pills statically.
+  // Keep child/item parity for svelte-dnd-action and freeze the cell while DayPanel owns its zone.
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -37,13 +32,12 @@
     dateKey: string
     items: CellItem[]
     isToday: boolean
-    // True while this day's floating DayPanel is open: the cell freezes (no drag zone).
+    // The open day is owned by DayPanel, so this cell must not mount a second zone.
     open?: boolean
-    // While a mutation is in flight, lock drag-start so a move can't race it.
+    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
-    // Add a task straight onto this day (the header "+"), skipping the day sheet.
     onAdd: () => void
     onEditTask: (task: Task) => void
     onToggle: (task: Task) => void
@@ -56,8 +50,7 @@
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a real rendered pill rather than assume a pixel size. Only writes the measurement
-  // state (never reads it), so it can't loop.
+  // Measure a rendered pill; this effect only writes measurement state.
   $effect(() => {
     void items.length
     void listHeight
@@ -105,14 +98,12 @@
       </span>
     </button>
 
-    <!-- Quick-add onto this day; the "+" stays visible on a phone, hover-revealed on desktop. -->
     <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
   </div>
 
   {#snippet pills(canDrag: boolean)}
     {#each items as item, i (item.id)}
-      <!-- shrink-0: keep each pill's natural height so a full cell hides overflow pills
-           cleanly instead of flex-compressing them (which corrupts the measured line height). -->
+      <!-- Keep natural pill height so fit measurements match the rendered list. -->
       <li class="shrink-0 {i >= visible && !isShadow(item) ? 'invisible' : ''}">
         <TaskPill
           task={item.task}
@@ -126,7 +117,6 @@
   {/snippet}
 
   {#if open}
-    <!-- Frozen: the floating DayPanel owns this day's drag zone; render pills statically. -->
     <ul
       bind:this={listEl}
       bind:clientHeight={listHeight}
