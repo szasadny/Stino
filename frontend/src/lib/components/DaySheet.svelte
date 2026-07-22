@@ -93,7 +93,7 @@
   {onClose}
   title={date ? formatDayFull(date) : ''}
   {subtitle}
-  panelClass="m-2 h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
+  panelClass="m-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
   containerClass="h-full sm:h-auto sm:max-h-[85vh]"
 >
   <!-- dragEdgeScroll: a long day still reorders by touch — holding a task near the

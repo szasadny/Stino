@@ -55,23 +55,48 @@
     )
   }
 
+  // Fetch the target week's range BEFORE the transition so the page never freezes on the
+  // network; the transition callback only swaps period state + commits the fetched data.
   function go(delta: number) {
-    void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
-      anchor = addWeeks(anchor, delta)
-      sel.selectedDate = null
-      await loadRange()
-    })
+    const nextAnchor = addWeeks(anchor, delta)
+    const nextWeek = buildWeekGrid(nextAnchor)
+    void core.loadThrough(
+      async () => ({
+        tasks: await api.tasks.range(
+          toISODate(nextWeek[0]),
+          toISODate(nextWeek[nextWeek.length - 1]),
+        ),
+      }),
+      (commit) =>
+        navigateWithSlide(delta > 0 ? 'forward' : 'back', () => {
+          anchor = nextAnchor
+          sel.selectedDate = null
+          commit()
+        }),
+      'Could not load the week',
+    )
   }
 
   function goThisWeek() {
     const targetKey = toISODate(startOfWeek(today))
-    void navigateWithSlide(
-      targetKey > weekKeys[0] ? 'forward' : targetKey < weekKeys[0] ? 'back' : null,
-      async () => {
-        anchor = today
-        sel.selectedDate = null
-        await loadRange()
-      },
+    const nextWeek = buildWeekGrid(today)
+    void core.loadThrough(
+      async () => ({
+        tasks: await api.tasks.range(
+          toISODate(nextWeek[0]),
+          toISODate(nextWeek[nextWeek.length - 1]),
+        ),
+      }),
+      (commit) =>
+        navigateWithSlide(
+          targetKey > weekKeys[0] ? 'forward' : targetKey < weekKeys[0] ? 'back' : null,
+          () => {
+            anchor = today
+            sel.selectedDate = null
+            commit()
+          },
+        ),
+      'Could not load the week',
     )
   }
 </script>

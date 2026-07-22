@@ -1,5 +1,7 @@
-// View-Transitions navigation for calendar periods. State and range fetch run inside
-// the transition so snapshots avoid duplicate drag zones and the new pane is populated.
+// View-Transitions navigation for calendar periods. The range fetch runs BEFORE the
+// transition (see task-core `loadThrough`); `apply` here only commits the already-fetched
+// state, so the snapshot avoids duplicate drag zones and the new pane is populated — without
+// freezing the page on the network while rendering is paused.
 import { tick } from 'svelte'
 
 export type NavDirection = 'forward' | 'back'

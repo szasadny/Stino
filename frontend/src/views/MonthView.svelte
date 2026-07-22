@@ -84,14 +84,18 @@
   onMount(loadAll)
   onRefresh(loadAll)
 
-  function rangeBounds(): [string, string] {
-    let from = grid[0]
-    let to = grid[grid.length - 1]
+  function rangeBoundsFor(g: Date[]): [string, string] {
+    let from = g[0]
+    let to = g[g.length - 1]
     if (sel.selectedDate) {
       if (sel.selectedDate < from) from = sel.selectedDate
       else if (sel.selectedDate > to) to = sel.selectedDate
     }
     return [toISODate(from), toISODate(to)]
+  }
+
+  function rangeBounds(): [string, string] {
+    return rangeBoundsFor(grid)
   }
 
   function loadRange() {
@@ -102,22 +106,36 @@
     )
   }
 
+  // Fetch the target month's range BEFORE the transition so the page never freezes on the
+  // network; the transition callback only swaps period state + commits the fetched data.
   function go(delta: number) {
-    void navigateWithSlide(delta > 0 ? 'forward' : 'back', async () => {
-      const next = addMonths(viewYear, viewMonth, delta)
-      viewYear = next.year
-      viewMonth = next.month
-      await loadRange()
-    })
+    const next = addMonths(viewYear, viewMonth, delta)
+    const [from, to] = rangeBoundsFor(buildMonthGrid(next.year, next.month))
+    void core.loadThrough(
+      async () => ({ tasks: await api.tasks.range(from, to) }),
+      (commit) =>
+        navigateWithSlide(delta > 0 ? 'forward' : 'back', () => {
+          viewYear = next.year
+          viewMonth = next.month
+          commit()
+        }),
+      'Could not load the calendar',
+    )
   }
 
   function goToday() {
     const delta = (today.getFullYear() - viewYear) * 12 + (today.getMonth() - viewMonth)
-    void navigateWithSlide(delta > 0 ? 'forward' : delta < 0 ? 'back' : null, async () => {
-      viewYear = today.getFullYear()
-      viewMonth = today.getMonth()
-      await loadRange()
-    })
+    const [from, to] = rangeBoundsFor(buildMonthGrid(today.getFullYear(), today.getMonth()))
+    void core.loadThrough(
+      async () => ({ tasks: await api.tasks.range(from, to) }),
+      (commit) =>
+        navigateWithSlide(delta > 0 ? 'forward' : delta < 0 ? 'back' : null, () => {
+          viewYear = today.getFullYear()
+          viewMonth = today.getMonth()
+          commit()
+        }),
+      'Could not load the calendar',
+    )
   }
 </script>
 
@@ -213,6 +231,7 @@
             inCurrentMonth={isSameMonth(date, viewMonth)}
             isToday={gridKeys[i] === todayKey}
             open={gridKeys[i] === selectedKey}
+            dropTarget={cal.dropKey === gridKeys[i]}
             labelFor={sel.labelFor}
             onSelect={() => (sel.selectedDate = gridKeys[i] === selectedKey ? null : date)}
             onConsider={cal.consider}

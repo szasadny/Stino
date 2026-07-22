@@ -29,8 +29,12 @@ export function createTaskCore() {
   // Only the newest load may write state.
   let loadToken = 0
 
-  async function loadWith(
+  // Fetch first, then commit through a wrapper (e.g. a View Transition) so the network
+  // wait never happens inside the wrapper's paused-rendering window — only the cheap
+  // state swap does. `loadWith` is the plain case where the commit runs immediately.
+  async function loadThrough(
     fetcher: () => Promise<{ tasks: Task[]; labels?: Label[] }>,
+    commitWrap: (commit: () => void) => Promise<void>,
     failMsg = 'Could not load',
   ): Promise<void> {
     const mine = ++loadToken
@@ -39,13 +43,23 @@ export function createTaskCore() {
     try {
       const data = await fetcher()
       if (mine !== loadToken) return
-      tasks = data.tasks
-      if (data.labels) labels = data.labels
+      await commitWrap(() => {
+        if (mine !== loadToken) return // a newer load won while the wrapper ran
+        tasks = data.tasks
+        if (data.labels) labels = data.labels
+      })
     } catch (err) {
       if (mine === loadToken) error = errorMessage(err, failMsg)
     } finally {
       if (mine === loadToken) loading = false
     }
+  }
+
+  function loadWith(
+    fetcher: () => Promise<{ tasks: Task[]; labels?: Label[] }>,
+    failMsg = 'Could not load',
+  ): Promise<void> {
+    return loadThrough(fetcher, async (commit) => commit(), failMsg)
   }
 
   // Optimistic mutation primitive; returns false when locked or failed.
@@ -168,6 +182,7 @@ export function createTaskCore() {
       return pending
     },
     loadWith,
+    loadThrough,
     optimistic,
     run,
     save,

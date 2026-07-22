@@ -56,7 +56,7 @@
 
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-<div class="flex h-svh flex-col overflow-hidden">
+<div class="flex h-dvh flex-col overflow-hidden">
   <header
     class="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
   >
@@ -164,7 +164,7 @@
   </main>
 
   <nav
-    class="z-20 flex shrink-0 border-t border-lichen/80 bg-surface/85 backdrop-blur-md md:hidden"
+    class="z-20 flex shrink-0 border-t border-lichen/80 bg-surface/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
   >
     {#each VIEWS as view (view.id)}
       <button

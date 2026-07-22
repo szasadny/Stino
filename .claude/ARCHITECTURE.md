@@ -289,9 +289,11 @@ Behaviours that matter:
 - `nav-transition.ts` — `navigateWithSlide(dir, apply)`: directional month/week navigation as a
   View-Transitions slide scoped to the `vt-calendar` pane (`view-transition-name: calendar-pane`,
   keyframes in `app.css`). Snapshot-based, so the outgoing grid never exists twice in the DOM (no
-  duplicate dnd zones); `apply` (including the range fetch) runs and is awaited *inside* the
-  transition, so the new period slides in already populated. No API support or
-  `prefers-reduced-motion` ⇒ applies instantly.
+  duplicate dnd zones). The range is fetched *before* the transition via task-core's `loadThrough`
+  (fetch first, then commit through a wrapper), so rendering never pauses on the network; `apply`
+  here only swaps the period state and commits the already-fetched data, so the new period still
+  slides in already populated without a frozen frame. No API support or `prefers-reduced-motion` ⇒
+  applies instantly.
 - `phantom-click.ts` — swallows the ONE stray "compatibility" click a touch tap emits on the
   `delayTouchStart` path (the library dispatches a synthetic tap→click AND the browser fires the
   native one), so it can't hit the editor that mounts at the tap point. Arms only on

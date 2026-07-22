@@ -1,6 +1,7 @@
 <script lang="ts">
   // Unmodelled RRULEs stay read-only and are preserved until explicitly cleared.
   import { untrack } from 'svelte'
+  import { slide } from 'svelte/transition'
   import {
     buildRRule,
     MONTH_WEEKDAY_OPTIONS,
@@ -57,6 +58,8 @@
   const isWeekdaysPreset = $derived(
     weekdays.length === WORKDAYS.length && WORKDAYS.every((c) => weekdays.includes(c)),
   )
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const MONTHDAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1)
 
@@ -151,172 +154,179 @@
       {/each}
     </div>
 
-    {#if freq === 'weekly'}
-      <div class="flex flex-wrap items-center gap-1">
-        {#each WEEKDAY_OPTIONS as day (day.code)}
-          <button
-            type="button"
-            onclick={() => toggleWeekday(day.code)}
-            aria-pressed={weekdays.includes(day.code)}
-            class="h-7 w-9 rounded-lg border text-xs font-medium transition {weekdays.includes(
-              day.code,
-            )
-              ? 'border-pine bg-pine/10 text-pine'
-              : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-          >
-            {day.label}
-          </button>
-        {/each}
-        <button
-          type="button"
-          onclick={selectWeekdays}
-          aria-pressed={isWeekdaysPreset}
-          class="ml-1 h-7 rounded-lg border px-2.5 text-xs font-medium transition {isWeekdaysPreset
-            ? 'border-pine bg-pine/10 text-pine'
-            : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-        >
-          Weekdays
-        </button>
-      </div>
-    {/if}
-
-    {#if freq === 'monthly'}
-      <div class="space-y-2">
-        <div class="flex gap-1">
-          <button
-            type="button"
-            onclick={() => setMonthlyMode('monthday')}
-            aria-pressed={monthlyMode === 'monthday'}
-            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {monthlyMode ===
-            'monthday'
-              ? 'border-pine bg-pine/10 text-pine'
-              : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-          >
-            On a date
-          </button>
-          <button
-            type="button"
-            onclick={() => setMonthlyMode('weekday')}
-            aria-pressed={monthlyMode === 'weekday'}
-            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {monthlyMode ===
-            'weekday'
-              ? 'border-pine bg-pine/10 text-pine'
-              : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-          >
-            On a weekday
-          </button>
-        </div>
-
-        {#if monthlyMode === 'monthday'}
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs text-sage">Repeat on the</span>
-            <select
-              bind:value={monthday}
-              onchange={emit}
-              aria-label="Day of the month"
-              class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
-            >
-              {#each MONTHDAY_OPTIONS as day (day)}
-                <option value={day}>{day}</option>
-              {/each}
-              <option value={-1}>Last day</option>
-            </select>
-          </div>
-          {#if monthday > 28}
-            <p class="text-xs text-sage">Months without this day are skipped.</p>
-          {/if}
-        {:else}
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs text-sage">Repeat on the</span>
-            <select
-              bind:value={position}
-              onchange={emit}
-              aria-label="Which week"
-              class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
-            >
-              {#each ORDINAL_OPTIONS as option (option.value)}
-                <option value={option.value}>{option.label}</option>
-              {/each}
-            </select>
-            <select
-              bind:value={monthWeekday}
-              onchange={emit}
-              aria-label="Weekday"
-              class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
-            >
-              {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}
-                <option value={day.code}>{day.label}</option>
-              {/each}
-            </select>
-          </div>
-          {#if position === 5 && monthWeekday !== WORKDAY_CODE}
-            <p class="text-xs text-sage">Months without a fifth one are skipped.</p>
-          {/if}
-        {/if}
-      </div>
-    {/if}
-
-    {#if freq === 'custom'}
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-sage">Every</span>
-        <input
-          type="number"
-          min="1"
-          max="365"
-          value={interval}
-          oninput={onInterval}
-          aria-label="Repeat interval"
-          class="w-16 rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
-        />
-        <div class="flex gap-1">
-          <button
-            type="button"
-            onclick={() => setUnit('day')}
-            aria-pressed={unit === 'day'}
-            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {unit === 'day'
-              ? 'border-pine bg-pine/10 text-pine'
-              : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-          >
-            days
-          </button>
-          <button
-            type="button"
-            onclick={() => setUnit('week')}
-            aria-pressed={unit === 'week'}
-            class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {unit === 'week'
-              ? 'border-pine bg-pine/10 text-pine'
-              : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
-          >
-            weeks
-          </button>
-        </div>
-      </div>
-    {/if}
-
     {#if freq !== 'none'}
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs text-sage">Ends</span>
-        <input
-          type="date"
-          value={until ?? ''}
-          min={startDate ?? undefined}
-          onchange={onUntil}
-          aria-label="Repeat end date"
-          class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
-        />
-        {#if until}
-          <button
-            type="button"
-            onclick={clearUntil}
-            class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark"
-          >
-            Clear
-          </button>
-        {:else}
-          <span class="text-xs text-sage">never</span>
+      <!-- Inset panel visually anchors the freq-specific options to the selected mode. -->
+      <div
+        transition:slide={{ duration: reduceMotion ? 0 : 150 }}
+        class="space-y-2 rounded-lg border border-lichen bg-fog/70 p-2.5"
+      >
+        {#if freq === 'weekly'}
+          <span class="block text-xs font-medium text-sage">On days</span>
+          <div class="flex flex-wrap items-center gap-1">
+            {#each WEEKDAY_OPTIONS as day (day.code)}
+              <button
+                type="button"
+                onclick={() => toggleWeekday(day.code)}
+                aria-pressed={weekdays.includes(day.code)}
+                class="h-7 w-9 rounded-lg border text-xs font-medium transition {weekdays.includes(
+                  day.code,
+                )
+                  ? 'border-pine bg-pine/10 text-pine'
+                  : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+              >
+                {day.label}
+              </button>
+            {/each}
+            <button
+              type="button"
+              onclick={selectWeekdays}
+              aria-pressed={isWeekdaysPreset}
+              class="ml-1 h-7 rounded-lg border px-2.5 text-xs font-medium transition {isWeekdaysPreset
+                ? 'border-pine bg-pine/10 text-pine'
+                : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+            >
+              Weekdays
+            </button>
+          </div>
         {/if}
+
+        {#if freq === 'monthly'}
+          <div class="flex gap-1">
+            <button
+              type="button"
+              onclick={() => setMonthlyMode('monthday')}
+              aria-pressed={monthlyMode === 'monthday'}
+              class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {monthlyMode ===
+              'monthday'
+                ? 'border-pine bg-pine/10 text-pine'
+                : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+            >
+              On a date
+            </button>
+            <button
+              type="button"
+              onclick={() => setMonthlyMode('weekday')}
+              aria-pressed={monthlyMode === 'weekday'}
+              class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {monthlyMode ===
+              'weekday'
+                ? 'border-pine bg-pine/10 text-pine'
+                : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+            >
+              On a weekday
+            </button>
+          </div>
+
+          {#if monthlyMode === 'monthday'}
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs text-sage">Repeat on the</span>
+              <select
+                bind:value={monthday}
+                onchange={emit}
+                aria-label="Day of the month"
+                class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+              >
+                {#each MONTHDAY_OPTIONS as day (day)}
+                  <option value={day}>{day}</option>
+                {/each}
+                <option value={-1}>Last day</option>
+              </select>
+            </div>
+            {#if monthday > 28}
+              <p class="text-xs text-sage">Months without this day are skipped.</p>
+            {/if}
+          {:else}
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs text-sage">Repeat on the</span>
+              <select
+                bind:value={position}
+                onchange={emit}
+                aria-label="Which week"
+                class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+              >
+                {#each ORDINAL_OPTIONS as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+              <select
+                bind:value={monthWeekday}
+                onchange={emit}
+                aria-label="Weekday"
+                class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+              >
+                {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}
+                  <option value={day.code}>{day.label}</option>
+                {/each}
+              </select>
+            </div>
+            {#if position === 5 && monthWeekday !== WORKDAY_CODE}
+              <p class="text-xs text-sage">Months without a fifth one are skipped.</p>
+            {/if}
+          {/if}
+        {/if}
+
+        {#if freq === 'custom'}
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-sage">Every</span>
+            <input
+              type="number"
+              min="1"
+              max="365"
+              value={interval}
+              oninput={onInterval}
+              aria-label="Repeat interval"
+              class="w-16 rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+            />
+            <div class="flex gap-1">
+              <button
+                type="button"
+                onclick={() => setUnit('day')}
+                aria-pressed={unit === 'day'}
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {unit ===
+                'day'
+                  ? 'border-pine bg-pine/10 text-pine'
+                  : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+              >
+                days
+              </button>
+              <button
+                type="button"
+                onclick={() => setUnit('week')}
+                aria-pressed={unit === 'week'}
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-medium transition {unit ===
+                'week'
+                  ? 'border-pine bg-pine/10 text-pine'
+                  : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
+              >
+                weeks
+              </button>
+            </div>
+          </div>
+        {/if}
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-sage">Ends</span>
+          <input
+            type="date"
+            value={until ?? ''}
+            min={startDate ?? undefined}
+            onchange={onUntil}
+            aria-label="Repeat end date"
+            class="rounded-lg border border-lichen bg-surface px-2 py-1.5 text-sm text-ink outline-none transition focus:border-pine"
+          />
+          {#if until}
+            <button
+              type="button"
+              onclick={clearUntil}
+              class="rounded-lg px-2 py-1 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark"
+            >
+              Clear
+            </button>
+          {:else}
+            <span class="text-xs text-sage">never</span>
+          {/if}
+        </div>
+        <p class="text-xs text-sage">{summary} · needs a date</p>
       </div>
-      <p class="text-xs text-sage">{summary} · needs a date</p>
     {/if}
   {/if}
 </div>

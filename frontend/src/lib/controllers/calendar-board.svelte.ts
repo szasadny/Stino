@@ -1,7 +1,7 @@
 // Grid drop zones layered over TaskCore. A cross-day drag moves a task; same-day order
 // belongs to the day view. Instantiate at component init so the effect follows the view.
 import { untrack } from 'svelte'
-import { type DndEvent } from 'svelte-dnd-action'
+import { SHADOW_ITEM_MARKER_PROPERTY_NAME, type DndEvent } from 'svelte-dnd-action'
 import { api } from '../api'
 import { buildBoard, type CellItem } from '../calendar-board'
 import { groupByLabelView } from '../group-view.svelte'
@@ -15,6 +15,8 @@ export function createCalendarBoard(
 ) {
   let board = $state<Record<string, CellItem[]>>({})
   let dragging = $state(false)
+  // The day whose zone currently holds the dragged shadow item — the live drop target.
+  let dropKey = $state<string | null>(null)
 
   // Never re-project while dnd owns an in-flight list; by-label ordering is display-only.
   $effect(() => {
@@ -26,9 +28,15 @@ export function createCalendarBoard(
   function consider(key: string, e: CustomEvent<DndEvent<CellItem>>) {
     dragging = true
     board[key] = e.detail.items
+    // Highlight whichever cell now holds the shadow placeholder; a tiny month cell
+    // hides the per-list ring under the finger, so mark the whole target day instead.
+    const hasShadow = e.detail.items.some((it) => SHADOW_ITEM_MARKER_PROPERTY_NAME in it)
+    if (hasShadow) dropKey = key
+    else if (dropKey === key) dropKey = null
   }
 
   function finalize(key: string, e: CustomEvent<DndEvent<CellItem>>) {
+    dropKey = null
     board[key] = e.detail.items
     dragging = false // clear before persisting so the optimistic update can re-project
     const plan = dropKind(e, key, core.tasks)
@@ -75,6 +83,9 @@ export function createCalendarBoard(
     },
     get dragging() {
       return dragging
+    },
+    get dropKey() {
+      return dropKey
     },
     consider,
     finalize,

@@ -16,6 +16,7 @@
     inCurrentMonth,
     isToday,
     open = false,
+    dropTarget = false,
     labelFor,
     onSelect,
     onConsider,
@@ -28,6 +29,8 @@
     isToday: boolean
     // The open day is owned by the agenda, so this cell must not mount a second zone.
     open?: boolean
+    // True while a dragged task hovers this cell — marks the whole cell as the drop target.
+    dropTarget?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
     onConsider: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
@@ -82,7 +85,8 @@
     : inCurrentMonth
       ? 'border-lichen bg-cell'
       : 'border-lichen/70 bg-cell-out'}
-    {open ? 'ring-2 ring-inset ring-pine/50' : ''}"
+    {open ? 'ring-2 ring-inset ring-pine/50' : ''}
+    {dropTarget ? 'border-pine bg-pine/10 ring-2 ring-inset ring-pine/60' : ''}"
 >
   <span
     class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums
@@ -111,6 +115,9 @@
         type: 'calendar',
         flipDurationMs: DND_FLIP_MS,
         dragDisabled: true,
+        // Keep the floating clone at its agenda-row size; morphing to the 10px cell line
+        // shrinks it to an unreadable sliver under the finger.
+        morphDisabled: true,
         dropTargetStyle: {},
         dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],
         zoneItemTabIndex: -1,
