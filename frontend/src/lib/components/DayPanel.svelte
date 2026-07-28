@@ -132,6 +132,7 @@
       use:dragHandleZone={{
         items,
         type: 'calendar',
+        useCursorForDetection: true,
         flipDurationMs: DND_FLIP_MS,
         delayTouchStart: DND_GRID_TOUCH_HOLD_MS,
         dragDisabled: pending,

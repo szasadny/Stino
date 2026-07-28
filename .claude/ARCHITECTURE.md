@@ -402,7 +402,8 @@ layout per view.
 - Phone drag: the agenda rows and the cells share ONE `type: 'calendar'` zone bound to the same
   `calendar-board`, so a press-and-held agenda row drops onto any cell to reschedule. The cells are
   **drop-only** (`dragDisabled` — their lines are too small to grab); the selected day's cell
-  **freezes** (no zone) while its agenda is that day's live zone.
+  **freezes** (no zone) while its agenda is that day's live zone. Calendar drop hit-testing uses
+  the held pointer/finger point, not the dragged tile's center.
 - Dwelling a held task near the bottom of the view hides the agenda (`hidden` — see invariants) so
   the whole grid becomes the drop surface (`MONTH_EXPAND_ZONE_PX` / `MONTH_EXPAND_HOLD_MS`; the
   dwell state machine is `createBottomDwell` in `lib/drag-scroll.ts`, fed by both `touchmove` and

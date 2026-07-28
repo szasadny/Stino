@@ -113,6 +113,7 @@
       use:dndzone={{
         items,
         type: 'calendar',
+        useCursorForDetection: true,
         flipDurationMs: DND_FLIP_MS,
         dragDisabled: true,
         // Keep the floating clone at its agenda-row size; morphing to the 10px cell line
