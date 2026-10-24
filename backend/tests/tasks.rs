@@ -1919,3 +1919,122 @@ async fn rollover_again_moves_nothing_and_a_bad_date_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+/// The dates the series `id` lands on in `[from, to]`.
+async fn series_dates(app: &Router, id: i64, from: &str, to: &str) -> Vec<String> {
+    let (_, range) = send(app, get(&format!("/api/tasks?from={from}&to={to}"))).await;
+    range
+        .as_array()
+        .expect("array")
+        .iter()
+        .filter(|d| d["id"].as_i64() == Some(id))
+        .map(|d| d["occurrence_date"].as_str().expect("date").to_string())
+        .collect()
+}
+
+async fn skip(app: &Router, id: i64, date: &str) -> StatusCode {
+    send(
+        app,
+        json_req(
+            "POST",
+            &format!("/api/tasks/{id}/skip_occurrence"),
+            json!({ "occurrence_date": date }),
+        ),
+    )
+    .await
+    .0
+}
+
+#[tokio::test]
+async fn skipping_an_occurrence_removes_only_that_date() {
+    let app = test_app().await;
+    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+
+    assert_eq!(skip(&app, id, "2026-06-08").await, StatusCode::NO_CONTENT);
+    assert_eq!(
+        series_dates(&app, id, "2026-06-01", "2026-06-15").await,
+        ["2026-06-01", "2026-06-15"],
+        "Jun 8 is gone; the series keeps repeating"
+    );
+    // No one-off copy is created (unlike a move).
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
+    assert_eq!(range.as_array().expect("array").len(), 2);
+
+    // Idempotent: skipping again is still a 204 and changes nothing.
+    assert_eq!(skip(&app, id, "2026-06-08").await, StatusCode::NO_CONTENT);
+    assert_eq!(
+        series_dates(&app, id, "2026-06-01", "2026-06-15").await,
+        ["2026-06-01", "2026-06-15"]
+    );
+}
+
+#[tokio::test]
+async fn skipping_a_completed_occurrence_is_rejected_and_keeps_it() {
+    let app = test_app().await;
+    let task = create_task(
+        &app,
+        json!({"title":"Water plants","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{id}/completions?occurrence_date=2026-06-02"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert_eq!(skip(&app, id, "2026-06-02").await, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        series_dates(&app, id, "2026-06-01", "2026-06-03").await,
+        ["2026-06-01", "2026-06-02", "2026-06-03"],
+        "the completed occurrence is still in the series"
+    );
+    let (status, body) = send(&app, get("/api/tasks?from=2026-06-02&to=2026-06-02")).await;
+    assert_eq!(status, StatusCode::OK);
+    let done: Vec<bool> = body
+        .as_array()
+        .expect("array")
+        .iter()
+        .filter(|t| t["id"].as_i64() == Some(id))
+        .map(|t| t["completed"].as_bool().expect("completed"))
+        .collect();
+    assert_eq!(done, [true], "its completion is kept");
+}
+
+#[tokio::test]
+async fn skipping_an_occurrence_of_a_missing_task_is_404() {
+    let app = test_app().await;
+    assert_eq!(skip(&app, 9999, "2026-06-01").await, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn skipping_an_occurrence_of_a_non_recurring_task_is_rejected() {
+    let app = test_app().await;
+    let task = create_task(&app, json!({"title":"One-off","due_date":"2026-06-01"})).await;
+    let id = task["id"].as_i64().expect("id");
+    assert_eq!(skip(&app, id, "2026-06-01").await, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn skipping_a_bad_or_non_member_date_is_rejected() {
+    let app = test_app().await;
+    let task = create_task(
+        &app,
+        json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    // Jun 3 2026 is a Wednesday — not an occurrence.
+    assert_eq!(skip(&app, id, "2026-06-03").await, StatusCode::BAD_REQUEST);
+    assert_eq!(skip(&app, id, "June 8").await, StatusCode::BAD_REQUEST);
+}

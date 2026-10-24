@@ -15,6 +15,8 @@
     onSubmit,
     onClose,
     onDelete,
+    onDeleteOccurrence,
+    canDeleteOccurrence = true,
   }: {
     open: boolean
     title: string
@@ -25,6 +27,8 @@
     onSubmit: (input: TaskInput) => void
     onClose: () => void
     onDelete?: () => void
+    onDeleteOccurrence?: () => void
+    canDeleteOccurrence?: boolean
   } = $props()
 </script>
 
@@ -44,6 +48,8 @@
         {busy}
         {onSubmit}
         {onDelete}
+        {onDeleteOccurrence}
+        {canDeleteOccurrence}
         onCancel={onClose}
       />
     {/if}

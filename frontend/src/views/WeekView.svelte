@@ -228,6 +228,7 @@
     onCreate={dayCrud.create}
     onUpdate={dayCrud.update}
     onDelete={dayCrud.remove}
+    onDeleteOccurrence={dayCrud.removeOccurrence}
     onClose={() => (sel.selectedDate = null)}
   />
 {:else if sel.selectedDate && selectedKey}
@@ -256,5 +257,7 @@
   busy={core.pending}
   onSubmit={composer.submit}
   onDelete={composer.onDelete}
+  onDeleteOccurrence={composer.onDeleteOccurrence}
+  canDeleteOccurrence={composer.canDeleteOccurrence}
   onClose={composer.close}
 />

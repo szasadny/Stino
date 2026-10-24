@@ -1,6 +1,7 @@
 // Shared Month/Week task-dialog state and CRUD routing through TaskCore.
 import { api, type TaskInput } from '../api'
 import { taskToDraft, type ComposerDraft } from '../composer'
+import { canSkipOccurrence, skippableOccurrence } from '../task-actions'
 import type { Task } from '../types'
 import type { TaskCore } from './task-core.svelte'
 
@@ -46,6 +47,14 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
       editing = null
   }
 
+  // Delete just the edited recurring occurrence; the rest of the series stays.
+  async function removeOccurrence(): Promise<void> {
+    if (editing?.mode !== 'edit') return
+    const occurrence = skippableOccurrence(editing.task)
+    if (occurrence == null || !canSkipOccurrence(editing.task)) return
+    if (await core.removeOccurrence(editing.task.id, occurrence)) editing = null
+  }
+
   return {
     add,
     edit,
@@ -69,6 +78,16 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
     // Present only when editing — the dialog shows a Delete button when this is set.
     get onDelete(): (() => void) | undefined {
       return editing?.mode === 'edit' ? remove : undefined
+    },
+    // Present only when editing a recurring occurrence — Delete then asks occurrence vs series.
+    get onDeleteOccurrence(): (() => void) | undefined {
+      return editing?.mode === 'edit' && skippableOccurrence(editing.task) != null
+        ? removeOccurrence
+        : undefined
+    },
+    // False for a completed occurrence — it's history, so only the whole series can go.
+    get canDeleteOccurrence(): boolean {
+      return editing?.mode !== 'edit' || canSkipOccurrence(editing.task)
     },
   }
 }

@@ -6,6 +6,7 @@
   import { formatDayFull, toISODate } from '../date'
   import { dragEdgeScroll } from '../drag-scroll'
   import { errorMessage } from '../errors'
+  import { canSkipOccurrence, skippableOccurrence } from '../task-actions'
   import DayAgenda from './DayAgenda.svelte'
   import ErrorAlert from './ErrorAlert.svelte'
   import Modal from './Modal.svelte'
@@ -22,6 +23,7 @@
     onCreate,
     onUpdate,
     onDelete,
+    onDeleteOccurrence,
     onClose,
   }: {
     date: Date | null
@@ -34,6 +36,7 @@
     onCreate?: (input: TaskInput) => Promise<void>
     onUpdate?: (id: number, input: TaskInput) => Promise<void>
     onDelete?: (id: number) => Promise<void>
+    onDeleteOccurrence?: (id: number, occurrenceDate: string) => Promise<void>
     onClose: () => void
   } = $props()
 
@@ -73,18 +76,33 @@
     }
   }
 
-  async function remove() {
+  // Run one delete flavour (whole task/series or a single occurrence) with the sheet's
+  // own busy/error handling; success returns to the day agenda.
+  async function runDelete(del: (task: Task) => Promise<void> | undefined, failMsg: string) {
     if (!composing || composing.mode !== 'edit' || busy) return
     busy = true
     error = null
     try {
-      await onDelete?.(composing.task.id)
+      await del(composing.task)
       composing = null
     } catch (err) {
-      error = errorMessage(err, 'Could not delete the task')
+      error = errorMessage(err, failMsg)
     } finally {
       busy = false
     }
+  }
+
+  function remove() {
+    return runDelete((task) => onDelete?.(task.id), 'Could not delete the task')
+  }
+
+  function removeOccurrence() {
+    return runDelete((task) => {
+      const occurrence = skippableOccurrence(task)
+      return occurrence == null || !canSkipOccurrence(task)
+        ? undefined
+        : onDeleteOccurrence?.(task.id, occurrence)
+    }, 'Could not delete the occurrence')
   }
 </script>
 
@@ -114,6 +132,12 @@
           submitLabel={composing.mode === 'edit' ? 'Save' : 'Add'}
           onSubmit={submit}
           onDelete={composing.mode === 'edit' && onDelete ? remove : undefined}
+          onDeleteOccurrence={composing.mode === 'edit' &&
+          onDeleteOccurrence &&
+          skippableOccurrence(composing.task) != null
+            ? removeOccurrence
+            : undefined}
+          canDeleteOccurrence={composing.mode !== 'edit' || canSkipOccurrence(composing.task)}
           onCancel={() => (composing = null)}
         />
       {/key}

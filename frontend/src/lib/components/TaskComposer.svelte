@@ -7,6 +7,7 @@
   import { INPUT_CLASS, PRIMARY_BTN_CLASS, TITLE_MAX_LENGTH } from '../constants'
   import { toISODate } from '../date'
   import DeleteConfirm from './DeleteConfirm.svelte'
+  import RecurringDeleteConfirm from './RecurringDeleteConfirm.svelte'
   import RecurrencePicker from './RecurrencePicker.svelte'
 
   let {
@@ -17,6 +18,8 @@
     onSubmit,
     onCancel,
     onDelete,
+    onDeleteOccurrence,
+    canDeleteOccurrence = true,
   }: {
     labels: Label[]
     initial?: Partial<ComposerDraft>
@@ -25,6 +28,11 @@
     onSubmit: (input: TaskInput) => void
     onCancel: () => void
     onDelete?: () => void
+    // Set when editing one occurrence of a recurring task: Delete then asks
+    // "this occurrence" (this) vs "whole series" (`onDelete`).
+    onDeleteOccurrence?: () => void
+    // False for a completed occurrence: the popup still opens, "this occurrence" is disabled.
+    canDeleteOccurrence?: boolean
   } = $props()
 
   const draft = $state<ComposerDraft>(untrack(() => emptyDraft(initial)))
@@ -188,7 +196,14 @@
       <p class="text-xs text-sage">Changes apply to the whole series.</p>
     {/if}
     <div class="flex items-center justify-between gap-3">
-      {#if onDelete}
+      {#if onDelete && onDeleteOccurrence}
+        <RecurringDeleteConfirm
+          {onDeleteOccurrence}
+          onDeleteSeries={onDelete}
+          {busy}
+          {canDeleteOccurrence}
+        />
+      {:else if onDelete}
         <DeleteConfirm onConfirm={onDelete} {busy} />
       {:else}
         <span></span>

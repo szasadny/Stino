@@ -11,7 +11,7 @@ import type { Label, Task } from '../types'
 import { errorMessage } from '../errors'
 import { applyLabelOrder, mergeLabelOrder } from '../labels'
 import { applyUntimedOrder } from '../ordering'
-import { replaceOccurrence, toggleCompletion } from '../task-actions'
+import { replaceOccurrence, toggleCompletion, withoutOccurrence } from '../task-actions'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
@@ -235,6 +235,18 @@ export function createTaskCore() {
       )
     },
 
+    // Delete ONE occurrence of a recurring task: drop just its `(id, occurrence_date)` row,
+    // then skip that date server-side (revert on failure). The series keeps repeating.
+    removeOccurrence(id: number, occurrenceDate: string): Promise<boolean> {
+      return optimistic(
+        () => {
+          tasks = withoutOccurrence(tasks, id, occurrenceDate)
+        },
+        () => api.tasks.skipOccurrence(id, occurrenceDate),
+        'Could not delete the occurrence',
+      )
+    },
+
     // Throwing create/update/delete bound to a view's range `reload`, for the Month/Week day
     // sheet (which owns its inline error). Each routes through the shared `pending` lock and
     // reloads on success, so a day-sheet edit serializes against grid toggles/drags and the
@@ -247,6 +259,8 @@ export function createTaskCore() {
         update: (id: number, input: TaskInput) =>
           through(() => api.tasks.update(id, input).then(() => {})),
         remove: (id: number) => through(() => api.tasks.remove(id).then(() => {})),
+        removeOccurrence: (id: number, occurrenceDate: string) =>
+          through(() => api.tasks.skipOccurrence(id, occurrenceDate)),
       }
     },
   }

@@ -103,7 +103,15 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
   - Monthly first/last **workday**: same BYSETPOS rule over the full Mon–Fri set
     `FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=n` (picker models it via a `WD` sentinel weekday)
   - Yearly (on the start date's month and day): `FREQ=YEARLY`
-  - Custom every N days/weeks: `FREQ=DAILY|WEEKLY;INTERVAL=n`
+  - Custom every N days: `FREQ=DAILY;INTERVAL=n` (never carries BYDAY)
+  - Custom every N weeks: `FREQ=WEEKLY;INTERVAL=n` + `;BYDAY=…` when weekdays are picked (same
+    Monday-first, deduped toggle row as Weekly; none ⇒ repeats on the start weekday), e.g.
+    `INTERVAL=2;BYDAY=MO,WE` = "Every 2 weeks on Mon, Wed". The phase is anchored at DTSTART's week.
+    Parsing: `FREQ=WEEKLY` at `INTERVAL>1` ⇒ Custom weeks (weekdays kept); otherwise Weekly
+  - Custom every N months: `FREQ=MONTHLY;INTERVAL=n;…` + any of the monthly BY… shapes above
+    (e.g. `INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1` = every 3 months on the last workday). The
+    phase is anchored at DTSTART's month. Parsing: a modeled monthly shape at `INTERVAL>1` ⇒ Custom
+    months; at `INTERVAL=1` (or absent) ⇒ Monthly. Unmodeled shapes stay read-only.
   - Months lacking a chosen day (a 31st, a fifth Monday) are simply skipped by the `rrule` crate.
 
 ## 5. API contract
@@ -130,6 +138,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | POST | `/api/tasks/{id}/completions` | mark done → Task (`completed:true`); idempotent |
 | DELETE | `/api/tasks/{id}/completions` | reopen → Task (`completed:false`) |
 | POST | `/api/tasks/{id}/move_occurrence` | move ONE occurrence of a recurring task: body `{ occurrence_date, new_date }` → `201` the new detached one-off Task. `404` unknown id; `400` if not recurring, `occurrence_date` isn't an instance of the series, or already moved |
+| POST | `/api/tasks/{id}/skip_occurrence` | delete ONE occurrence of a recurring task: body `{ occurrence_date }` → `204`. Inserts a `task_exception` for that date (no one-off is created); the series keeps repeating. Completions are never removed, so only an **unfinished** occurrence can be skipped. Idempotent (`INSERT OR IGNORE` — re-skipping, or skipping an already-moved date, is a no-op). `404` unknown id; `400` if not recurring, bad date, `occurrence_date` isn't an instance of the series, or that occurrence is completed |
 | GET | `/api/search?q=` | tasks whose `title`/`notes` match `q` (`LIKE`, case-insensitive, `%`/`_` escaped); Inbox + scheduled, recurring as their series row; by `due_date` (nulls last) then `title`. Blank/missing `q` ⇒ `[]` |
 | POST | `/api/import/ticktick` | body is the **raw CSV file** (not JSON/multipart — the SPA sends the picked `File` directly), up to **32 MB** (`config::IMPORT_MAX_BODY_BYTES` raises axum's 2 MB default). Returns `{ created: { tasks, labels, completions }, skipped }`. Add-only; per-row tolerant; all-or-nothing on a database error (§6) |
 
@@ -245,7 +254,8 @@ Behaviours that matter:
   the default cell/day projection); `dayViewGroups(tasks, labels, grouped)` (flat = one
   unlabeled section, so one render/drag path serves flat and grouped); `groupByDate(tasks)` (the
   per-day index the month/week grids share). Grouping is client-side presentation — no SQL does it.
-- `recurrence.ts` — option⇄RRULE mapping (`buildRRule` / `parseRRule` / `summarize`) +
+- `recurrence.ts` — option⇄RRULE mapping (`buildRRule` / `parseRRule` / `summarize`; the monthly
+  BY… parts are built/parsed/summarized by one helper each, shared by Monthly and Custom months) +
   `parseRecurrencePhrase(text)` (rule-based extraction of typed phrases like "first Monday of every
   month", returning the RRULE and the matched substring to strip). Presentation only — the backend
   validates/expands.
@@ -268,6 +278,10 @@ Behaviours that matter:
   form fields, shared by the Inbox and grid composers.
 - `task-actions.ts` — `toggleCompletion(task)` + `replaceOccurrence(tasks, updated)` (swap the
   `(id, occurrence_date)` row): the complete-toggle primitives `task-core` and Search build on.
+  Also `skippableOccurrence(task)` (the instance date a Delete can skip — non-null only for a
+  recurring row), `canSkipOccurrence(task)` (recurring AND not completed — a completed occurrence
+  is history, deletable only with its series) and `withoutOccurrence(tasks, id, date)` (optimistic mirror of
+  `api.tasks.skipOccurrence`).
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
 - `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on; an
   optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default). In
@@ -318,8 +332,8 @@ Behaviours that matter:
 ### Controllers (`lib/controllers/` — rune factories, `*.svelte.ts`)
 
 - `task-core.svelte.ts` — `createTaskCore()`: task/label state + load / toggle / reorder /
-  reorderLabels / remove / save behind ONE `pending` lock with uniform optimistic-then-revert
-  updates. Also `dayCrud(reload)`: the throwing create/update/delete the Month/Week day zoom binds —
+  reorderLabels / remove / removeOccurrence / save behind ONE `pending` lock with uniform optimistic-then-revert
+  updates. Also `dayCrud(reload)`: the throwing create/update/delete/removeOccurrence the Week day sheet binds —
   same lock, reloads the range on success, rethrows so the sheet/panel shows its own inline error.
 - `calendar-board.svelte.ts` — `createCalendarBoard(core, keys, reload)`: the month/week drop zones
   (live drop lists as owned `$state`, re-projected only while no gesture is live). The projection
@@ -329,14 +343,19 @@ Behaviours that matter:
   selected-day state Month and Week share; plus `preloadLabels(core)` (graceful label load for the
   calendar's color dots).
 - `grid-composer.svelte.ts` — `createGridComposer(core, reload)`: the month/week add/edit dialog —
-  state + create/update/delete through the lock, exposing the dialog's derived props.
+  state + create/update/delete through the lock, exposing the dialog's derived props
+  (`onDeleteOccurrence` is set only when editing a recurring occurrence).
 
 ### Components (`lib/components/`)
 
 - **Shell/shared:** `Modal` (native `<dialog>` scaffold — header + close, backdrop + sheet-in
   animation, `onOpen` hook — that `DaySheet`, `SettingsDialog`, `ImportDialog`, and `LabelManager`
   build on), `EmptyState` (dashed "nothing here" panel), `ErrorAlert` (bark-toned error banner),
-  `DeleteConfirm` (two-step "Delete? Yes/No"), `Cairn` (the logo mark).
+  `DeleteConfirm` (two-step "Delete? Yes/No"), `RecurringDeleteConfirm` (Delete for a recurring
+  occurrence — opens a small stacked `Modal` asking "This occurrence" (skip the date) vs "Whole
+  series" vs Cancel; `TaskComposer` uses it instead of `DeleteConfirm` when given
+  `onDeleteOccurrence`; `canDeleteOccurrence={false}` (a completed row) disables "This occurrence"
+  with a "kept in your history" note), `Cairn` (the logo mark).
 - **Task UI:** `TaskRow` (complete-toggle + title + time + repeat affordance + label chip;
   `leading`/`trailing` snippets, `selectable` mode, `holdToDrag`; `slim` = the one-line phone
   day-list row — label-colour dot + truncated title + inline time, no meta line; `completing` =
@@ -344,7 +363,10 @@ Behaviours that matter:
   toggle is top-aligned on phone, vertically centered from `sm:` up), `TaskPill` (compact grid
   chip with label dot), `TaskComposer` + `TaskComposerDialog` (the shared add/edit form + its modal
   shell), `RecurrencePicker` (None / Daily / Weekly+weekdays / Monthly by-date or Nth-weekday /
-  Custom every-N; emits an RRULE), `LabelChip`, `LabelSelect`, `QuickAddButton`.
+  Custom every-N days/weeks/months; emits an RRULE), `MonthlyOptions` (the picker's date /
+  Nth-weekday controls + skip hints, shared by Monthly and Custom months), `WeekdayToggles` (the
+  picker's "On days" weekday toggles + Weekdays preset, shared by Weekly and Custom weeks),
+  `LabelChip`, `LabelSelect`, `QuickAddButton`.
 - **Calendar:** `CalendarCell` (wide month cell — interactive pills), `CalendarCellMobile` (phone
   month cell — measured line fit, drop-only zone), `WeekDayCell` (wide week column),
   `DayListSection` (a weekday/date header over a day's `TaskRow`s — the phone Week days and the
@@ -380,7 +402,8 @@ Behaviours that matter:
 - **Search is an overlay, not a tab:** `SearchDialog` debounces `?q=` over `api.search`; flat
   `TaskRow` results (each shows its planned day, or "Inbox"); a row tap opens the editor inline,
   swapping the list so no second modal stacks; saving/deleting re-runs the search; recurring tasks
-  appear as their series row.
+  appear as their series row (no real instance), so Delete there removes the whole series via the
+  plain two-step confirm — the occurrence-vs-series popup is only offered from calendar/day views.
 
 ## 8. Calendar layouts & drag-and-drop
 

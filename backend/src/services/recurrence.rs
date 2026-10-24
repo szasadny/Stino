@@ -188,6 +188,40 @@ mod tests {
     }
 
     #[test]
+    fn interval_weekly_byday_is_anchored_at_the_start_week() {
+        // Every 2 weeks on Mon and Wed from Wed 2026-06-03: the start week
+        // yields only Wed (Mon Jun 1 precedes DTSTART), then the off week
+        // (Jun 8-14) is skipped, then Jun 15/17, skip, Jun 29 / Jul 1. A window
+        // opening in an off week still keeps the phase.
+        let rule = "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE";
+        let got = expand(
+            rule,
+            date("2026-06-03"),
+            date("2026-06-01"),
+            date("2026-07-01"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![
+                date("2026-06-03"),
+                date("2026-06-15"),
+                date("2026-06-17"),
+                date("2026-06-29"),
+                date("2026-07-01"),
+            ]
+        );
+        let later = expand(
+            rule,
+            date("2026-06-03"),
+            date("2026-06-08"),
+            date("2026-06-21"),
+        )
+        .unwrap();
+        assert_eq!(later, vec![date("2026-06-15"), date("2026-06-17")]);
+    }
+
+    #[test]
     fn occurrences_before_the_window_are_excluded_but_a_past_series_still_lands() {
         // A daily series that started months earlier still yields the in-window days.
         let got = expand(
@@ -343,6 +377,81 @@ mod tests {
         )
         .unwrap();
         assert_eq!(got, vec![date("2026-01-31"), date("2026-03-31")]);
+    }
+
+    #[test]
+    fn interval_monthly_bymonthday_is_anchored_at_the_start_month() {
+        // Every 3 months on the 15th from Feb 2026: Feb, May, Aug, Nov — never the
+        // months in between, and the phase follows DTSTART's month, not January.
+        let got = expand(
+            "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=15",
+            date("2026-02-10"),
+            date("2026-01-01"),
+            date("2026-12-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![
+                date("2026-02-15"),
+                date("2026-05-15"),
+                date("2026-08-15"),
+                date("2026-11-15"),
+            ]
+        );
+    }
+
+    #[test]
+    fn interval_monthly_phase_holds_for_a_window_after_the_start() {
+        // Started Jan 2026, every 2 months ⇒ odd months only; a window opening in
+        // an "off" month (Apr) still lands on May and Jul.
+        let got = expand(
+            "FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15",
+            date("2026-01-15"),
+            date("2026-04-01"),
+            date("2026-07-31"),
+        )
+        .unwrap();
+        assert_eq!(got, vec![date("2026-05-15"), date("2026-07-15")]);
+    }
+
+    #[test]
+    fn interval_monthly_last_workday() {
+        // Every 2 months on the last workday from Jan 2026: Jan 31 is a Saturday ⇒
+        // Fri Jan 30; Mar 31 is a Tuesday; May 31 is a Sunday ⇒ Fri May 29.
+        let got = expand(
+            "FREQ=MONTHLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+            date("2026-01-01"),
+            date("2026-01-01"),
+            date("2026-06-30"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![date("2026-01-30"), date("2026-03-31"), date("2026-05-29")]
+        );
+    }
+
+    #[test]
+    fn interval_monthly_bymonthday_31_skips_its_months_without_it() {
+        // Every 2 months on the 31st from Jan 2026 visits Jan, Mar, May, Jul, Sep,
+        // Nov; Sep and Nov have no 31st and are skipped (not moved to the 30th).
+        let got = expand(
+            "FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=31",
+            date("2026-01-31"),
+            date("2026-01-01"),
+            date("2026-12-31"),
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            vec![
+                date("2026-01-31"),
+                date("2026-03-31"),
+                date("2026-05-31"),
+                date("2026-07-31"),
+            ]
+        );
     }
 
     #[test]

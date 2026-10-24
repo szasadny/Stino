@@ -264,6 +264,24 @@ pub async fn move_occurrence(
     Ok(task)
 }
 
+/// Skip one occurrence of a recurring series: record it in `task_exception` so
+/// expansion no longer yields `occurrence_date`. Idempotent (`INSERT OR IGNORE`).
+/// Completions are never touched — the service refuses to skip a completed date.
+pub async fn skip_occurrence(
+    pool: &SqlitePool,
+    task_id: i64,
+    occurrence_date: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT OR IGNORE INTO task_exception (task_id, occurrence_date) VALUES (?, ?)",
+        task_id,
+        occurrence_date
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Option<Task>, sqlx::Error> {
     sqlx::query_as!(
         Task,

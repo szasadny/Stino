@@ -95,6 +95,8 @@
     busy={core.pending}
     onSubmit={composer.submit}
     onDelete={composer.onDelete}
+    onDeleteOccurrence={composer.onDeleteOccurrence}
+    canDeleteOccurrence={composer.canDeleteOccurrence}
     onClose={composer.close}
   />
 </section>

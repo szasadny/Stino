@@ -49,6 +49,7 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
             post(tasks::complete).delete(tasks::uncomplete),
         )
         .route("/tasks/{id}/move_occurrence", post(tasks::move_occurrence))
+        .route("/tasks/{id}/skip_occurrence", post(tasks::skip_occurrence))
         .route("/search", get(search::list))
         // A real TickTick backup can exceed axum's default 2 MB body limit, so
         // this route (only) takes up to IMPORT_MAX_BODY_BYTES.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { replaceOccurrence } from './task-actions'
+import {
+  canSkipOccurrence,
+  replaceOccurrence,
+  skippableOccurrence,
+  withoutOccurrence,
+} from './task-actions'
 import type { Task } from './types'
 
 const task = (id: number, occurrence_date: string | null, completed = false): Task => ({
@@ -33,5 +38,48 @@ describe('replaceOccurrence', () => {
   it('leaves the list unchanged when nothing matches', () => {
     const list = [task(1, '2026-06-01')]
     expect(replaceOccurrence(list, task(9, '2026-06-01', true))).toEqual(list)
+  })
+})
+
+describe('skippableOccurrence', () => {
+  it('returns the instance date of a recurring row', () => {
+    const row = { ...task(1, '2026-06-08'), due_date: '2026-06-01', recurrence_rule: 'FREQ=WEEKLY' }
+    expect(skippableOccurrence(row)).toBe('2026-06-08')
+  })
+
+  it('is null for a one-off (delete removes the task itself)', () => {
+    expect(skippableOccurrence(task(1, '2026-06-08'))).toBeNull()
+    expect(skippableOccurrence(task(2, null))).toBeNull()
+  })
+})
+
+describe('canSkipOccurrence', () => {
+  const recurring = (completed: boolean) => ({
+    ...task(1, '2026-06-08', completed),
+    due_date: '2026-06-01',
+    recurrence_rule: 'FREQ=WEEKLY',
+  })
+
+  it('allows an unfinished recurring occurrence', () => {
+    expect(canSkipOccurrence(recurring(false))).toBe(true)
+  })
+
+  it('refuses a completed occurrence (completions are kept)', () => {
+    expect(canSkipOccurrence(recurring(true))).toBe(false)
+  })
+
+  it('refuses a one-off', () => {
+    expect(canSkipOccurrence(task(1, '2026-06-08'))).toBe(false)
+  })
+})
+
+describe('withoutOccurrence', () => {
+  it('drops only the matching (id, occurrence_date) row', () => {
+    const list = [task(1, '2026-06-01'), task(1, '2026-06-08'), task(2, '2026-06-08')]
+    const out = withoutOccurrence(list, 1, '2026-06-08')
+    expect(out.map((t) => [t.id, t.occurrence_date])).toEqual([
+      [1, '2026-06-01'],
+      [2, '2026-06-08'],
+    ])
   })
 })

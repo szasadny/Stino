@@ -84,6 +84,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ occurrence_date: occurrenceDate, new_date: newDate }),
       }),
+    // Delete one recurring occurrence (skip its date); the series keeps repeating.
+    skipOccurrence: (id: number, occurrenceDate: string) =>
+      http<void>(`/tasks/${id}/skip_occurrence`, {
+        method: 'POST',
+        body: JSON.stringify({ occurrence_date: occurrenceDate }),
+      }),
     // Persist the complete order of untimed tasks; timed tasks stay time-sorted.
     reorder: (ids: number[]) =>
       http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),

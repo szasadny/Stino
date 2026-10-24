@@ -202,6 +202,34 @@ pub async fn move_occurrence(
     Ok(db::task::move_occurrence(pool, id, &occurrence_date, &new_date).await?)
 }
 
+/// Delete a SINGLE occurrence of a recurring task: the series skips that date via a
+/// `task_exception` and keeps repeating everywhere else. Completions are history and
+/// are never removed, so only an UNFINISHED occurrence can be skipped. Validates the
+/// task is recurring and that the date is a real instance of the series. Idempotent —
+/// skipping an already-skipped (or moved) occurrence is a no-op. 404 if the id is
+/// unknown; 400 if it isn't a recurring task, the date isn't an occurrence, or that
+/// occurrence is completed.
+pub async fn skip_occurrence(pool: &SqlitePool, id: i64, occurrence_date: String) -> AppResult<()> {
+    let occurrence_date = validate_date(&occurrence_date)?;
+    let task = db::task::get(pool, id).await?.ok_or(AppError::NotFound)?;
+    let (Some(rule), Some(start)) = (task.recurrence_rule.as_deref(), task.due_date.as_deref())
+    else {
+        return Err(AppError::Validation(
+            "only a recurring task's occurrence can be deleted on its own".into(),
+        ));
+    };
+    ensure_series_member(rule, start, &occurrence_date)?;
+    if !db::task::completed_occurrences(pool, id, &occurrence_date, &occurrence_date)
+        .await?
+        .is_empty()
+    {
+        return Err(AppError::Validation(
+            "a completed occurrence can't be deleted on its own".into(),
+        ));
+    }
+    Ok(db::task::skip_occurrence(pool, id, &occurrence_date).await?)
+}
+
 /// Persist a new manual order: `ids` is the full ordered list for a list/day,
 /// and each task's `sort_order` becomes its position. The client sends only
 /// untimed task ids — timed and recurring tasks keep their time-sort — so this

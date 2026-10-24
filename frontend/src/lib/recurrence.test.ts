@@ -6,6 +6,7 @@ import {
   parseRRule,
   summarize,
   summarizeRule,
+  WORKDAYS,
   type RecurrenceValue,
 } from './recurrence'
 
@@ -38,6 +39,54 @@ describe('buildRRule', () => {
     expect(buildRRule(value({ freq: 'custom', unit: 'week', interval: 2 }))).toBe(
       'FREQ=WEEKLY;INTERVAL=2',
     )
+  })
+
+  it('keeps custom every-N-weeks weekdays as a Monday-first, deduped BYDAY', () => {
+    const weeks = (partial: Partial<RecurrenceValue>) =>
+      buildRRule(value({ freq: 'custom', unit: 'week', interval: 2, ...partial }))
+    expect(weeks({ weekdays: ['MO', 'WE'] })).toBe('FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE')
+    expect(weeks({ weekdays: ['WE', 'MO', 'WE'] })).toBe('FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE')
+    // No weekday chosen ⇒ repeats on the start weekday.
+    expect(weeks({ weekdays: [] })).toBe('FREQ=WEEKLY;INTERVAL=2')
+    expect(weeks({ weekdays: ['MO', 'WE'], until: '2026-12-31' })).toBe(
+      'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20261231',
+    )
+  })
+
+  it('never emits BYDAY for custom days or months, whatever weekdays linger', () => {
+    expect(buildRRule(value({ freq: 'custom', unit: 'day', interval: 3, weekdays: ['MO'] }))).toBe(
+      'FREQ=DAILY;INTERVAL=3',
+    )
+    expect(
+      buildRRule(
+        value({ freq: 'custom', unit: 'month', interval: 2, monthday: 15, weekdays: ['MO'] }),
+      ),
+    ).toBe('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15')
+  })
+
+  it('builds custom every-N-months rules over every monthly shape', () => {
+    const months = (partial: Partial<RecurrenceValue>) =>
+      buildRRule(value({ freq: 'custom', unit: 'month', ...partial }))
+    expect(months({ interval: 2, monthlyMode: 'monthday', monthday: 15 })).toBe(
+      'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15',
+    )
+    expect(months({ interval: 6, monthlyMode: 'monthday', monthday: -1 })).toBe(
+      'FREQ=MONTHLY;INTERVAL=6;BYMONTHDAY=-1',
+    )
+    expect(months({ interval: 2, monthlyMode: 'weekday', position: 1, monthWeekday: 'MO' })).toBe(
+      'FREQ=MONTHLY;INTERVAL=2;BYDAY=MO;BYSETPOS=1',
+    )
+    expect(months({ interval: 3, monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' })).toBe(
+      'FREQ=MONTHLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+    )
+    expect(
+      months({
+        interval: 4,
+        monthlyMode: 'monthday',
+        monthday: 31,
+        until: '2027-06-30',
+      }),
+    ).toBe('FREQ=MONTHLY;INTERVAL=4;BYMONTHDAY=31;UNTIL=20270630')
   })
 
   it('floors a fractional interval to at least 1', () => {
@@ -122,6 +171,14 @@ describe('parseRRule', () => {
       interval: 2,
       weekdays: ['TU'],
     })
+    // The bug case: an imported every-2-weeks rule keeps both its days.
+    expect(parseRRule('FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,MO,WE;UNTIL=20261231')).toMatchObject({
+      freq: 'custom',
+      unit: 'week',
+      interval: 2,
+      weekdays: ['MO', 'WE'],
+      until: '2026-12-31',
+    })
   })
 
   it('parses a plain yearly rule, and leaves shaped yearly rules as "none"', () => {
@@ -179,9 +236,56 @@ describe('parseRRule', () => {
     })
     // A monthly rule we don't model stays read-only.
     expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=1,15').freq).toBe('none')
-    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=1,15').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2').freq).toBe('none')
     // The weekend pair isn't the workday set, so it stays unmodeled.
     expect(parseRRule('FREQ=MONTHLY;BYDAY=SA,SU;BYSETPOS=-1').freq).toBe('none')
+  })
+
+  it('parses interval-monthly shapes as custom every-N-months', () => {
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15')).toMatchObject({
+      freq: 'custom',
+      unit: 'month',
+      interval: 2,
+      monthlyMode: 'monthday',
+      monthday: 15,
+    })
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1')).toMatchObject({
+      freq: 'custom',
+      unit: 'month',
+      interval: 3,
+      monthlyMode: 'weekday',
+      position: -1,
+      monthWeekday: 'WD',
+    })
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYDAY=2TU')).toMatchObject({
+      freq: 'custom',
+      unit: 'month',
+      interval: 2,
+      monthlyMode: 'weekday',
+      position: 2,
+      monthWeekday: 'TU',
+    })
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=6;BYMONTHDAY=-1;UNTIL=20271231')).toMatchObject({
+      freq: 'custom',
+      unit: 'month',
+      interval: 6,
+      monthday: -1,
+      until: '2027-12-31',
+    })
+  })
+
+  it('keeps INTERVAL=1 monthly rules in the Monthly mode', () => {
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15')).toMatchObject({
+      freq: 'monthly',
+      monthday: 15,
+    })
+    // A custom "every 1 month" builds INTERVAL=1, which reads back as Monthly.
+    const rule = buildRRule(
+      value({ freq: 'custom', unit: 'month', interval: 1, monthlyMode: 'monthday', monthday: 15 }),
+    )
+    expect(rule).toBe('FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15')
+    expect(parseRRule(rule).freq).toBe('monthly')
   })
 
   it('carries an UNTIL end date onto a modeled rule, accepting both date and date-time forms', () => {
@@ -205,6 +309,9 @@ describe('parseRRule', () => {
       'FREQ=WEEKLY;BYDAY=MO,WE',
       'FREQ=DAILY;INTERVAL=3',
       'FREQ=WEEKLY;INTERVAL=2',
+      'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE',
+      'FREQ=WEEKLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR',
+      'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,SU;UNTIL=20261231',
       'FREQ=WEEKLY;BYDAY=MO',
       'FREQ=WEEKLY;BYDAY=SU',
       'FREQ=MONTHLY;BYMONTHDAY=15',
@@ -215,6 +322,14 @@ describe('parseRRule', () => {
       'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1',
       'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
       'FREQ=YEARLY',
+      'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15',
+      'FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=-1',
+      'FREQ=MONTHLY;INTERVAL=2;BYDAY=MO;BYSETPOS=1',
+      'FREQ=MONTHLY;INTERVAL=4;BYDAY=FR;BYSETPOS=-1',
+      'FREQ=MONTHLY;INTERVAL=2;BYDAY=WE;BYSETPOS=5',
+      'FREQ=MONTHLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1',
+      'FREQ=MONTHLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+      'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=31;UNTIL=20271231',
     ]) {
       expect(buildRRule(parseRRule(rule))).toBe(rule)
     }
@@ -234,6 +349,15 @@ describe('summarize', () => {
     expect(summarize(value({ freq: 'yearly' }))).toBe('Every year')
     expect(summarize(value({ freq: 'custom', unit: 'day', interval: 1 }))).toBe('Every day')
     expect(summarize(value({ freq: 'custom', unit: 'week', interval: 2 }))).toBe('Every 2 weeks')
+    expect(
+      summarize(value({ freq: 'custom', unit: 'week', interval: 2, weekdays: ['WE', 'MO'] })),
+    ).toBe('Every 2 weeks on Mon, Wed')
+    expect(
+      summarize(value({ freq: 'custom', unit: 'week', interval: 3, weekdays: [...WORKDAYS] })),
+    ).toBe('Every 3 weeks on weekdays')
+    expect(summarizeRule('FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20261231')).toBe(
+      'Every 2 weeks on Mon, Wed until Thu 31 December',
+    )
   })
 
   it('describes monthly shapes', () => {
@@ -263,6 +387,30 @@ describe('summarize', () => {
         value({ freq: 'monthly', monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' }),
       ),
     ).toBe('Monthly on the last workday')
+  })
+
+  it('describes custom every-N-months in the monthly wording', () => {
+    const months = (partial: Partial<RecurrenceValue>) =>
+      summarize(value({ freq: 'custom', unit: 'month', ...partial }))
+    expect(months({ interval: 2, monthlyMode: 'monthday', monthday: 15 })).toBe(
+      'Every 2 months on day 15',
+    )
+    expect(months({ interval: 6, monthlyMode: 'monthday', monthday: -1 })).toBe(
+      'Every 6 months on the last day',
+    )
+    expect(months({ interval: 3, monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' })).toBe(
+      'Every 3 months on the last workday',
+    )
+    expect(months({ interval: 2, monthlyMode: 'weekday', position: 1, monthWeekday: 'MO' })).toBe(
+      'Every 2 months on the first Mon',
+    )
+    // Interval 1 drops the count, like "Every day" / "Every week".
+    expect(months({ interval: 1, monthlyMode: 'monthday', monthday: 15 })).toBe(
+      'Every month on day 15',
+    )
+    expect(summarizeRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15;UNTIL=20261231')).toBe(
+      'Every 2 months on day 15 until Thu 31 December',
+    )
   })
 
   it('appends the end date when a rule has an UNTIL', () => {

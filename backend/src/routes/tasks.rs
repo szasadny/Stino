@@ -69,6 +69,12 @@ pub struct MoveOccurrence {
     pub new_date: String,
 }
 
+/// Skip (delete) one occurrence of a recurring task; the series keeps repeating.
+#[derive(Deserialize)]
+pub struct SkipOccurrence {
+    pub occurrence_date: String,
+}
+
 /// Rollover payload: the client's local date (Hard Rule 7 — the browser is the
 /// single source of "today"; the backend never computes it).
 #[derive(Deserialize)]
@@ -210,6 +216,15 @@ pub async fn move_occurrence(
     let task =
         task_service::move_occurrence(&state.pool, id, body.occurrence_date, body.new_date).await?;
     Ok((StatusCode::CREATED, Json(task)))
+}
+
+pub async fn skip_occurrence(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<SkipOccurrence>,
+) -> AppResult<impl IntoResponse> {
+    task_service::skip_occurrence(&state.pool, id, body.occurrence_date).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn complete(
