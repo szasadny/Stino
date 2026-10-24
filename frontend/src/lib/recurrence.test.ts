@@ -240,6 +240,13 @@ describe('parseRRule', () => {
     expect(parseRRule('FREQ=MONTHLY;INTERVAL=2').freq).toBe('none')
     // The weekend pair isn't the workday set, so it stays unmodeled.
     expect(parseRRule('FREQ=MONTHLY;BYDAY=SA,SU;BYSETPOS=-1').freq).toBe('none')
+    // A date AND a weekday ("Friday the 13th") is an intersection the picker can't
+    // show — it must stay unmodeled (read-only) so a re-save can't drop the BYDAY.
+    expect(parseRRule('FREQ=MONTHLY;BYDAY=FR;BYMONTHDAY=13').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYDAY=FR;BYMONTHDAY=13').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=13;BYSETPOS=1').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;BYMONTH=6;BYMONTHDAY=24').freq).toBe('none')
+    expect(parseRRule('FREQ=MONTHLY;BYMONTH=6;BYDAY=MO;BYSETPOS=1').freq).toBe('none')
   })
 
   it('parses interval-monthly shapes as custom every-N-months', () => {

@@ -296,6 +296,11 @@ function parseMonthlyParts(
 ): MonthlyFields | null {
   const bysetpos = parts.get('BYSETPOS')
   const bymonthday = parts.get('BYMONTHDAY')
+  // The picker models a date-of-month OR an Nth weekday, never a mix: any other BY…
+  // combination (e.g. "Friday the 13th" = BYDAY=FR;BYMONTHDAY=13) stays unmodeled, so
+  // re-saving can't silently drop a part.
+  const modeled = bymonthday ? ['BYMONTHDAY'] : ['BYDAY', 'BYSETPOS']
+  if ([...parts.keys()].some((k) => k.startsWith('BY') && !modeled.includes(k))) return null
   const setpos = bysetpos ? parseInt(bysetpos, 10) : NaN
   // Workday: the full Mon–Fri BYDAY set plus a position ⇒ first/Nth/last workday.
   if (isWorkdaySet(weekdays) && isOrdinalPosition(setpos)) {

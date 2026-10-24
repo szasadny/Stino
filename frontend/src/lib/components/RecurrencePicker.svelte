@@ -227,7 +227,7 @@
             <span class="text-xs text-sage">never</span>
           {/if}
         </div>
-        <p class="text-xs text-sage">{summary} · needs a date</p>
+        <p class="text-xs text-sage">{summary}{startDate ? '' : ' · needs a date'}</p>
       </div>
     {/if}
   {/if}
