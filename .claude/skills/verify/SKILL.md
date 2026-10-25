@@ -8,14 +8,15 @@ description: Run Stinō against a scratch DB and drive it with Playwright to ver
 ## Launch (scratch DB — never touch `backend/data/stino.db`)
 
 ```bash
-cd frontend && npm run build                     # backend serves dist
+REPO=$(git rev-parse --show-toplevel)
+(cd $REPO/frontend && npm run build)             # backend serves dist
 SCRATCH=$(mktemp -d /tmp/stino-verify-XXXX) && mkdir -p $SCRATCH/data
-cd backend && SQLX_OFFLINE=true \
+cd $REPO/backend && SQLX_OFFLINE=true \
   DATABASE_URL="sqlite://$SCRATCH/data/stino.db?mode=rwc" \
-  DATA_DIR=$SCRATCH/data STATIC_DIR=<abs>/frontend/dist PORT=8125 cargo run
+  DATA_DIR=$SCRATCH/data STATIC_DIR=$REPO/frontend/dist PORT=8125 cargo run
 ```
 
-`SQLX_OFFLINE=true` is required — the `query!` macros otherwise compile against the empty scratch DB. Poll `GET /api/health` until 200.
+`SQLX_OFFLINE=true` is required — the `query!` macros otherwise compile against the empty scratch DB. If it still fails with "no cached data", migrate the scratch DB (`sqlx migrate run`) and compile online against it instead. Poll `GET /api/health` until 200.
 
 ## Seed via the API
 
@@ -30,7 +31,8 @@ cd backend && SQLX_OFFLINE=true \
 - Day cells: `[aria-label*="9 July"]` (`"{Weekday}, {D} {Month}, N tasks"`). Nav tabs are `<button>`s; the header period-nav also has a "Today" button — the bottom tab bar's is `.last`.
 - **Taps: never `.click()` in a touch context** (misses the phantom double-click). Use CDP `Input.dispatchTouchEvent`: touchStart → ~60ms → touchEnd.
 - **Touch drag:** touchStart → 0.45s hold → one >3px touchMove to arm → stepped moves (~35ms) → ~0.5s settle → touchEnd.
-- **Desktop drag:** CDP `Input.dispatchMouseEvent` (Playwright `mouse`/`drag_to` won't arm svelte-dnd-action): mousePressed → one >3px mouseMoved → stepped moves (~35ms) → ~0.5s settle → mouseReleased.
+- **Desktop drag:** CDP `Input.dispatchMouseEvent` (Playwright `mouse`/`drag_to` won't arm svelte-dnd-action): mousePressed on the `div[title="Drag to reorder"]` grip (list views) → one >3px mouseMoved → stepped moves (~35ms) → ~0.5s settle → mouseReleased.
+- **Edge auto-scroll:** hold the pointer inside the scroll container's 72px bottom zone and poll its `scrollTop`; a drop while it scrolls is a benign no-op — verify persistence with a short in-view drag.
 - **DayPanel hides itself mid-drag by design** (`{dragging ? 'hidden' : 'flex'}`) — its drags MOVE tasks to other days; a within-day reorder is a drag inside the grid cell, not the panel.
 - In the phone Month split, `get_by_text("<task>")` matches the drag-disabled grid-cell line first — use `.last` or scope to the agenda.
 

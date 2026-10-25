@@ -48,7 +48,7 @@ Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
 `0003_task_exception.sql`).
 
 - **label** `(id, name, color, emoji?, sort_order, created_at, updated_at)` — `color` is a hex from
-  the fixed palette (one frontend home: `frontend/src/lib/palette.js` — see §11); `emoji` is an
+  the fixed palette (one frontend home: `frontend/src/lib/palette.js` — see §10); `emoji` is an
   optional single glyph, NULL ⇒ color-only.
 - **task** `(id, title, notes?, label_id?→label, due_date?, due_time?, recurrence_rule?,
   sort_order, created_at, updated_at)`.
@@ -63,8 +63,8 @@ Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
   row exists for its `due_date`; a recurring task is done **for that date only**.
 - **task_exception** `(id, task_id→task, occurrence_date, created_at)`,
   `UNIQUE(task_id, occurrence_date)` — one row per recurring occurrence **detached** by a
-  single-instance move. Expansion skips these dates, so the moved instance lives on as its own
-  one-off while the series keeps repeating elsewhere.
+  single-instance move or **skipped** by a single-occurrence delete. Expansion skips these dates;
+  a moved instance lives on as its own one-off while the series keeps repeating elsewhere.
 
 Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`.
 Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a task cascades its
@@ -131,7 +131,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | GET | `/api/tasks?from=YYYY-MM-DD&to=YYYY-MM-DD` | scheduled tasks in the inclusive range (the month/week grid), recurring tasks **expanded** into one task per occurrence, by day then timed-first |
 | POST | `/api/tasks` | body `{ title, notes?, label_id?, due_date?, due_time?, recurrence_rule? }` → `201` Task |
 | PATCH | `/api/tasks/{id}` | partial body (same fields) → Task (`404` if unknown) |
-| DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` rows |
+| DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` and `task_exception` rows |
 | PATCH | `/api/tasks/reorder` | body `{ ids: [...] }` (the full ordered list of untimed task ids) → `204`; sets each task's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes) |
 | POST | `/api/tasks/batch` | bulk edit (Inbox multi-select): body `{ ids: [...], op }` where `op` is `type`-tagged — `{type:"label", label_id}` (null clears), `{type:"schedule", due_date}`, `{type:"complete"}`, or `{type:"delete"}` → `204`. Atomic per op (`404` if any id unknown ⇒ nothing changes); empty `ids` is a no-op. `schedule` mirrors the single-task PATCH's completion semantics and rejects a recurring task id with `400` |
 | POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + occurrences detached). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** each uncompleted occurrence in the last `config::ROLLOVER_LOOKBACK_DAYS` (7) days is *detached* onto today as its own standalone one-off (same as a `move_occurrence` drop) — one copy per missed day; the series keeps repeating and skips the missed date via a `task_exception`. Completed and already-detached occurrences stay put. Idempotent (the window slides with `today`, so a re-run moves nothing); bad date ⇒ `400` |
@@ -232,8 +232,8 @@ Behaviours that matter:
 
 - `lib/api.ts` — the only HTTP client; one typed function per endpoint.
 - `lib/types.ts` — types mirroring the API contract; single source of truth.
-- `lib/palette.js` — the fixed label palette as plain JS data, imported by BOTH `constants.ts` and
-  `tailwind.config.js` (Tailwind loads outside the TS pipeline). Backend keeps a guarded mirror (§11).
+- `lib/palette.js` — the fixed label palette, re-exported by `constants.ts`. Backend keeps a guarded
+  mirror (§10).
 - `lib/constants.ts` — view list; length caps mirroring `config.rs` (`TITLE_MAX_LENGTH`,
   `LABEL_NAME_MAX_LENGTH`, `LABEL_EMOJI_MAX_LENGTH`); `COMPACT_MAX_WIDTH`; drag/gesture timings
   (`DND_FLIP_MS`, `DND_TOUCH_HOLD_MS`, `DND_GRID_TOUCH_HOLD_MS`, `MONTH_EXPAND_ZONE_PX`,
@@ -244,9 +244,7 @@ Behaviours that matter:
 ### Pure helpers (`lib/*.ts` — unit-tested with Vitest, `*.test.ts` beside each; `npm test`)
 
 - `date.ts` — all calendar date math: month-grid builder, `monthWeekCount`, month/week nav helpers
-  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `formatWeekRange`, `clampDayToMonth` — the same
-  day-of-month in another month, clamped, so month navigation can carry an open day along),
-  formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
+  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `formatWeekRange`), formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
   inline date math.
 - `grouping.ts` — `groupByLabel(tasks, labels)` (label sections in label `sort_order`, "No label"
   pinned last, input order kept within groups); `labelDayOrder(tasks, labels)` (one day flattened
@@ -269,7 +267,8 @@ Behaviours that matter:
 - `move.ts` — `dropKind` classifies a grid drop (same-cell untimed reorder / plain reschedule /
   recurring single-occurrence detach / no-op); `applyMove` projects the optimistic result.
 - `ordering.ts` — `applyUntimedOrder(tasks, ids)`: renumber untimed `sort_order` to a dragged id
-  list (optimistic mirror of `api.tasks.reorder`); timed/recurring rows untouched.
+  list (optimistic mirror of `api.tasks.reorder`); timed/recurring rows untouched. Also
+  `sortForView` (the server's timed-first sort, client-side) and `untimedReadingOrder` (§8).
 - `labels.ts` — `labelLookup(labels)` (id→label, handles no/deleted label);
   `mergeLabelOrder(allLabels, visibleOrder)` (fold a reorder of a day's *visible* labels back into
   the full global order) + `applyLabelOrder(labels, ids)` (optimistic mirror of
@@ -283,7 +282,8 @@ Behaviours that matter:
   is history, deletable only with its series) and `withoutOccurrence(tasks, id, date)` (optimistic mirror of
   `api.tasks.skipOccurrence`).
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
-- `calendar-board.ts` — the pure cell projection the `calendar-board` controller builds on; an
+- `calendar-board.ts` — `buildBoard`, the pure cell projection the `calendar-board` controller
+  builds on (plus `cellItemId` keys and `appendedUntimedOrder` for a cross-day drop); an
   optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default). In
   either mode, completed tasks sink to the bottom of their cell (stable, display only).
 - `fit.ts` — how many task lines fit a measured cell height (accounting for the inter-line row gap) —
@@ -308,7 +308,7 @@ Behaviours that matter:
   here only swaps the period state and commits the already-fetched data, so the new period still
   slides in already populated without a frozen frame. No API support or `prefers-reduced-motion` ⇒
   applies instantly.
-- `phantom-click.ts` — swallows the ONE stray "compatibility" click a touch tap emits on the
+- `phantom-click.ts` — `openWithoutPhantomClick(open)` swallows the ONE stray "compatibility" click a touch tap emits on the
   `delayTouchStart` path (the library dispatches a synthetic tap→click AND the browser fires the
   native one), so it can't hit the editor that mounts at the tap point. Arms only on
   `pointer: coarse` — on a fine pointer there is no phantom and arming would eat a real click.
@@ -339,9 +339,8 @@ Behaviours that matter:
   (live drop lists as owned `$state`, re-projected only while no gesture is live). The projection
   passes `core.labels` to `buildBoard` while the by-label preference (`group-view.svelte.ts`,
   default on) is set — display only; `sort_order` semantics are untouched.
-- `calendar-selection.svelte.ts` — `createCalendarSelection(core)`: the `labelFor` + per-day index +
-  selected-day state Month and Week share; plus `preloadLabels(core)` (graceful label load for the
-  calendar's color dots).
+- `calendar-selection.svelte.ts` — `createCalendarSelection(core)`: the `labelFor` lookup + selected-day
+  state (and that day's tasks) Month and Week share.
 - `grid-composer.svelte.ts` — `createGridComposer(core, reload)`: the month/week add/edit dialog —
   state + create/update/delete through the lock, exposing the dialog's derived props
   (`onDeleteOccurrence` is set only when editing a recurring occurrence).
@@ -453,9 +452,8 @@ layout per view.
 **Period navigation:** phone calendars swipe horizontally (`lib/swipe.ts`); every navigation (swipe
 or header arrows, all widths) goes through `nav-transition.ts`'s `navigateWithSlide` (§7) — a
 directional slide that never mounts the outgoing grid twice. In Month, an open day zoom (the phone
-split agenda / the desktop `DayPanel`) STAYS open across a navigation: the selection follows the
-same day-of-month into the target month (`clampDayToMonth` — Jan 31 → Feb 28), and "Today" with a
-day open lands on today's agenda. Week keeps its existing collapse-on-navigate.
+split agenda / the desktop `DayPanel`) STAYS open on the same date across a navigation — the
+fetched range widens to include the selected day. Week keeps its existing collapse-on-navigate.
 
 **Day zoom (differs by view and width):**
 
@@ -515,20 +513,13 @@ day open lands on today's agenda. Week keeps its existing collapse-on-navigate.
   `cargo sqlx prepare` and commit the updated `.sqlx/` JSON. CI can assert the cache is current
   with `cargo sqlx prepare --check`.
 
-## 10. Open decisions
-
-- **Multi-label per task:** single `label_id` now; add a `task_label` join table (new additive
-  migration) if needed — don't overload existing columns.
-- **Search:** shipped as case-insensitive `LIKE` over `title`/`notes` (§5). Add FTS5 only if it
-  ever feels slow at personal scale.
-
-## 11. Mirrored constants
+## 10. Mirrored constants
 
 A few facts span the language boundary (no shared codegen), so they live once per side. The pairs
 can only drift by a manual edit — change them together.
 
 | Value | Frontend home | Backend home | Drift guard |
 | --- | --- | --- | --- |
-| Label palette (8 hexes) | `src/lib/palette.js` (imported by `constants.ts` + `tailwind.config.js`) | `domain/label.rs` `LABEL_PALETTE` | `palette_is_unchanged` test in `domain/label.rs` pins the backend list |
+| Label palette (8 hexes) | `src/lib/palette.js` (re-exported by `constants.ts`) | `domain/label.rs` `LABEL_PALETTE` | `palette_is_unchanged` test in `domain/label.rs` pins the backend list |
 | Title / label-name / emoji caps | `src/lib/constants.ts` (`TITLE_MAX_LENGTH`, …) | `config.rs` (`MAX_TITLE_LEN`, …) | comments on both sides; UI bounds input, service re-validates |
 | Local date/time formats (`YYYY-MM-DD` / `HH:MM`) | `src/lib/date.ts` (string building) | `config.rs` (`DATE_FORMAT` / `TIME_FORMAT`) | documented in §4; both treat dates as local text |

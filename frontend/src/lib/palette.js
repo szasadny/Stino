@@ -1,5 +1,5 @@
-// Single frontend source for assignable label colors; Tailwind imports this plain JS
-// module. Keep it aligned with backend label validation.
+// Single frontend source for assignable label colors (re-exported by constants.ts).
+// Keep it aligned with backend label validation.
 export const LABEL_PALETTE = [
   { name: 'pine', hex: '#2F5D50' },
   { name: 'moss', hex: '#6F8F6B' },

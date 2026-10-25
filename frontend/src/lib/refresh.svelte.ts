@@ -2,11 +2,6 @@
 
 let version = $state(0)
 
-/** The current refresh generation — views re-run their load when it changes. */
-export function refreshVersion(): number {
-  return version
-}
-
 /** Signal every standing view to reload (call when a mutating overlay closes). */
 export function bumpRefresh(): void {
   version += 1

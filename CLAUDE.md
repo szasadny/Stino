@@ -8,7 +8,7 @@
 
 Only deltas that apply when Claude Code (not codex) is driving:
 
-- The `.codex/agents/` planner/executor roles are for codex sessions — as Claude, ignore that section and work directly (use your own subagents per your normal judgment).
+- The `.codex/` orchestrator/executor roles are for codex sessions — as Claude, ignore that section and work directly (use your own subagents per your normal judgment).
 - Skill mapping for the AGENTS.md task-routing table: `verify` → `/verify`, `maintaining-agents-md` → `/maintaining-agents-md`, `modern-web-guidance` → `/modern-web-guidance` (all live in `.claude/skills/`; `.agents/skills/` holds symlinks for codex).
 - Frontend / UI work: additionally follow the `frontend-design` plugin skill.
 - Reviewing your own diff before finishing: run `/code-review` (bugs) and `/simplify` (cleanups).

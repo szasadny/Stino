@@ -49,13 +49,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 
 ## Architecture & Module Boundaries
 
-One process, one container. Axum serves the built Svelte SPA as static files and the JSON API under `/api`.
-
-```
-Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ db (SQLx) ──▶ SQLite
-        ▲                                                                │
-        └───────────────── static assets served by Axum ◀────────────────┘
-```
+One process, one container. Axum serves the built Svelte SPA as static files and the JSON API under `/api` (diagram: ARCHITECTURE.md §1).
 
 **Backend layers — dependencies point downward only:**
 
@@ -77,7 +71,7 @@ Browser (Svelte SPA) ──HTTP/JSON──▶ Axum ──▶ services ──▶ 
   - At most ONE live zone holds a given day's items — freeze any duplicate (render it statically, no zone), e.g. a grid cell freezes while `DayPanel` or the phone-month agenda is that day's live zone.
   - Mid-drag, hide a zone with `hidden` (display:none zeroes its rects, so it can't capture the pointer) — never unmount it (the origin zone must stay registered) and never `invisible`/`visibility:hidden` (an invisible zone keeps its rects and phantom-captures the pointer).
   - Pure drag/gesture logic lives in `lib/` (`move.ts`, `fit.ts`, `drag-scroll.ts`, `swipe.ts`, `panel-pos.ts`), unit-tested.
-- **Period navigation (month/week) is a directional slide, not an instant swap.** Phone calendars swipe horizontally to the previous/next period (`lib/swipe.ts` — touch-only, drag-aware: it ignores a gesture while svelte-dnd-action's dragged clone exists). Every navigation (swipe or header arrows, all widths) goes through `lib/nav-transition.ts`'s `navigateWithSlide`: a View-Transitions slide scoped to the `vt-calendar` pane (`view-transition-name: calendar-pane`, keyframes in `app.css`) — snapshot-based, so the outgoing grid never mounts twice (no duplicate dnd zones). The target period's **range is fetched _before_ `startViewTransition`** (via task-core's `loadThrough`), so the page never freezes on the network mid-slide; the transition callback only swaps the period state and commits the already-fetched data, so the new period still slides in already populated. No API support or `prefers-reduced-motion` ⇒ the update applies instantly.
+- **Period navigation (month/week) is a directional slide, not an instant swap.** Every navigation (phone swipe via `lib/swipe.ts`, or header arrows) goes through `lib/nav-transition.ts`'s `navigateWithSlide` — a snapshot-based View Transition, so the outgoing grid never mounts twice. Fetch the target range **before** `startViewTransition` (task-core's `loadThrough`); the callback only commits. Details: ARCHITECTURE.md §7–§8.
 - **One source of truth per concern.** If you write the same block in a second place, lift it into the shared module first.
 
 ## Stack
@@ -122,8 +116,7 @@ The easiest area for subtle bugs. Rules:
 - **`due_date` is a local calendar date** stored as plain text (`2026-06-24`) — **never** converted through UTC. **`due_time` is local wall-clock** (`HH:MM`); combine with the date only at the edges (display, sorting), in the browser's timezone. The backend never computes "today".
 - **Sorting in any view:** timed tasks first by `due_time` ascending, then untimed by `sort_order`. Display then projects the untimed tasks into label order (label `sort_order`, unlabeled last) while the default-on by-label preference is set — presentation only; storage and `sort_order` semantics are unchanged, and the backend sort has no label term.
 - **Recurrence is one task + an RRULE**, never materialized rows. The range/date queries expand the rule (`rrule` crate) over the visible window and return **one Task per occurrence** with a derived `occurrence_date` (`due_date` stays the series start) — clients key rows by `(id, occurrence_date)`, never `id` alone. Completing an occurrence writes a `completion` row; it never mutates the task.
-- **Moving a single occurrence** (`POST /api/tasks/{id}/move_occurrence`) detaches just that instance: a `task_exception` for the old date + a new one-off on the new day; the series keeps repeating. A same-day drop of a recurring instance is a no-op. Drop classification (reorder vs reschedule vs detach) is pure logic in `lib/move.ts` (`dropKind`).
-- **Deleting a single occurrence** (`POST /api/tasks/{id}/skip_occurrence`) writes just a `task_exception`; the series keeps repeating. Only an unfinished occurrence can be deleted on its own — completions are never removed (400 otherwise). The edit dialog asks occurrence vs whole series for a recurring row (search hits are series rows, so search deletes the series).
+- **Moving / deleting a single occurrence** (`move_occurrence` / `skip_occurrence`) writes a `task_exception` for that date (a move also creates a new one-off on the target day); the series keeps repeating. Completions are never removed, so only an unfinished occurrence can be skipped. Drop classification (reorder vs reschedule vs detach) is pure logic in `lib/move.ts` (`dropKind`).
 - The UI options ⇄ RRULE mapping lives in `frontend/src/lib/recurrence.ts`; quick-add parses typed recurrence phrases (`parseRecurrencePhrase`) and inline `#tag` labels (`parseQuickAdd`). Full mapping and validation rules: ARCHITECTURE.md §4–§5.
 
 ## Import from TickTick
@@ -152,7 +145,7 @@ frontend/
     lib/
       api.ts           # the ONLY place that talks HTTP
       types.ts         # shared types mirroring the API contract
-      palette.js       # fixed label palette — one source for constants.ts AND tailwind.config.js
+      palette.js       # fixed label palette — the one frontend source
       constants.ts     # caps, breakpoints, durations, look-tokens, view list
       *.ts             # pure helpers, one concern each, unit-tested (*.test.ts beside each)
       *.svelte.ts      # reactive module state (viewport, group-view, refresh)
@@ -163,13 +156,13 @@ frontend/
   index.html, vite.config.ts, tailwind.config.js
 
 .agents/skills/        # portable agent skills (symlinks into .claude/skills/ — one source)
-.claude/               # ARCHITECTURE.md + skills/ (canonical skill files) + Claude Code settings
+.claude/               # ARCHITECTURE.md + skills/ (canonical skill files)
 .codex/                # Sol orchestrator config + custom agent definitions
 Dockerfile             # multi-stage: build SPA → build Rust → slim runtime
 docker-compose.yml     # mounts the SQLite volume, sets env
 ```
 
-Full frontend module map (every helper, what it exports, who uses it): ARCHITECTURE.md §7. **Navigation rule:** read only the folder relevant to the task; grep before scanning. Prefer the `explorer` agent for broad sweeps.
+Full frontend module map (every helper, what it exports, who uses it): ARCHITECTURE.md §7. **Navigation rule:** read only the folder relevant to the task; grep before scanning.
 
 ## Design Language — calm mountain forest
 

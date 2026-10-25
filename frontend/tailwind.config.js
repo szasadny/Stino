@@ -1,5 +1,3 @@
-import { LABEL_PALETTE } from './src/lib/palette.js'
-
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{svelte,ts,js}'],
@@ -22,7 +20,6 @@ export default {
         ink: 'rgb(var(--ink) / <alpha-value>)',
         sage: 'rgb(var(--sage) / <alpha-value>)',
         lichen: 'rgb(var(--lichen) / <alpha-value>)',
-        label: Object.fromEntries(LABEL_PALETTE.map((p) => [p.name, p.hex])),
       },
       fontFamily: {
         sans: ['Inter Variable', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],

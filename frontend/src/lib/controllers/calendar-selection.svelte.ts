@@ -17,9 +17,6 @@ export function createCalendarSelection(core: TaskCore) {
     get labelFor() {
       return labelFor
     },
-    get tasksByDate() {
-      return tasksByDate
-    },
     get selectedDate() {
       return selectedDate
     },
