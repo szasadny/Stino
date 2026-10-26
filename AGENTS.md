@@ -196,7 +196,7 @@ A quiet morning in a pine forest: soft light, mist, stone, evergreen. Calm, spac
 
 **Label palette** (user-assignable, nature-derived, fixed set in `palette.js`): pine, moss, fern, clay, amber, slate-blue, plum, stone.
 
-**Logo:** a cairn — three stacked stones (`pine`/`moss`/`sage`) with clear gaps and a slight lean, legible at favicon size. `Cairn.svelte` fills from theme tokens (adapts in dark); `favicon.svg` uses the light hexes. Keep it three distinct stones — the one piece of mountain iconography.
+**Logo:** a cairn — three stacked stones (`pine`/`moss`/`sage`) with clear gaps and a slight lean, legible at favicon size. `Cairn.svelte` fills from theme tokens (adapts in dark); `favicon.svg` uses the light hexes. Android/iOS bookmarks need PNGs: `icon.svg` (cairn on a fog square) is the source for `icon-192/512.png` + `apple-touch-icon.png` (listed in `manifest.webmanifest`) — re-render them with `magick` if the logo changes. Keep it three distinct stones — the one piece of mountain iconography.
 
 **Typography:** headings/wordmark/modal titles = **Hanken Grotesk** (`font-display`, self-hosted `@fontsource-variable/hanken-grotesk`, imported in `main.ts`); body/UI = **Inter** (`font-sans`). Hierarchy from size and weight, not ornament.
 
