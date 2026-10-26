@@ -40,6 +40,7 @@
   import LabelSelect from '../lib/components/LabelSelect.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
   import EmptyState from '../lib/components/EmptyState.svelte'
+  import UndoToast from '../lib/components/UndoToast.svelte'
 
   const core = createTaskCore()
 
@@ -287,13 +288,32 @@
     completeTimers.delete(task.id)
     completingIds.delete(task.id)
     lastTickAt.delete(task.id)
-    void core.optimistic(
-      () => {
-        core.tasks = core.tasks.filter((t) => t.id !== task.id)
-      },
-      () => api.tasks.complete(task.id, task.occurrence_date).then(() => {}),
-      'Could not update the task',
-    )
+    const index = core.tasks.findIndex((t) => t.id === task.id)
+    const shown = { task, index }
+    void core
+      .optimistic(
+        () => {
+          core.tasks = core.tasks.filter((t) => t.id !== task.id)
+          undo = shown
+          undoToken++
+        },
+        () => api.tasks.complete(task.id, task.occurrence_date).then(() => {}),
+        'Could not update the task',
+      )
+      .then((ok) => {
+        if (!ok && undo === shown) undo = null
+      })
+  }
+
+  // Done rows never show in the Inbox, so the last completion stays undoable for a moment.
+  let undo = $state.raw<{ task: Task; index: number } | null>(null)
+  let undoToken = $state(0)
+
+  function undoComplete() {
+    if (!undo) return
+    const { task, index } = undo
+    undo = null
+    void core.reopen(task, index)
   }
 
   function foldAway(node: HTMLElement) {
@@ -394,7 +414,7 @@
 
 <svelte:window onclick={onWindowClick} />
 
-<section class="mx-auto flex h-full w-full max-w-2xl flex-col px-4">
+<section class="relative mx-auto flex h-full w-full max-w-2xl flex-col px-4">
   <header class="shrink-0 pt-6 sm:pt-8">
     <h1 class="font-display text-2xl font-semibold tracking-tight text-pine-deep">Inbox</h1>
     <p class="mt-1 text-sm text-sage">Capture now, schedule later.</p>
@@ -778,5 +798,13 @@
     onSubmit={onComposerSubmit}
     onDelete={composerMode === 'create' ? undefined : deleteEditing}
     onClose={() => (composerOpen = false)}
+  />
+
+  <UndoToast
+    message={undo ? `Completed “${undo.task.title}”` : null}
+    token={undoToken}
+    busy={core.pending}
+    onUndo={undoComplete}
+    onDismiss={() => (undo = null)}
   />
 </section>

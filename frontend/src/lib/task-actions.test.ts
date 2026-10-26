@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canSkipOccurrence,
   replaceOccurrence,
+  restoreOccurrence,
   skippableOccurrence,
   withoutOccurrence,
 } from './task-actions'
@@ -81,5 +82,25 @@ describe('withoutOccurrence', () => {
       [1, '2026-06-01'],
       [2, '2026-06-08'],
     ])
+  })
+})
+
+describe('restoreOccurrence', () => {
+  const ids = (list: Task[]) => list.map((t) => t.id)
+
+  it('reinserts at the original index', () => {
+    const out = restoreOccurrence([task(1, null), task(3, null)], task(2, null), 1)
+    expect(ids(out)).toEqual([1, 2, 3])
+  })
+
+  it('clamps an index past the end to an append', () => {
+    expect(ids(restoreOccurrence([task(1, null)], task(2, null), 5))).toEqual([1, 2])
+    expect(ids(restoreOccurrence([task(1, null)], task(2, null), -1))).toEqual([2, 1])
+  })
+
+  it('replaces a row that is already present instead of duplicating it', () => {
+    const out = restoreOccurrence([task(1, null), task(2, null)], task(2, null, true), 0)
+    expect(ids(out)).toEqual([1, 2])
+    expect(out[1].completed).toBe(true)
   })
 })

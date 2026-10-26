@@ -40,6 +40,9 @@ export const INBOX_COMPLETE_HOLD_MS = 750
 export const INBOX_COMPLETE_EXIT_MS = 350
 export const INBOX_COMPLETE_RETRY_MS = 150
 
+// How long the Inbox "Completed … Undo" toast stays up.
+export const UNDO_TOAST_MS = 5000
+
 // Shared token-based input styling.
 export const INPUT_CLASS =
   'rounded-lg border border-lichen bg-fog px-3 py-2 text-sm text-ink outline-none transition placeholder:text-sage hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20'

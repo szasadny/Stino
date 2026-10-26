@@ -11,7 +11,12 @@ import type { Label, Task } from '../types'
 import { errorMessage } from '../errors'
 import { applyLabelOrder, mergeLabelOrder } from '../labels'
 import { applyUntimedOrder } from '../ordering'
-import { replaceOccurrence, toggleCompletion, withoutOccurrence } from '../task-actions'
+import {
+  replaceOccurrence,
+  restoreOccurrence,
+  toggleCompletion,
+  withoutOccurrence,
+} from '../task-actions'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
@@ -198,6 +203,20 @@ export function createTaskCore() {
           tasks = replaceOccurrence(tasks, await toggleCompletion(task))
         },
         'Could not update the task',
+      )
+    },
+
+    // Undo for a list that drops done rows (the Inbox): reinsert at `index`, then reopen.
+    reopen(task: Task, index: number): Promise<boolean> {
+      const open = { ...task, completed: false }
+      return optimistic(
+        () => {
+          tasks = restoreOccurrence(tasks, open, index)
+        },
+        async () => {
+          tasks = replaceOccurrence(tasks, await toggleCompletion({ ...task, completed: true }))
+        },
+        'Could not reopen the task',
       )
     },
 

@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import { addWeeks, buildWeekGrid, formatWeekRange, startOfWeek, toISODate } from '../lib/date'
+  import {
+    addWeeks,
+    buildWeekGrid,
+    formatWeekRange,
+    formatWeekRangeCompact,
+    startOfWeek,
+    toISODate,
+  } from '../lib/date'
   import { isCompact } from '../lib/viewport.svelte'
   import { onRefresh } from '../lib/refresh.svelte'
   import { todayDate, todayKey } from '../lib/today.svelte'
@@ -22,7 +29,9 @@
   let anchor = $state(todayDate())
   const week = $derived(buildWeekGrid(anchor))
   const weekKeys = $derived(week.map(toISODate))
-  const rangeLabel = $derived(formatWeekRange(week))
+  const rangeLabel = $derived(
+    isCompact() ? formatWeekRangeCompact(week, todayDate().getFullYear()) : formatWeekRange(week),
+  )
 
   const core = createTaskCore()
   const cal = createCalendarBoard(core, () => weekKeys, loadRange)
@@ -108,14 +117,16 @@
 >
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
-      <h1 class="font-display text-xl font-semibold tracking-tight text-pine-deep sm:text-2xl">
+      <h1
+        class="font-display text-xl font-semibold tracking-tight whitespace-nowrap text-pine-deep sm:text-2xl"
+      >
         {rangeLabel}
       </h1>
       {#if core.loading}
         <span class="text-xs text-sage">Loading…</span>
       {/if}
     </div>
-    <div class="flex items-center gap-1">
+    <div class="flex shrink-0 items-center gap-1">
       <button
         type="button"
         onclick={() => go(-1)}
@@ -138,7 +149,7 @@
       <button
         type="button"
         onclick={goThisWeek}
-        class="rounded-lg px-3 py-1.5 text-sm font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        class="rounded-lg px-3 py-1.5 whitespace-nowrap text-sm font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
       >
         This week
       </button>

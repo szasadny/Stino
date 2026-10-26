@@ -55,7 +55,8 @@
   const visible = $derived(visibleLineCount(items.length, listHeight, lineHeight, rowGap))
   const overflow = $derived(items.length - visible)
   const ariaLabel = $derived(
-    `${formatDayFull(date)}, ${items.length} ${items.length === 1 ? 'task' : 'tasks'}`,
+    `${formatDayFull(date)}, ${items.length} ${items.length === 1 ? 'task' : 'tasks'}` +
+      (overflow > 0 ? `, ${overflow} more` : ''),
   )
 
   const isShadow = (item: CellItem) => SHADOW_ITEM_MARKER_PROPERTY_NAME in item
@@ -88,11 +89,22 @@
     {open ? 'ring-2 ring-inset ring-pine/50' : ''}
     {dropTarget ? 'border-pine bg-pine/10 ring-2 ring-inset ring-pine/60' : ''}"
 >
-  <span
-    class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums
-      {isToday ? 'bg-pine text-surface' : inCurrentMonth ? 'text-ink' : 'text-sage/60'}"
-  >
-    {date.getDate()}
+  <!-- "+N" shares the date row so it never takes a task line's height. -->
+  <span class="flex w-full shrink-0 items-center justify-between gap-0.5">
+    <span
+      class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums
+        {isToday ? 'bg-pine text-surface' : inCurrentMonth ? 'text-ink' : 'text-sage/60'}"
+    >
+      {date.getDate()}
+    </span>
+    {#if overflow > 0}
+      <span
+        class="shrink-0 pr-0.5 text-[10px] leading-tight tabular-nums text-sage"
+        title="{overflow} more"
+      >
+        +{overflow}
+      </span>
+    {/if}
   </span>
 
   {#if open}
@@ -131,11 +143,5 @@
         {@render line(item, i >= visible && !isShadow(item))}
       {/each}
     </ul>
-  {/if}
-
-  {#if overflow > 0}
-    <span class="shrink-0 truncate pl-0.5 text-[10px] leading-tight text-sage">
-      +{overflow} more
-    </span>
   {/if}
 </button>

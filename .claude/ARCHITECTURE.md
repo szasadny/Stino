@@ -255,7 +255,7 @@ Behaviours that matter:
 ### Pure helpers (`lib/*.ts` — unit-tested with Vitest, `*.test.ts` beside each; `npm test`)
 
 - `date.ts` — all calendar date math: month-grid builder, `monthWeekCount`, month/week nav helpers
-  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `addDays`, `formatWeekRange`), formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
+  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `addDays`, `formatWeekRange`, `formatWeekRangeCompact` for phone headers), formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
   inline date math.
 - `grouping.ts` — `groupByLabel(tasks, labels)` (label sections in label `sort_order`, "No label"
   pinned last, input order kept within groups); `labelDayOrder(tasks, labels)` (one day flattened
@@ -298,8 +298,9 @@ Behaviours that matter:
   `(id, occurrence_date)` row): the complete-toggle primitives `task-core` and Search build on.
   Also `skippableOccurrence(task)` (the instance date a Delete can skip — non-null only for a
   recurring row), `canSkipOccurrence(task)` (recurring AND not completed — a completed occurrence
-  is history, deletable only with its series) and `withoutOccurrence(tasks, id, date)` (optimistic mirror of
-  `api.tasks.skipOccurrence`).
+  is history, deletable only with its series), `withoutOccurrence(tasks, id, date)` (optimistic mirror of
+  `api.tasks.skipOccurrence`) and `restoreOccurrence(tasks, task, index)` (put a dropped row back at a
+  clamped index, replacing it if already present — the optimistic mirror of `task-core`'s `reopen`).
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion. `apiErrorMessage(body)`: the API's `{"error"}` text, else a generic message (`api.ts` maps network failures to `NETWORK_ERROR_MESSAGE`).
 - `calendar-board.ts` — `buildBoard`, the pure cell projection the `calendar-board` controller
   builds on (plus `cellItemId` keys and `appendedUntimedOrder` for a cross-day drop); an
@@ -355,8 +356,8 @@ Behaviours that matter:
 
 ### Controllers (`lib/controllers/` — rune factories, `*.svelte.ts`)
 
-- `task-core.svelte.ts` — `createTaskCore()`: task/label state + load / toggle / reorder /
-  reorderLabels / remove / removeOccurrence / save behind ONE `pending` lock with uniform optimistic-then-revert
+- `task-core.svelte.ts` — `createTaskCore()`: task/label state + load / toggle / reopen (undo a
+  completion in a list that drops done rows) / reorder / reorderLabels / remove / removeOccurrence / save behind ONE `pending` lock with uniform optimistic-then-revert
   updates. Also `dayCrud(reload)`: the throwing create/update/delete/removeOccurrence the Week day sheet binds —
   same lock, reloads the range on success, rethrows so the sheet/panel shows its own inline error.
 - `calendar-board.svelte.ts` — `createCalendarBoard(core, keys, reload)`: the month/week drop zones
@@ -374,7 +375,8 @@ Behaviours that matter:
 - **Shell/shared:** `Modal` (native `<dialog>` scaffold — header + close, backdrop + sheet-in
   animation, `onOpen` hook — that `DaySheet`, `SettingsDialog`, `ImportDialog`, and `LabelManager`
   build on), `EmptyState` (dashed "nothing here" panel), `ErrorAlert` (bark-toned error banner),
-  `DeleteConfirm` (two-step "Delete? Yes/No"), `RecurringDeleteConfirm` (Delete for a recurring
+  `DeleteConfirm` (two-step "Delete? Yes/No"), `UndoToast` (one bottom-of-view `role=status` bar with an
+  Undo button that self-dismisses after `UNDO_TOAST_MS`; a new `token` replaces/restarts it), `RecurringDeleteConfirm` (Delete for a recurring
   occurrence — opens a small stacked `Modal` asking "This occurrence" (skip the date) vs "Whole
   series" vs Cancel; `TaskComposer` uses it instead of `DeleteConfirm` when given
   `onDeleteOccurrence`; `canDeleteOccurrence={false}` (a completed row) disables "This occurrence"
@@ -410,7 +412,8 @@ Behaviours that matter:
   schedule / set recurrence / drag-to-reorder — the drag gesture adapts to input like every list
   (wide: `dragHandleZone` + grip; phone: whole-row press-and-hold `dndzone`, tap-to-edit row, delete
   inside the editor). **Multi-select bulk edit:** a "Select" toggle turns rows into checkboxes and a
-  sticky bar applies one `api.tasks.batch` op (label / schedule / complete / delete).
+  sticky bar applies one `api.tasks.batch` op (label / schedule / complete / delete). Completing a
+  row shows an `UndoToast` ("Completed “…”" + Undo → `core.reopen`) — only the latest completion.
 - `MonthView`, `WeekView` — the calendar grids + period nav (layouts and drag wiring: §8). Week is
   Monday-first over the range query.
 - `TodayView` — everything due today (`?date=`), rendered inline via `DayAgenda`; full-date header +
@@ -463,7 +466,9 @@ layout per view.
   (`lib/fit.ts`), so "+N more" appears only once the cell is genuinely full. Each zone renders
   **every** item for svelte-dnd-action's child↔item parity — overflow pills/lines are `invisible` but
   keep their child slot (never the drag shadow, which stays visible as the drop preview); the
-  "+N more" row sits outside the `<ul>`.
+  overflow hint sits outside the `<ul>` — a "+N more" row on desktop; on the phone a compact "+N"
+  in the date row (full count in its `title` and the cell's `aria-label`), so a one-line cell still
+  shows one task line.
 - The phone grid renders only the month's actual week-rows (`monthWeekCount`, 4–6) via a dynamic
   `grid-template-rows`, so no all-spill-over row wastes height (the data layer keeps the full
   42-cell grid). Desktop keeps the fixed 6×7.

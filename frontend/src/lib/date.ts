@@ -163,3 +163,21 @@ export function formatWeekRange(dates: Date[]): string {
   }
   return `${startDay}–${endDay} ${startMonth} ${start.getFullYear()}`
 }
+
+/**
+ * Phone week-header title with abbreviated months, e.g. "26 Oct – 1 Nov". The year
+ * appears once at the end, only when the range reaches outside `currentYear`.
+ */
+export function formatWeekRangeCompact(dates: Date[], currentYear: number): string {
+  const start = dates[0]
+  const end = dates[dates.length - 1]
+  const startMonth = MONTH_NAMES[start.getMonth()].slice(0, 3)
+  const endMonth = MONTH_NAMES[end.getMonth()].slice(0, 3)
+  const outsideYear = start.getFullYear() !== currentYear || end.getFullYear() !== currentYear
+  const year = outsideYear ? ` ${end.getFullYear()}` : ''
+
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${start.getDate()}–${end.getDate()} ${endMonth}${year}`
+  }
+  return `${start.getDate()} ${startMonth} – ${end.getDate()} ${endMonth}${year}`
+}

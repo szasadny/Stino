@@ -9,6 +9,7 @@ import {
   formatMonthYear,
   formatShortDate,
   formatWeekRange,
+  formatWeekRangeCompact,
   fromISODate,
   isPlausibleISODate,
   isSameMonth,
@@ -111,6 +112,19 @@ describe('formatters', () => {
   it('formats a week range, repeating the month only across a boundary', () => {
     expect(formatWeekRange(buildWeekGrid(new Date(2026, 5, 3)))).toBe('1–7 June 2026')
     expect(formatWeekRange(buildWeekGrid(new Date(2026, 5, 30)))).toBe('29 June – 5 July 2026')
+  })
+
+  it('formats a compact week range with short months and the year only outside the current one', () => {
+    expect(formatWeekRangeCompact(buildWeekGrid(new Date(2026, 5, 3)), 2026)).toBe('1–7 Jun')
+    expect(formatWeekRangeCompact(buildWeekGrid(new Date(2026, 9, 26)), 2026)).toBe(
+      '26 Oct – 1 Nov',
+    )
+    expect(formatWeekRangeCompact(buildWeekGrid(new Date(2026, 9, 26)), 2025)).toBe(
+      '26 Oct – 1 Nov 2026',
+    )
+    expect(formatWeekRangeCompact(buildWeekGrid(new Date(2026, 11, 30)), 2026)).toBe(
+      '28 Dec – 3 Jan 2027',
+    )
   })
 
   it('formats the full day label with the controlled date part', () => {

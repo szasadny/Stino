@@ -49,3 +49,12 @@ export function replaceOccurrence(tasks: Task[], updated: Task): Task[] {
     t.id === updated.id && t.occurrence_date === updated.occurrence_date ? updated : t,
   )
 }
+
+/** Reinsert `task` at `index`; replaces in place if a reload already brought it back. */
+export function restoreOccurrence(tasks: Task[], task: Task, index: number): Task[] {
+  if (tasks.some((t) => t.id === task.id && t.occurrence_date === task.occurrence_date)) {
+    return replaceOccurrence(tasks, task)
+  }
+  const at = Math.max(0, Math.min(index, tasks.length))
+  return [...tasks.slice(0, at), task, ...tasks.slice(at)]
+}

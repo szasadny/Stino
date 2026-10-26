@@ -35,6 +35,11 @@ describe('visibleLineCount', () => {
     expect(visibleLineCount(3, 16, 16)).toBe(1)
   })
 
+  it('keeps the only line of a one-line cell when more items overflow', () => {
+    expect(visibleLineCount(3, 15, 15, 2)).toBe(1)
+    expect(visibleLineCount(3, 20, 15, 2)).toBe(1)
+  })
+
   it('handles a capacity of 0 (cell shorter than a line)', () => {
     expect(visibleLineCount(3, 10, 16)).toBe(0)
   })
