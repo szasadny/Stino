@@ -301,3 +301,21 @@ async fn an_over_long_multibyte_title_is_clamped_and_kept_whole_in_the_notes() {
     assert_eq!(task["title"], expected);
     assert_eq!(task["notes"], format!("{title}\n\noriginal notes"));
 }
+
+#[tokio::test]
+async fn a_completed_repeating_row_imports_as_a_completed_one_off() {
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Sport","Fencing","","","false","","2026-06-03T00:00:00+0000","","FREQ=WEEKLY;INTERVAL=1","0","2","2026-06-01T08:00:00+0000","2026-06-03T19:00:00+0000","1","UTC","true","false"
+"#;
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+
+    let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-30")).await;
+    let fencing = titled(&range, "Fencing");
+    assert_eq!(fencing.len(), 1, "history must not repeat: {fencing:?}");
+    assert_eq!(fencing[0]["recurrence_rule"], Value::Null);
+    assert_eq!(fencing[0]["completed"], true);
+}

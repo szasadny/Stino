@@ -11,12 +11,12 @@ description: Run Stinō against a scratch DB and drive it with Playwright to ver
 REPO=$(git rev-parse --show-toplevel)
 (cd $REPO/frontend && npm run build)             # backend serves dist
 SCRATCH=$(mktemp -d /tmp/stino-verify-XXXX) && mkdir -p $SCRATCH/data
-cd $REPO/backend && SQLX_OFFLINE=true \
+cd $REPO/backend && \
   DATABASE_URL="sqlite://$SCRATCH/data/stino.db?mode=rwc" \
   DATA_DIR=$SCRATCH/data STATIC_DIR=$REPO/frontend/dist PORT=8125 cargo run
 ```
 
-`SQLX_OFFLINE=true` is required — the `query!` macros otherwise compile against the empty scratch DB. If it still fails with "no cached data", migrate the scratch DB (`sqlx migrate run`) and compile online against it instead. Poll `GET /api/health` until 200.
+Builds are offline by default (`backend/.cargo/config.toml`); "no cached data" means `.sqlx/` is stale — run `cargo sqlx prepare` against a migrated scratch DB. Poll `GET /api/health` until 200.
 
 ## Seed via the API
 

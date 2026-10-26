@@ -16,6 +16,13 @@ export function canSkipOccurrence(task: Task): boolean {
   return skippableOccurrence(task) != null && !task.completed
 }
 
+/** TickTick-style: a missed past occurrence shows only as its rollover copy on today. */
+export function withoutMissedOccurrences(tasks: Task[], today: string): Task[] {
+  return tasks.filter(
+    (t) => t.recurrence_rule == null || t.completed || (t.occurrence_date ?? '') >= today,
+  )
+}
+
 export function withoutOccurrence(tasks: Task[], id: number, occurrenceDate: string): Task[] {
   return tasks.filter((t) => !(t.id === id && t.occurrence_date === occurrenceDate))
 }

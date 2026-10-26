@@ -1,0 +1,4 @@
+# Compile query! macros against the committed .sqlx/ cache, never a live DB.
+# `cargo sqlx prepare` sets SQLX_OFFLINE=false itself, which wins over this.
+[env]
+SQLX_OFFLINE = "true"

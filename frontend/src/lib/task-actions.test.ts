@@ -4,6 +4,7 @@ import {
   replaceOccurrence,
   restoreOccurrence,
   skippableOccurrence,
+  withoutMissedOccurrences,
   withoutOccurrence,
 } from './task-actions'
 import type { Task } from './types'
@@ -102,5 +103,30 @@ describe('restoreOccurrence', () => {
     const out = restoreOccurrence([task(1, null), task(2, null)], task(2, null, true), 0)
     expect(ids(out)).toEqual([1, 2])
     expect(out[1].completed).toBe(true)
+  })
+})
+
+describe('withoutMissedOccurrences', () => {
+  const recurring = (date: string, completed = false): Task => ({
+    ...task(1, date, completed),
+    recurrence_rule: 'FREQ=DAILY',
+  })
+
+  it('drops only unticked past occurrences of a series', () => {
+    const list = [
+      recurring('2026-06-01'),
+      recurring('2026-06-02', true),
+      recurring('2026-06-03'),
+      recurring('2026-06-04'),
+      task(2, '2026-06-01'),
+    ]
+    const out = withoutMissedOccurrences(list, '2026-06-03')
+
+    expect(out.map((t) => [t.id, t.occurrence_date])).toEqual([
+      [1, '2026-06-02'],
+      [1, '2026-06-03'],
+      [1, '2026-06-04'],
+      [2, '2026-06-01'],
+    ])
   })
 })

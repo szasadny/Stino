@@ -11,5 +11,6 @@ Only deltas that apply when Claude Code (not codex) is driving:
 - The `.codex/` orchestrator/executor roles are for codex sessions — as Claude, ignore that section and work directly (use your own subagents per your normal judgment).
 - Skill mapping for the AGENTS.md task-routing table: `verify` → `/verify`, `maintaining-agents-md` → `/maintaining-agents-md`, `modern-web-guidance` → `/modern-web-guidance` (all live in `.claude/skills/`; `.agents/skills/` holds symlinks for codex).
 - Frontend / UI work: additionally follow the `frontend-design` plugin skill.
+- Comments: Claude tends to over-comment — default to none; at most one line of non-obvious *why* (AGENTS.md § Conventions). Never multi-line doc prose that paraphrases the code.
 - Reviewing your own diff before finishing: run `/code-review` (bugs) and `/simplify` (cleanups).
 - Launching or driving the real app: `/run` (launch) or `/verify` (drive and observe).

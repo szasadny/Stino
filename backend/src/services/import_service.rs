@@ -59,8 +59,16 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
             field(record, &headers, COL_TIMEZONE),
             is_true(field(record, &headers, COL_FLOATING)),
         );
-        let recurrence_rule =
-            parse_repeat(field(record, &headers, COL_REPEAT), due_date.as_deref());
+        let completed = is_completed(
+            field(record, &headers, COL_STATUS),
+            field(record, &headers, COL_COMPLETED),
+        );
+        // TickTick exports each ticked-off instance of a series as its own completed row.
+        let recurrence_rule = if completed {
+            None
+        } else {
+            parse_repeat(field(record, &headers, COL_REPEAT), due_date.as_deref())
+        };
 
         let label_id = match pick_label(record, &headers) {
             Some(name) => Some(resolve_label(&mut tx, &mut label_ids, &mut created, &name).await?),
@@ -80,11 +88,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
         match task_service::create_on(&mut tx, new_task).await {
             Ok(task) => {
                 created.tasks += 1;
-                if is_completed(
-                    field(record, &headers, COL_STATUS),
-                    field(record, &headers, COL_COMPLETED),
-                ) {
-                    // Its own occurrence: the series start, or NULL for an Inbox task.
+                if completed {
                     db::task::add_completion(&mut *tx, task.id, task.due_date.as_deref()).await?;
                     created.completions += 1;
                 }

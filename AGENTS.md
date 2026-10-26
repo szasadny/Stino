@@ -43,7 +43,7 @@ Breaking any of these is never acceptable, including during debugging or quick f
 
 ## Scope
 
-**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; yearly on the start date; every N days/weeks; every N months with the same monthly options) · delete one occurrence or the whole series of a recurring task · times on tasks · search over title/notes · by-label ordering as the app-wide default (calendar cells + day views; a persisted List/By-label preference switches back to manual order) · time-sorted ordering (timed by time first; untimed by label, then manual drag order within a label) · automatic rollover of overdue uncompleted tasks onto today (on app open/new day; a recurring series' missed occurrences from the last 7 days collapse into one standalone one-off on today, while the series keeps repeating) · TickTick CSV import.
+**In scope:** month calendar (primary view) · day zoom · week view · color labels · Today tab · Inbox tab (unscheduled tasks) · recurring tasks (daily; weekly by weekdays; monthly by date incl. last day, by Nth weekday incl. last, first/last workday; yearly on the start date; every N days/weeks; every N months with the same monthly options) · delete one occurrence or the whole series of a recurring task · times on tasks · search over title/notes · by-label ordering as the app-wide default (calendar cells + day views; a persisted List/By-label preference switches back to manual order) · time-sorted ordering (timed by time first; untimed by label, then manual drag order within a label) · automatic rollover of overdue uncompleted tasks onto today (on app open/new day; a recurring series' missed occurrences collapse into one standalone one-off on today, while the series keeps repeating; unticked past occurrences are hidden, TickTick-style) · TickTick CSV import.
 
 **Out of scope (deliberate — Hard Rule 4):** reminders/notifications/alerts, pomodoro & focus timers, habit tracking, sub-task/checklist depth, priorities beyond what import needs, collaboration/sharing, accounts & auth, ICS subscriptions, AI features.
 
@@ -105,6 +105,7 @@ Source of truth: `backend/migrations/` (exact DDL and indexes: ARCHITECTURE.md �
 - **task** — `id, title, notes?, label_id?→label, due_date?, due_time?, recurrence_rule?, sort_order, detached_from?→task, created_at, updated_at`. `due_date` NULL ⇒ **Inbox** (unscheduled; giving it a date moves it onto the calendar, TickTick-style). `due_time` NULL ⇒ untimed. `recurrence_rule` set ⇒ recurring, with `due_date` as the series start (DTSTART). `detached_from` links a rollover copy to its series.
 - **label** — `id, name, color` (hex from the fixed palette), `emoji?` (optional single glyph), `sort_order`.
 - **completion** — one row per done occurrence: `(task_id, occurrence_date, completed_at)`. A recurring task is done **per date** — completing one instance never completes the rest.
+- **imported_history_rule** — `(task_id, recurrence_rule)`: backup of rules a migration stripped from imported TickTick history rows (now completed one-offs).
 - **task_exception** — `(task_id, occurrence_date)`: a recurring occurrence **detached** by a single-instance move, or **skipped** by a single-occurrence delete. Expansion skips these dates; cascades on task delete.
 
 **Single `label_id` per task** by design. If multi-label is ever needed, add a `task_label` join table in a new additive migration — never overload existing columns. **Search** is SQLite `LIKE` over title/notes; add FTS5 only if it ever feels slow.
@@ -137,7 +138,9 @@ backend/
     error.rs           # single AppError → HTTP at the boundary (IntoResponse)
     config.rs          # env config + shared constants (date/time formats, length caps, body limit)
   migrations/          # SQLx migrations — additive, never edit an applied one
-  .sqlx/               # committed offline query cache (the Docker build compiles offline)
+  .sqlx/               # committed offline query cache — every build compiles against it
+  .cargo/config.toml   # SQLX_OFFLINE=true, so builds never read a live DB
+  build.rs             # recompile when a migration is added (migrate! embeds them)
   tests/               # integration tests against a temp SQLite DB
 
 frontend/

@@ -9,8 +9,10 @@ import {
   replaceOccurrence,
   restoreOccurrence,
   toggleCompletion,
+  withoutMissedOccurrences,
   withoutOccurrence,
 } from '../task-actions'
+import { todayKey } from '../today.svelte'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
@@ -41,7 +43,7 @@ export function createTaskCore() {
       if (mine !== loadToken) return
       await commitWrap(() => {
         if (mine !== loadToken) return // a newer load won while the wrapper ran
-        tasks = data.tasks
+        tasks = withoutMissedOccurrences(data.tasks, todayKey())
         if (data.labels) labels = data.labels
       })
     } catch (err) {

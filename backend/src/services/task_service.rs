@@ -249,9 +249,8 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
     result.map_err(map_row_not_found)
 }
 
-/// `today` is the browser's local date. Overdue one-offs move first, then each series'
-/// missed occurrences in the lookback window collapse into one reused copy on today
-/// (so the order matters). Idempotent: completed and detached occurrences are left alone.
+/// `today` is the browser's local date. Overdue one-offs move first, then each series with
+/// a miss gets one reused copy on today (so the order matters).
 pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSummary> {
     let today = validate_date(today)?;
     let mut moved = db::task::rollover_overdue(pool, &today).await?;
@@ -259,54 +258,33 @@ pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSumma
     Ok(RolloverSummary { moved })
 }
 
+/// TickTick-style: a completion or exception settles every earlier occurrence, so a series
+/// is behind iff its latest past occurrence is newer than its latest settled date.
 async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u64> {
-    let today_date = parse_date(today)?;
-    let to_date = today_date - chrono::Duration::days(1);
-    let from_date = today_date - chrono::Duration::days(config::ROLLOVER_LOOKBACK_DAYS);
-    if to_date < from_date {
-        return Ok(0); // window collapsed (non-positive lookback) — nothing to scan
-    }
-    let from = from_date.format(config::DATE_FORMAT).to_string();
-    let to = to_date.format(config::DATE_FORMAT).to_string();
+    let yesterday = parse_date(today)? - chrono::Duration::days(1);
+    let through = yesterday.format(config::DATE_FORMAT).to_string();
 
     let mut detached = 0;
-    for task in db::task::list_recurring_through(pool, &to).await? {
+    for task in db::task::list_recurring_through(pool, &through).await? {
         let (Some(rule), Some(start)) = (task.recurrence_rule.as_deref(), task.due_date.as_deref())
         else {
-            continue; // a recurring row always has both; skip defensively
+            continue;
         };
         // A rule that no longer expands must not abort the whole rollover.
-        let dates = match recurrence::expand(rule, parse_date(start)?, from_date, to_date) {
-            Ok(dates) => dates,
+        let latest = match recurrence::latest_through(rule, parse_date(start)?, yesterday) {
+            Ok(Some(date)) => date.format(config::DATE_FORMAT).to_string(),
+            Ok(None) => continue,
             Err(err) => {
                 tracing::warn!(task_id = task.id, error = %err, "skipping unexpandable recurrence rule during rollover");
                 continue;
             }
         };
-        if dates.is_empty() {
-            continue;
-        }
-        let done: HashSet<String> = db::task::completed_occurrences(pool, task.id, &from, &to)
-            .await?
-            .into_iter()
-            .collect();
-        let already_detached: HashSet<String> =
-            db::task::excepted_occurrences(pool, task.id, &from, &to)
-                .await?
-                .into_iter()
-                .collect();
-        let missed: Vec<String> = dates
-            .into_iter()
-            .map(|date| date.format(config::DATE_FORMAT).to_string())
-            .filter(|occurrence| {
-                !done.contains(occurrence) && !already_detached.contains(occurrence)
-            })
-            .collect();
-        if missed.is_empty() {
+        let settled = db::task::latest_settled_occurrence(pool, task.id, &through).await?;
+        if settled.is_some_and(|settled| settled >= latest) {
             continue;
         }
         // An existing open copy was already counted by `rollover_overdue` if it moved.
-        if db::task::rollover_occurrences(pool, task.id, &missed, today).await? {
+        if db::task::rollover_occurrence(pool, task.id, &latest, today).await? {
             detached += 1;
         }
     }

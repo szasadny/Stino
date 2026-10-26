@@ -13,9 +13,6 @@ pub const DATE_FORMAT: &str = "%Y-%m-%d";
 pub const TIME_FORMAT: &str = "%H:%M";
 /// A multi-year TickTick backup can exceed Axum's 2 MB default.
 pub const IMPORT_MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
-/// Sliding window for missed recurring occurrences: anything older stays on its own day
-/// and never re-enters the window, which keeps the rollover idempotent.
-pub const ROLLOVER_LOOKBACK_DAYS: i64 = 7;
 
 #[derive(Clone, Debug)]
 pub struct Config {

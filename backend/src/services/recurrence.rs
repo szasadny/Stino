@@ -117,6 +117,18 @@ pub fn expand(
     Ok(dates)
 }
 
+pub fn latest_through(
+    rule: &str,
+    dtstart: NaiveDate,
+    to: NaiveDate,
+) -> AppResult<Option<NaiveDate>> {
+    Ok(build(rule, dtstart)?
+        .into_iter()
+        .map(|dt| dt.date_naive())
+        .take_while(|d| *d <= to)
+        .last())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

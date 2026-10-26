@@ -185,6 +185,26 @@ pub async fn excepted_occurrences(
     .await
 }
 
+pub async fn latest_settled_occurrence(
+    pool: &SqlitePool,
+    task_id: i64,
+    through: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT MAX(occurrence_date) AS "latest?: String" FROM (
+               SELECT occurrence_date FROM completion WHERE task_id = ? AND occurrence_date <= ?
+               UNION ALL
+               SELECT occurrence_date FROM task_exception WHERE task_id = ? AND occurrence_date <= ?
+           )"#,
+        task_id,
+        through,
+        task_id,
+        through
+    )
+    .fetch_one(pool)
+    .await
+}
+
 /// Not idempotent (creates a one-off), so the service must ensure the occurrence
 /// isn't already detached.
 pub async fn move_occurrence(
@@ -212,18 +232,16 @@ pub async fn move_occurrence(
     Ok(task)
 }
 
-/// Skip every `missed` date and add one copy on `today` unless the series already
-/// has an open rollover copy. Returns whether a copy was created.
-pub async fn rollover_occurrences(
+/// Skip `missed` (settling the series up to it) and add one copy on `today` unless the
+/// series already has an open rollover copy. Returns whether a copy was created.
+pub async fn rollover_occurrence(
     pool: &SqlitePool,
     task_id: i64,
-    missed: &[String],
+    missed: &str,
     today: &str,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    for occurrence_date in missed {
-        insert_exception(&mut tx, task_id, occurrence_date).await?;
-    }
+    insert_exception(&mut tx, task_id, missed).await?;
     let has_open_copy: bool = sqlx::query_scalar!(
         r#"SELECT EXISTS(
                SELECT 1 FROM task t

@@ -1825,16 +1825,9 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
         "the series still generates today's occurrence"
     );
 
-    for missed in ["2026-07-04", "2026-07-06"] {
-        let (_, day) = send(&app, get(&format!("/api/tasks?date={missed}"))).await;
-        assert!(
-            day.as_array()
-                .expect("array")
-                .iter()
-                .all(|t| t["recurrence_rule"].is_null()),
-            "the missed occurrence left {missed}"
-        );
-    }
+    assert!(series_dates(&app, series_id, "2026-07-06", "2026-07-06")
+        .await
+        .is_empty());
 
     let (_, kept) = send(&app, get("/api/tasks?date=2026-07-05")).await;
     let kept = kept.as_array().expect("array");
@@ -1846,56 +1839,62 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
 }
 
 #[tokio::test]
-async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
+async fn rollover_catches_a_miss_of_any_age_and_is_idempotent() {
     let app = test_app().await;
+    create_task(
+        &app,
+        json!({"title":"Pay rent","due_date":"2026-05-10","recurrence_rule":"FREQ=MONTHLY"}),
+    )
+    .await;
 
-    // With today = 2026-07-20 the window is [07-13, 07-19]; 07-01 is older.
+    let (status, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["moved"], 1,
+        "three missed months collapse into one copy"
+    );
+
+    let (_, body) = send(
+        &app,
+        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
+    )
+    .await;
+    assert_eq!(body["moved"], 0, "re-running the same day is a no-op");
+    assert_eq!(open_copies(&app, "Pay rent", "2026-07-20").await.len(), 1);
+}
+
+#[tokio::test]
+async fn rollover_ignores_misses_settled_by_a_later_completion() {
+    let app = test_app().await;
     let series = create_task(
         &app,
-        json!({"title":"Weekly review","due_date":"2026-07-01","recurrence_rule":"FREQ=DAILY"}),
+        json!({"title":"Water plants","due_date":"2026-07-01","recurrence_rule":"FREQ=WEEKLY"}),
     )
     .await;
     let series_id = series["id"].as_i64().expect("id");
+    let (status, _) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{series_id}/completions?occurrence_date=2026-07-15"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
 
-    let (status, body) = send(
+    let (_, body) = send(
         &app,
         json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["moved"], 1, "a week of misses collapses into one copy");
-
-    let window = series_dates(&app, series_id, "2026-07-13", "2026-07-19").await;
-    assert!(
-        window.is_empty(),
-        "no missed occurrence comes back: {window:?}"
-    );
-
-    let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
-    assert!(
-        old_day
-            .as_array()
-            .expect("array")
-            .iter()
-            .any(|t| t["title"] == "Weekly review" && !t["recurrence_rule"].is_null()),
-        "a miss older than the lookback window stays on its day"
-    );
-
-    let (status, body) = send(
-        &app,
-        json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["moved"], 0, "re-running the same day is a no-op");
-    let (_, today) = send(&app, get("/api/tasks?date=2026-07-20")).await;
-    let copies = today
-        .as_array()
-        .expect("array")
-        .iter()
-        .filter(|t| t["title"] == "Weekly review" && t["recurrence_rule"].is_null())
-        .count();
-    assert_eq!(copies, 1, "exactly one detached copy on today");
+    assert_eq!(body["moved"], 0);
+    assert!(open_copies(&app, "Water plants", "2026-07-20")
+        .await
+        .is_empty());
 }
 
 async fn open_copies(app: &Router, title: &str, date: &str) -> Vec<Value> {
@@ -1937,7 +1936,7 @@ async fn rollover_on_consecutive_days_keeps_one_open_copy() {
             "{today}: one open copy"
         );
     }
-    assert!(series_dates(&app, series_id, "2026-07-01", "2026-07-04")
+    assert!(series_dates(&app, series_id, "2026-07-02", "2026-07-04")
         .await
         .is_empty());
 

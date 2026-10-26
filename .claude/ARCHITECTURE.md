@@ -46,7 +46,9 @@ Dependencies point downward only. Binding "must NOT" rules: AGENTS.md § Archite
 ## 3. Data model
 
 Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
-`0003_task_exception.sql`, `0004_task_detached_from.sql`).
+`0003_task_exception.sql`, `0004_task_detached_from.sql`, `0005_imported_history_one_offs.sql`,
+`0006_link_legacy_rollover_copies.sql`). `build.rs` makes cargo recompile when a migration is added
+(`sqlx::migrate!()` embeds them at compile time).
 
 - **label** `(id, name, color, emoji?, sort_order, created_at, updated_at)` — `color` is a hex from
   the fixed palette (one frontend home: `frontend/src/lib/palette.js` — see §10); `emoji` is an
@@ -70,6 +72,11 @@ Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
   a moved instance lives on as its own one-off while the series keeps repeating elsewhere.
   A PATCH that turns recurrence off (rule → null) deletes the task's exceptions in the same
   transaction, so a re-added rule starts clean; completions are kept.
+- **imported_history_rule** `(task_id→task, recurrence_rule)` — the original rule of each TickTick
+  history row that 0005 turned into a completed one-off (earlier imports had kept it as a live
+  series); kept only so that data change is reversible.
+- 0006 links open rollover copies made before `detached_from` existed to their series (matched on
+  title/notes/label/time), so rollover reuses them instead of stacking a new one.
 
 Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`,
 `task(detached_from)`.
@@ -141,7 +148,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` and `task_exception` rows |
 | PATCH | `/api/tasks/reorder` | body `{ ids: [...] }` (the full ordered list of untimed task ids) → `204`; sets each task's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes) |
 | POST | `/api/tasks/batch` | bulk edit (Inbox multi-select): body `{ ids: [...], op }` where `op` is `type`-tagged — `{type:"label", label_id}` (null clears), `{type:"schedule", due_date}`, `{type:"complete"}`, or `{type:"delete"}` → `204`. Atomic per op (`404` if any id unknown ⇒ nothing changes); empty `ids` is a no-op. `schedule` mirrors the single-task PATCH's completion semantics and rejects a recurring task id with `400` |
-| POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + one detached copy per missed series). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** a series' uncompleted occurrences in the last `config::ROLLOVER_LOOKBACK_DAYS` (7) days collapse into ONE open rollover copy on today, reused across days via `detached_from` (TickTick-style; one transaction, `db::task::rollover_occurrences`) — every missed date gets a `task_exception` so none comes back, and the series keeps repeating. Completed and already-detached occurrences stay put. Idempotent (the window slides with `today`, so a re-run moves nothing); bad date ⇒ `400` |
+| POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + one detached copy per missed series). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** a completion or `task_exception` settles every earlier occurrence (TickTick-style), so a series is behind iff its latest occurrence before today (`recurrence::latest_through`) is newer than its latest settled date (`db::task::latest_settled_occurrence`) — at any age. Each behind series gets ONE open rollover copy on today, reused across days via `detached_from`, and a `task_exception` on that latest missed date advances the settled mark (one transaction, `db::task::rollover_occurrence`); the series keeps repeating. Older unticked occurrences stay in the API but are hidden client-side (`withoutMissedOccurrences`). Idempotent (a re-run finds nothing newer than the settled mark); bad date ⇒ `400` |
 | POST | `/api/tasks/{id}/completions` | mark done → Task (`completed:true`); idempotent |
 | DELETE | `/api/tasks/{id}/completions` | reopen → Task (`completed:false`) |
 | POST | `/api/tasks/{id}/move_occurrence` | move ONE occurrence of a recurring task: body `{ occurrence_date, new_date }` → `201` the new detached one-off Task. `404` unknown id; `400` if not recurring, `occurrence_date` isn't an instance of the series, or already moved |
@@ -228,8 +235,9 @@ Behaviours that matter:
   it validates against the task's start date (incl. yielding an occurrence) — otherwise dropped
   and the task still imports.
 - **Completion.** A row counts as done if `Status` is `1` (Completed) or `2` (Archived), or a
-  `Completed Time` is present ⇒ a `completion` for the task's own occurrence (series start for a
-  recurring task; NULL for an undated Inbox task).
+  `Completed Time` is present ⇒ a `completion` for the task's own occurrence (NULL for an undated
+  Inbox task). A done row with a `Repeat` is one ticked-off instance of a series (TickTick exports
+  each as its own row), so it imports as a completed **one-off** — its rule is dropped.
 - **Tolerance & atomicity.** Mapping is validated through `task_service::create_on` (the single
   task validator, on the import's connection); a row with unusable data — chiefly a missing
   title — is counted in `skipped`, not fatal. Only a real database error aborts — and the whole
@@ -299,7 +307,8 @@ Behaviours that matter:
   Also `skippableOccurrence(task)` (the instance date a Delete can skip — non-null only for a
   recurring row), `canSkipOccurrence(task)` (recurring AND not completed — a completed occurrence
   is history, deletable only with its series), `withoutOccurrence(tasks, id, date)` (optimistic mirror of
-  `api.tasks.skipOccurrence`) and `restoreOccurrence(tasks, task, index)` (put a dropped row back at a
+  `api.tasks.skipOccurrence`), `withoutMissedOccurrences(tasks, today)` (drops unticked past
+  occurrences of a series — applied once in `task-core`'s load commit) and `restoreOccurrence(tasks, task, index)` (put a dropped row back at a
   clamped index, replacing it if already present — the optimistic mirror of `task-core`'s `reopen`).
 - `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion. `apiErrorMessage(body)`: the API's `{"error"}` text, else a generic message (`api.ts` maps network failures to `NETWORK_ERROR_MESSAGE`).
 - `calendar-board.ts` — `buildBoard`, the pure cell projection the `calendar-board` controller
@@ -424,8 +433,8 @@ Behaviours that matter:
   posts `api.tasks.rollover(today)` (at most once per local day, retried after a failure) and
   then advances `today.svelte.ts` and bumps the refresh signal when the day changed or anything
   moved, so the standing view reloads for the new day with the moved tasks in place. The server both
-  relocates overdue one-offs and detaches each missed recurring occurrence from the last 7 days
-  onto today as a standalone one-off (see the endpoint row above).
+  relocates overdue one-offs and collapses each series' missed occurrences into one standalone
+  one-off on today (see the endpoint row above).
 - **Search is an overlay, not a tab:** `SearchDialog` debounces `?q=` over `api.search`; flat
   `TaskRow` results (each shows its planned day, or "Inbox"); a row tap opens the editor inline,
   swapping the list so no second modal stacks; saving/deleting re-runs the search; recurring tasks
@@ -541,12 +550,13 @@ fetched range widens to include the selected day. Week keeps its existing collap
   silently falling back), `DATA_DIR`, `DATABASE_URL`, `STATIC_DIR`, optional `ALLOWED_HOSTS` (§1).
 - **Prod:** `docker compose up --build` → one container on :8080; SQLite on the `./data` volume;
   migrations run at startup via the compiled-in `sqlx::migrate!()`.
-- **SQLx offline cache:** `query!` macros are checked at compile time. Dev builds verify against a
-  live DB via `DATABASE_URL` (`backend/.env`); the Docker build has no DB, so it compiles offline
-  against the committed `backend/.sqlx/` (`SQLX_OFFLINE=true` in the Dockerfile). After changing
-  any query, regenerate from `backend/` (dev DB migrated + `DATABASE_URL` set) with
-  `cargo sqlx prepare` and commit the updated `.sqlx/` JSON. CI can assert the cache is current
-  with `cargo sqlx prepare --check`.
+- **SQLx offline cache:** `query!` macros are checked at compile time against the committed
+  `backend/.sqlx/` — every build is offline (`SQLX_OFFLINE=true` in `backend/.cargo/config.toml`
+  and the Dockerfile), so a stale dev DB can't break `cargo build`/`test`. After changing any
+  query, regenerate from `backend/` against a migrated **scratch** DB:
+  `DATABASE_URL=sqlite:///tmp/x.db?mode=rwc sqlx migrate run && cargo sqlx prepare` (prepare
+  forces online mode itself), and commit the updated `.sqlx/` JSON. `cargo sqlx prepare --check`
+  asserts the cache is current.
 
 ## 10. Mirrored constants
 
