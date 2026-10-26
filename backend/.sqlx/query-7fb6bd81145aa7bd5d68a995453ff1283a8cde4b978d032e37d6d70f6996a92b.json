@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n               SELECT 1 FROM task t\n               WHERE t.detached_from = ? AND t.due_date IS NOT NULL AND t.due_date <= ?\n                 AND NOT EXISTS (\n                     SELECT 1 FROM completion c\n                     WHERE c.task_id = t.id AND c.occurrence_date IS t.due_date\n                 )\n           ) AS \"exists!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists!: bool",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7fb6bd81145aa7bd5d68a995453ff1283a8cde4b978d032e37d6d70f6996a92b"
+}

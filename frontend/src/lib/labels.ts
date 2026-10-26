@@ -13,13 +13,10 @@ export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): string {
   return LABEL_PALETTE[next % LABEL_PALETTE.length].hex
 }
 
-// Shared ~25% label-colour wash for pills and task rows; themed text remains legible.
-export const LABEL_TINT_ALPHA = '40'
-
-/** Inline `background-color` style for a label colour, or `''` when unlabelled (the caller
- * then falls back to a neutral background). Keeps the tint recipe in exactly one place. */
-export function labelTint(color: string | null | undefined): string {
-  return color ? `background-color:${color}${LABEL_TINT_ALPHA}` : ''
+/** Inline style handing a label colour to the shared `.label-tint`/`.label-dot` classes
+ * (app.css owns the per-theme wash strength and edge). `''` when unlabelled. */
+export function labelColorVar(color: string | null | undefined): string {
+  return color ? `--label:${color}` : ''
 }
 
 /**

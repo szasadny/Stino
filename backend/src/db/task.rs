@@ -220,30 +220,8 @@ pub async fn move_occurrence(
     new_date: &str,
 ) -> Result<Task, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    sqlx::query!(
-        "INSERT OR IGNORE INTO task_exception (task_id, occurrence_date) VALUES (?, ?)",
-        task_id,
-        occurrence_date
-    )
-    .execute(&mut *tx)
-    .await?;
-    let sort_order: i64 =
-        sqlx::query_scalar!(r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "next!" FROM task"#)
-            .fetch_one(&mut *tx)
-            .await?;
-    // Copy the series' fields into a new one-off. RETURN only the new id — a nullable
-    // column (e.g. an unset `label_id`) read back through `INSERT … SELECT … RETURNING`
-    // mis-decodes to 0 in SQLite, so we re-`get` the canonical row by id below instead.
-    let new_id: i64 = sqlx::query_scalar!(
-        r#"INSERT INTO task (title, notes, label_id, due_date, due_time, recurrence_rule, sort_order)
-           SELECT title, notes, label_id, ?, due_time, NULL, ? FROM task WHERE id = ?
-           RETURNING id AS "id!""#,
-        new_date,
-        sort_order,
-        task_id
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    insert_exception(&mut tx, task_id, occurrence_date).await?;
+    let new_id = insert_detached_copy(&mut tx, task_id, new_date, None).await?;
     // A completed source occurrence carries its done state to the detached
     // one-off: re-key the series' completion at `occurrence_date` to the new
     // task on its new day. The new id is fresh, so the
@@ -262,6 +240,83 @@ pub async fn move_occurrence(
     tx.commit().await?;
     let task = get(pool, new_id).await?.ok_or(sqlx::Error::RowNotFound)?;
     Ok(task)
+}
+
+/// Skip every `missed` date and, unless the series already has an open rollover copy
+/// (which `rollover_overdue` brings onto today), add one on `today`. Atomic; returns
+/// whether a copy was created.
+pub async fn rollover_occurrences(
+    pool: &SqlitePool,
+    task_id: i64,
+    missed: &[String],
+    today: &str,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    for occurrence_date in missed {
+        insert_exception(&mut tx, task_id, occurrence_date).await?;
+    }
+    let has_open_copy: bool = sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+               SELECT 1 FROM task t
+               WHERE t.detached_from = ? AND t.due_date IS NOT NULL AND t.due_date <= ?
+                 AND NOT EXISTS (
+                     SELECT 1 FROM completion c
+                     WHERE c.task_id = t.id AND c.occurrence_date IS t.due_date
+                 )
+           ) AS "exists!: bool""#,
+        task_id,
+        today
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !has_open_copy {
+        insert_detached_copy(&mut tx, task_id, today, Some(task_id)).await?;
+    }
+    tx.commit().await?;
+    Ok(!has_open_copy)
+}
+
+async fn insert_exception(
+    tx: &mut sqlx::SqliteConnection,
+    task_id: i64,
+    occurrence_date: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT OR IGNORE INTO task_exception (task_id, occurrence_date) VALUES (?, ?)",
+        task_id,
+        occurrence_date
+    )
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+/// Copy the series into a new one-off on `new_date`, last in manual order. Returns its id.
+async fn insert_detached_copy(
+    tx: &mut sqlx::SqliteConnection,
+    task_id: i64,
+    new_date: &str,
+    detached_from: Option<i64>,
+) -> Result<i64, sqlx::Error> {
+    let sort_order: i64 =
+        sqlx::query_scalar!(r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "next!" FROM task"#)
+            .fetch_one(&mut *tx)
+            .await?;
+    // RETURN only the new id — a nullable column (e.g. an unset `label_id`) read back
+    // through `INSERT … SELECT … RETURNING` mis-decodes to 0 in SQLite, so callers
+    // re-`get` the canonical row by id instead.
+    sqlx::query_scalar!(
+        r#"INSERT INTO task
+               (title, notes, label_id, due_date, due_time, recurrence_rule, sort_order, detached_from)
+           SELECT title, notes, label_id, ?, due_time, NULL, ?, ? FROM task WHERE id = ?
+           RETURNING id AS "id!""#,
+        new_date,
+        sort_order,
+        detached_from,
+        task_id
+    )
+    .fetch_one(&mut *tx)
+    .await
 }
 
 /// Skip one occurrence of a recurring series: record it in `task_exception` so

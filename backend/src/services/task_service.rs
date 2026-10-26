@@ -301,14 +301,14 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
 ///
 /// 1. **One-off tasks:** every overdue, uncompleted one-off moves onto today (one
 ///    UPDATE, keeping its `due_time`).
-/// 2. **Missed recurring occurrences:** each uncompleted occurrence in the last
-///    [`config::ROLLOVER_LOOKBACK_DAYS`] days is *detached* onto today as its own
-///    standalone one-off — identical to dragging that instance to today. The
-///    series keeps repeating; the missed date is skipped via a `task_exception`.
-///    One standalone copy per missed day. Completed and already-detached
-///    occurrences are left alone, so a re-run moves nothing (idempotent).
+/// 2. **Missed recurring occurrences:** a series' uncompleted occurrences in the
+///    last [`config::ROLLOVER_LOOKBACK_DAYS`] days collapse into ONE open rollover
+///    copy on today, reused across days (so step 1 must run first). Every missed
+///    date gets a `task_exception`; the series keeps repeating. Completed and
+///    already-detached occurrences are left alone, so a re-run moves nothing.
 ///
-/// Returns the total number of tasks moved (one-offs relocated + occurrences detached).
+/// Returns the number of tasks that landed on today (one-offs relocated + new
+/// rollover copies).
 pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSummary> {
     let today = validate_date(today)?;
     let mut moved = db::task::rollover_overdue(pool, &today).await?;
@@ -317,10 +317,10 @@ pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSumma
 }
 
 /// Detach every uncompleted recurring occurrence in the sliding lookback window
-/// `[today - ROLLOVER_LOOKBACK_DAYS, yesterday]` onto `today`, one standalone
-/// one-off per missed day (see [`rollover`]). Skips occurrences that are already
+/// `[today - ROLLOVER_LOOKBACK_DAYS, yesterday]` onto `today`, one open copy per
+/// series (see [`rollover`]). Skips occurrences that are already
 /// completed or already detached by a manual move, so it's idempotent across the
-/// day's retries. Returns how many occurrences were detached.
+/// day's retries. Returns how many new copies were created.
 async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u64> {
     let today_date = parse_date(today)?;
     let to_date = today_date - chrono::Duration::days(1);
@@ -358,14 +358,18 @@ async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u6
                 .await?
                 .into_iter()
                 .collect();
-        // Ascending (as `expand` returns) so the standalone copies land on today
-        // in the order they were originally due.
-        for date in dates {
-            let occurrence = date.format(config::DATE_FORMAT).to_string();
-            if done.contains(&occurrence) || already_detached.contains(&occurrence) {
-                continue;
-            }
-            db::task::move_occurrence(pool, task.id, &occurrence, today).await?;
+        let missed: Vec<String> = dates
+            .into_iter()
+            .map(|date| date.format(config::DATE_FORMAT).to_string())
+            .filter(|occurrence| {
+                !done.contains(occurrence) && !already_detached.contains(occurrence)
+            })
+            .collect();
+        if missed.is_empty() {
+            continue;
+        }
+        // An existing open copy was already counted by `rollover_overdue` if it moved.
+        if db::task::rollover_occurrences(pool, task.id, &missed, today).await? {
             detached += 1;
         }
     }

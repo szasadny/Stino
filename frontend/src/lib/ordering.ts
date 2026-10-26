@@ -12,6 +12,14 @@ export function untimedReadingOrder(groups: TaskGroup[]): number[] {
 }
 
 /**
+ * Unfinished items first, completed ones after — stable within each half. The single
+ * display rule every day list applies (cells, `DayPanel`, `DayAgenda`); never persisted.
+ */
+export function completedLast<T extends { completed: boolean }>(items: T[]): T[] {
+  return [...items.filter((t) => !t.completed), ...items.filter((t) => t.completed)]
+}
+
+/**
  * The canonical view sort, mirroring the backend (`task_service::sort_tasks`): by
  * occurrence day, then timed tasks first by time, then manual `sort_order`, then id.
  * `occurrence_date`/`due_time` are `YYYY-MM-DD`/`HH:MM`, so a lexicographic compare is

@@ -7,7 +7,7 @@
   import { DND_FLIP_MS, DROP_TARGET_RING_CLASSES } from '../constants'
   import { formatDayFull } from '../date'
   import { visibleLineCount } from '../fit'
-  import { labelTint } from '../labels'
+  import { labelColorVar } from '../labels'
 
   let {
     date,
@@ -66,10 +66,10 @@
   <!-- Keep natural line height so fit measurements match the rendered list. -->
   <li
     class="shrink-0 truncate rounded px-1 py-px text-[10px] leading-tight {label
-      ? ''
+      ? 'label-tint'
       : 'bg-pine/10'}
       {item.task.completed ? 'text-sage line-through' : 'text-ink'} {hidden ? 'invisible' : ''}"
-    style={labelTint(label?.color)}
+    style={labelColorVar(label?.color)}
   >
     {item.task.title}
   </li>
@@ -122,6 +122,7 @@
         dropTargetStyle: {},
         dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],
         zoneItemTabIndex: -1,
+        zoneTabIndex: -1,
       }}
       onconsider={(e) => onConsider(dateKey, e)}
       onfinalize={(e) => onFinalize(dateKey, e)}

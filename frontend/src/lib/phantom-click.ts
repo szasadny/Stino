@@ -1,5 +1,6 @@
-// Swallow the duplicate click emitted by svelte-dnd-action after a touch edit. Arm only
-// for coarse pointers; mouse clicks must never be swallowed.
+// Swallow the duplicate click emitted by svelte-dnd-action after a touch edit, and its
+// mousedown, which would otherwise focus the control under the finger. Arm only for
+// coarse pointers; mouse clicks must never be swallowed.
 import { GHOST_CLICK_WINDOW_MS } from './constants'
 
 export function openWithoutPhantomClick(open: () => void): void {
@@ -10,14 +11,19 @@ export function openWithoutPhantomClick(open: () => void): void {
   }
   let timer: ReturnType<typeof setTimeout>
   const disarm = () => {
+    window.removeEventListener('mousedown', swallow, true)
     window.removeEventListener('click', bust, true)
     clearTimeout(timer)
   }
-  const bust = (e: MouseEvent) => {
+  const swallow = (e: MouseEvent) => {
     e.stopImmediatePropagation()
     e.preventDefault()
+  }
+  const bust = (e: MouseEvent) => {
+    swallow(e)
     disarm()
   }
+  window.addEventListener('mousedown', swallow, true)
   window.addEventListener('click', bust, true)
   timer = setTimeout(disarm, GHOST_CLICK_WINDOW_MS)
   open()

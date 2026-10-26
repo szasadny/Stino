@@ -115,7 +115,7 @@
               ? 'border-pine bg-pine/10 text-pine'
               : 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'}"
           >
-            <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color: {label.color}"
+            <span class="label-dot h-2.5 w-2.5 shrink-0 rounded-full" style="--label: {label.color}"
             ></span>
             {#if label.emoji}
               <span class="leading-none" aria-hidden="true">{label.emoji}</span>

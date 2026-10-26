@@ -2,7 +2,7 @@
   // The checkbox must swallow pointer-start events so ticking never starts a drag.
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
-  import { labelTint } from '../labels'
+  import { labelColorVar } from '../labels'
 
   let {
     task,
@@ -19,7 +19,7 @@
   } = $props()
 
   const color = $derived(label?.color ?? null)
-  const tintStyle = $derived(labelTint(color))
+  const tintStyle = $derived(labelColorVar(color))
 
   const openLabel = $derived(
     `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${
@@ -85,7 +85,7 @@
     onkeydown={openOnKey}
     aria-label={openLabel}
     class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color
-      ? ''
+      ? 'label-tint'
       : 'bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
       ? 'cursor-grab active:cursor-grabbing'
       : 'cursor-pointer'}"

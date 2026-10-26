@@ -1,6 +1,7 @@
 // Shared Month/Week task-dialog state and CRUD routing through TaskCore.
 import { api, type TaskInput } from '../api'
 import { taskToDraft, type ComposerDraft } from '../composer'
+import { openWithoutPhantomClick } from '../phantom-click'
 import { canSkipOccurrence, skippableOccurrence } from '../task-actions'
 import type { Task } from '../types'
 import type { TaskCore } from './task-core.svelte'
@@ -17,7 +18,7 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
     editing = { mode: 'add', date }
   }
   function edit(task: Task) {
-    editing = { mode: 'edit', task }
+    openWithoutPhantomClick(() => (editing = { mode: 'edit', task }))
   }
   function close() {
     editing = null

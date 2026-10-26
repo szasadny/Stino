@@ -20,6 +20,10 @@
   /* Cell grounds swap in dark mode so the current month remains the focus. */
   --cell: 251 252 250;
   --cell-out: 244 246 243;
+  /* Render-time label legibility only; the stored label hex is never themed. */
+  --label-tint: 25%;
+  --label-ring: 0;
+  --label-edge: 0%;
 }
 
 /* System mode follows the OS when no explicit theme is selected. */
@@ -38,6 +42,9 @@
     --lichen: 45 53 62;
     --cell: 18 23 28;
     --cell-out: 27 34 41;
+    --label-tint: 35%;
+    --label-ring: 0.45;
+    --label-edge: 70%;
   }
 }
 
@@ -56,6 +63,9 @@
   --lichen: 45 53 62;
   --cell: 18 23 28;
   --cell-out: 27 34 41;
+  --label-tint: 35%;
+  --label-ring: 0.45;
+  --label-edge: 70%;
 }
 
 @layer base {
@@ -76,6 +86,27 @@
     pointer-events: none;
     background: radial-gradient(125% 78% at 50% -12%, rgb(var(--mist) / 0.16), transparent 58%);
   }
+}
+
+/* Label colors arrive as `--label` (user hex); dark grounds add an ink ring/edge so dark hues stay visible. */
+.label-dot {
+  background-color: var(--label);
+  box-shadow: 0 0 0 1px rgb(var(--ink) / var(--label-ring));
+}
+
+.label-tint {
+  background-color: color-mix(in srgb, var(--label) var(--label-tint), transparent);
+}
+
+/* Outline composes with the host's shadow/border classes; yields to the focus ring. */
+.label-tint:not(:focus-visible) {
+  outline: 1px solid
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--label), rgb(var(--ink)) 40%) var(--label-edge),
+      transparent
+    );
+  outline-offset: -1px;
 }
 
 /* `backwards` avoids leaving an animated ancestor as a containing block for dialogs. */

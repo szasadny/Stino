@@ -4,7 +4,7 @@
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
-  import { labelTint } from '../labels'
+  import { labelColorVar } from '../labels'
   import LabelChip from './LabelChip.svelte'
 
   let {
@@ -38,7 +38,7 @@
   } = $props()
 
   const done = $derived(task.completed || completing)
-  const tint = $derived(labelTint(label?.color))
+  const tint = $derived(labelColorVar(label?.color))
 
   function guardToggleStart(e: Event) {
     if (holdToDrag) e.stopPropagation()
@@ -144,7 +144,7 @@
     class="flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left shadow-soft transition {selected
       ? 'border-pine bg-pine/5'
       : tint
-        ? 'border-lichen hover:border-pine/40'
+        ? 'label-tint border-lichen hover:border-pine/40'
         : 'border-lichen bg-surface hover:border-pine/40'}"
     style={selected ? '' : tint}
   >
@@ -175,7 +175,7 @@
     class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
       ? 'border-pine/40 bg-pine/5'
       : tint
-        ? 'border-lichen hover:border-pine/30'
+        ? 'label-tint border-lichen hover:border-pine/30'
         : 'border-lichen bg-surface hover:border-pine/30'}"
     style={completing ? '' : tint}
   >

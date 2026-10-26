@@ -46,13 +46,15 @@ Dependencies point downward only. Binding "must NOT" rules: AGENTS.md § Archite
 ## 3. Data model
 
 Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
-`0003_task_exception.sql`).
+`0003_task_exception.sql`, `0004_task_detached_from.sql`).
 
 - **label** `(id, name, color, emoji?, sort_order, created_at, updated_at)` — `color` is a hex from
   the fixed palette (one frontend home: `frontend/src/lib/palette.js` — see §10); `emoji` is an
   optional single glyph, NULL ⇒ color-only.
 - **task** `(id, title, notes?, label_id?→label, due_date?, due_time?, recurrence_rule?,
-  sort_order, created_at, updated_at)`.
+  sort_order, detached_from?→task, created_at, updated_at)`.
+  - `detached_from` links a rollover copy to its series (`ON DELETE SET NULL`) so later rollovers
+    reuse the open copy; NULL for every other task, including drag-detached copies.
   - `due_date` NULL ⇒ **Inbox** (unscheduled). `due_time` NULL ⇒ untimed.
   - `recurrence_rule` NULL ⇒ one-off; otherwise an RFC-5545 RRULE with `due_date` as DTSTART.
   - The API additionally returns a derived **`occurrence_date`** on each task — the instance a row
@@ -69,7 +71,8 @@ Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
   A PATCH that turns recurrence off (rule → null) deletes the task's exceptions in the same
   transaction, so a re-added rule starts clean; completions are kept.
 
-Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`.
+Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`,
+`task(detached_from)`.
 Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a task cascades its
 `completion` **and** `task_exception` rows.
 
@@ -138,7 +141,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | DELETE | `/api/tasks/{id}` | `204`; cascades the task's `completion` and `task_exception` rows |
 | PATCH | `/api/tasks/reorder` | body `{ ids: [...] }` (the full ordered list of untimed task ids) → `204`; sets each task's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes) |
 | POST | `/api/tasks/batch` | bulk edit (Inbox multi-select): body `{ ids: [...], op }` where `op` is `type`-tagged — `{type:"label", label_id}` (null clears), `{type:"schedule", due_date}`, `{type:"complete"}`, or `{type:"delete"}` → `204`. Atomic per op (`404` if any id unknown ⇒ nothing changes); empty `ids` is a no-op. `schedule` mirrors the single-task PATCH's completion semantics and rejects a recurring task id with `400` |
-| POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + occurrences detached). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** each uncompleted occurrence in the last `config::ROLLOVER_LOOKBACK_DAYS` (7) days is *detached* onto today as its own standalone one-off (same as a `move_occurrence` drop) — one copy per missed day; the series keeps repeating and skips the missed date via a `task_exception`. Completed and already-detached occurrences stay put. Idempotent (the window slides with `today`, so a re-run moves nothing); bad date ⇒ `400` |
+| POST | `/api/tasks/rollover` | roll overdue, uncompleted tasks onto today: body `{ today: "YYYY-MM-DD" }` (the client's local date — the backend never computes "today") → `{ moved }` (one-offs relocated + one detached copy per missed series). **One-offs:** every overdue uncompleted one-off moves via one UPDATE over `due_date < today`, keeping `due_time`. **Recurring:** a series' uncompleted occurrences in the last `config::ROLLOVER_LOOKBACK_DAYS` (7) days collapse into ONE open rollover copy on today, reused across days via `detached_from` (TickTick-style; one transaction, `db::task::rollover_occurrences`) — every missed date gets a `task_exception` so none comes back, and the series keeps repeating. Completed and already-detached occurrences stay put. Idempotent (the window slides with `today`, so a re-run moves nothing); bad date ⇒ `400` |
 | POST | `/api/tasks/{id}/completions` | mark done → Task (`completed:true`); idempotent |
 | DELETE | `/api/tasks/{id}/completions` | reopen → Task (`completed:false`) |
 | POST | `/api/tasks/{id}/move_occurrence` | move ONE occurrence of a recurring task: body `{ occurrence_date, new_date }` → `201` the new detached one-off Task. `404` unknown id; `400` if not recurring, `occurrence_date` isn't an instance of the series, or already moved |
@@ -282,7 +285,9 @@ Behaviours that matter:
   recurring single-occurrence detach / no-op); `applyMove` projects the optimistic result.
 - `ordering.ts` — `applyUntimedOrder(tasks, ids)`: renumber untimed `sort_order` to a dragged id
   list (optimistic mirror of `api.tasks.reorder`); timed/recurring rows untouched. Also
-  `sortForView` (the server's timed-first sort, client-side) and `untimedReadingOrder` (§8).
+  `sortForView` (the server's timed-first sort, client-side), `untimedReadingOrder` (§8), and
+  `completedLast(items)` — the ONE display rule sinking completed items to the bottom of every day
+  list (cells, `DayPanel`, `DayAgenda`), stable and never persisted.
 - `labels.ts` — `labelLookup(labels)` (id→label, handles no/deleted label);
   `mergeLabelOrder(allLabels, visibleOrder)` (fold a reorder of a day's *visible* labels back into
   the full global order) + `applyLabelOrder(labels, ids)` (optimistic mirror of
@@ -299,7 +304,7 @@ Behaviours that matter:
 - `calendar-board.ts` — `buildBoard`, the pure cell projection the `calendar-board` controller
   builds on (plus `cellItemId` keys and `appendedUntimedOrder` for a cross-day drop); an
   optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default). In
-  either mode, completed tasks sink to the bottom of their cell (stable, display only).
+  either mode, completed tasks sink to the bottom of their cell (`completedLast`).
 - `fit.ts` — how many task lines fit a measured cell height (accounting for the inter-line row gap) —
   used by every calendar cell (phone month, desktop month, week) so "+N more" appears only once the
   cell is genuinely full. No hardcoded per-cell line cap anywhere.
@@ -326,7 +331,8 @@ Behaviours that matter:
   `delayTouchStart` path (the library dispatches a synthetic tap→click AND the browser fires the
   native one), so it can't hit the editor that mounts at the tap point. Arms only on
   `pointer: coarse` — on a fine pointer there is no phantom and arming would eat a real click.
-  One home so `DayAgenda` and `DayListSection` can't drift.
+  Also swallows that click's `mousedown`, which would focus the control under the finger. One home so
+  `DayAgenda`, `DayListSection` and the grid composer's `edit` can't drift.
 - `theme.ts` — theme preference (`normalizeThemePref` / `getThemePref` / `setThemePref`):
   System/Light/Dark, persisted in `localStorage`, manual override via `data-theme` on `<html>`.
 
@@ -501,7 +507,9 @@ fetched range widens to include the selected day. Week keeps its existing collap
   drag). Flat is modelled as one unlabeled section (`dayViewGroups`), so one render/drag path
   serves both. One nuance vs the cells: `DayAgenda` renders timed tasks *inside* their label
   section, while cells/`DayPanel` keep all timed at the top — the untimed sequence (the only
-  persisted order) is identical everywhere. Any drag in by-label mode persists the day's untimed
+  persisted order) is identical everywhere. Completed tasks sink to the bottom of their section
+  (`completedLast`): completed untimed at the end of the untimed zone (projection only, never
+  mid-gesture), completed timed in a static list below it. Any drag in by-label mode persists the day's untimed
   ids in label reading order (`untimedReadingOrder`), which becomes the manual `sort_order`.
 - Untimed reorder adapts to input: wide screens drag the 6-dot grip (`dragHandleZone`); a phone
   press-and-holds the whole row (`dndzone` + `delayTouchStart`). `isCompact()` picks one zone.
@@ -513,7 +521,7 @@ fetched range widens to include the selected day. Week keeps its existing collap
 
 - svelte-dnd-action won't start a drag from a `<button>` (any element with a `.value`), so a
   hold-to-drag row's tap-to-edit surface is a `div role=button` (`TaskRow`'s `holdToDrag`).
-- `phantom-click.ts` (§7) swallows the stray post-tap click in `DayAgenda` and `DayListSection`.
+- `phantom-click.ts` (§7) swallows the stray post-tap click in `DayAgenda`, `DayListSection` and grid-composer `edit`.
 - Scrollable drag surfaces (the phone Week stack, the `DaySheet` body) attach `drag-scroll.ts`'s
   `dragEdgeScroll` (§7).
 - The task editor is **full-screen on a phone in every view**: `TaskComposerDialog`

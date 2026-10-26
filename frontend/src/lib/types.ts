@@ -14,7 +14,7 @@ export interface ImportSummary {
   skipped: number
 }
 
-// Number of overdue non-recurring tasks moved to today.
+// Tasks landed on today: overdue one-offs moved + one copy per missed recurring series.
 export interface RolloverSummary {
   moved: number
 }

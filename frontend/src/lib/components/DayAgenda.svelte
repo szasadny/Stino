@@ -1,6 +1,7 @@
 <script lang="ts">
   // Each label group owns a flat dnd zone; distinct types prevent cross-group drops.
-  // Timed tasks stay pinned above untimed tasks; sections use buttons because nested zones are unsupported.
+  // Timed tasks stay pinned above untimed tasks, except completed ones, which sink below the zone.
+  // Sections use buttons because nested zones are unsupported.
   import { untrack } from 'svelte'
   import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
@@ -10,7 +11,7 @@
   import { labelLookup } from '../labels'
   import { dayViewGroups, type TaskGroup } from '../grouping'
   import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
-  import { untimedReadingOrder } from '../ordering'
+  import { completedLast, untimedReadingOrder } from '../ordering'
   import LabelChip from './LabelChip.svelte'
   import TaskRow from './TaskRow.svelte'
 
@@ -47,7 +48,8 @@
   const rowLabel = (task: Task) => (!effectiveGrouped ? labelFor(task) : undefined)
 
   const keyOf = (group: TaskGroup) => (group.label ? String(group.label.id) : 'none')
-  const timedOf = (group: TaskGroup) => group.tasks.filter((t) => t.due_time != null)
+  const timedOf = (group: TaskGroup, completed: boolean) =>
+    group.tasks.filter((t) => t.due_time != null && t.completed === completed)
 
   type LabelSection = { id: number; group: TaskGroup }
   const labelSections = $derived(
@@ -69,7 +71,8 @@
   let untimed = $state<Record<string, Task[]>>({})
   $effect(() => {
     const next: Record<string, Task[]> = {}
-    for (const group of groups) next[keyOf(group)] = group.tasks.filter((t) => t.due_time == null)
+    for (const group of groups)
+      next[keyOf(group)] = completedLast(group.tasks.filter((t) => t.due_time == null))
     if (untrack(() => dragging)) return
     untimed = next
   })
@@ -108,9 +111,27 @@
   </div>
 {/snippet}
 
+{#snippet timedList(tasks: Task[], classes: string)}
+  {#if tasks.length > 0}
+    <ul class="space-y-2 {classes}">
+      {#each tasks as task (`${task.id}:${task.occurrence_date ?? ''}`)}
+        <li>
+          <TaskRow
+            {task}
+            label={rowLabel(task)}
+            slim={compact}
+            onToggle={() => onToggle(task)}
+            onEdit={onEdit ? () => onEdit(task) : undefined}
+          />
+        </li>
+      {/each}
+    </ul>
+  {/if}
+{/snippet}
+
 {#snippet sectionBody(group: TaskGroup, sectionIndex: number | null)}
   {@const key = keyOf(group)}
-  {@const timed = timedOf(group)}
+  {@const timed = timedOf(group, false)}
   {#if effectiveGrouped}
     <div class="mb-2 flex items-center gap-1.5 px-0.5">
       {#if group.label}
@@ -165,21 +186,7 @@
     </div>
   {/if}
 
-  {#if timed.length > 0}
-    <ul class="space-y-2">
-      {#each timed as task (`${task.id}:${task.occurrence_date ?? ''}`)}
-        <li>
-          <TaskRow
-            {task}
-            label={rowLabel(task)}
-            slim={compact}
-            onToggle={() => onToggle(task)}
-            onEdit={onEdit ? () => onEdit(task) : undefined}
-          />
-        </li>
-      {/each}
-    </ul>
-  {/if}
+  {@render timedList(timed, '')}
 
   {#if compact}
     <ul
@@ -240,6 +247,11 @@
       {/each}
     </ul>
   {/if}
+
+  {@render timedList(
+    timedOf(group, true),
+    (untimed[key] ?? []).length > 0 || timed.length > 0 ? 'mt-2' : '',
+  )}
 {/snippet}
 
 {#if groups.length === 0}

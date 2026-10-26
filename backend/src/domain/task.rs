@@ -56,9 +56,9 @@ pub enum BatchOp {
     Delete,
 }
 
-/// Result of the overdue rollover: how many uncompleted, non-recurring tasks
-/// with a past due date were moved onto today. Mirror `RolloverSummary` in
-/// `frontend/src/lib/types.ts`.
+/// Result of the overdue rollover: how many tasks landed on today (overdue
+/// one-offs moved + new copies of missed recurring series). Mirror
+/// `RolloverSummary` in `frontend/src/lib/types.ts`.
 #[derive(Debug, Clone, Serialize)]
 pub struct RolloverSummary {
     pub moved: u64,

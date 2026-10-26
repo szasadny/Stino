@@ -448,8 +448,8 @@
                 >
                   {#if item.type === 'label'}
                     <span
-                      class="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style="background-color: {item.label.color}"
+                      class="label-dot h-2.5 w-2.5 shrink-0 rounded-full"
+                      style="--label: {item.label.color}"
                     ></span>
                     {#if item.label.emoji}
                       <span class="shrink-0 text-base leading-none" aria-hidden="true"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyUntimedOrder, sortForView, untimedReadingOrder } from './ordering'
+import { applyUntimedOrder, completedLast, sortForView, untimedReadingOrder } from './ordering'
 import type { TaskGroup } from './grouping'
 import type { Label, Task } from './types'
 
@@ -26,6 +26,30 @@ const task = (id: number, over: Partial<Task> = {}): Task => ({
 })
 
 const timed = (id: number, time: string): Task => task(id, { due_time: time })
+
+describe('completedLast', () => {
+  const done = (id: number, over: Partial<Task> = {}) => task(id, { completed: true, ...over })
+
+  it('sinks completed items below unfinished ones, stable within each half', () => {
+    const tasks = [done(1), task(2), done(3), timed(4, '09:00'), task(5)]
+    expect(completedLast(tasks).map((t) => t.id)).toEqual([2, 4, 5, 1, 3])
+  })
+
+  it('is the identity when nothing or everything is completed', () => {
+    expect(completedLast([task(1), task(2)]).map((t) => t.id)).toEqual([1, 2])
+    expect(completedLast([done(1), done(2)]).map((t) => t.id)).toEqual([1, 2])
+    expect(completedLast([])).toEqual([])
+  })
+
+  it('works on any item carrying a completed flag and leaves the input untouched', () => {
+    const items = [
+      { id: 'a', completed: true },
+      { id: 'b', completed: false },
+    ]
+    expect(completedLast(items).map((i) => i.id)).toEqual(['b', 'a'])
+    expect(items.map((i) => i.id)).toEqual(['a', 'b'])
+  })
+})
 
 describe('untimedReadingOrder', () => {
   it('returns untimed ids in group order then within-group order, excluding timed', () => {

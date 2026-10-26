@@ -136,6 +136,8 @@
         dragDisabled: pending,
         dropTargetStyle: {},
         dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],
+        // Not a tab stop at rest; the library re-enables zones as targets during a keyboard drag.
+        zoneTabIndex: -1,
       }}
       onconsider={(e) => onConsider(dateKey, e)}
       onfinalize={(e) => onFinalize(dateKey, e)}
