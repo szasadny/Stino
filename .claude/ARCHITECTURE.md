@@ -65,6 +65,8 @@ Source of truth: `backend/migrations/` (`0001_init.sql`, `0002_label_emoji.sql`,
   `UNIQUE(task_id, occurrence_date)` — one row per recurring occurrence **detached** by a
   single-instance move or **skipped** by a single-occurrence delete. Expansion skips these dates;
   a moved instance lives on as its own one-off while the series keeps repeating elsewhere.
+  A PATCH that turns recurrence off (rule → null) deletes the task's exceptions in the same
+  transaction, so a re-added rule starts clean; completions are kept.
 
 Indexes: `task(due_date)`, `task(label_id)`, `completion(task_id)`, `task_exception(task_id)`.
 Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a task cascades its
@@ -159,9 +161,9 @@ the client updates exactly that row.
 the task must have a `due_date` (the DTSTART) — otherwise `400`. Sub-daily frequencies
 (`FREQ=HOURLY/MINUTELY/SECONDLY`) are rejected — occurrences are whole calendar dates — as is a
 rule that yields no occurrence from its start (`COUNT=0`, Feb 30, an `UNTIL` before the start),
-since that task would be dated yet on no calendar day. The rule is stored verbatim. Writes gate;
-reads tolerate: a **stored** rule that no longer expands (e.g. one accepted
-before a stricter gate) is skipped with a warning by the range/day queries rather than failing the
+since that task would be dated yet on no calendar day. The rule is stored bare (a leading `RRULE:`
+is stripped, any case). Writes gate; reads tolerate: a **stored** rule that no longer expands
+(e.g. one accepted before a stricter gate) is skipped with a warning by the range/day queries rather than failing the
 whole listing — one bad row must not brick the calendar.
 
 **Completed reschedule.** Rescheduling a completed non-recurring task (single PATCH or bulk

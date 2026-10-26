@@ -681,6 +681,32 @@ pub async fn update_rescheduled(
     get(pool, id).await
 }
 
+/// Turn recurrence off and drop its exceptions atomically; completions are kept.
+#[allow(clippy::too_many_arguments)]
+pub async fn update_clearing_exceptions(
+    pool: &SqlitePool,
+    id: i64,
+    title: &str,
+    notes: Option<&str>,
+    label_id: Option<i64>,
+    due_date: Option<&str>,
+    due_time: Option<&str>,
+) -> Result<Option<Task>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let rows = run_update(
+        &mut *tx, id, title, notes, label_id, due_date, due_time, None,
+    )
+    .await?;
+    if rows == 0 {
+        return Ok(None);
+    }
+    sqlx::query!("DELETE FROM task_exception WHERE task_id = ?", id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    get(pool, id).await
+}
+
 /// Carry a non-recurring task's completion across a date change, inside the
 /// caller's open transaction. `completed` is derived as `occurrence_date IS
 /// due_date`, so without this a reschedule would strand the completion at the

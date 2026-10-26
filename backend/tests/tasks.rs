@@ -354,6 +354,38 @@ async fn a_recurring_task_expands_to_one_occurrence_per_day_in_range() {
 }
 
 #[tokio::test]
+async fn create_and_update_store_the_rule_without_an_rrule_prefix() {
+    let app = test_app().await;
+
+    let task = create_task(
+        &app,
+        json!({"title":"Stretch","due_date":"2026-06-01","recurrence_rule":"RRULE:FREQ=DAILY"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    assert_eq!(task["recurrence_rule"], "FREQ=DAILY");
+
+    let (status, updated) = send(
+        &app,
+        json_req(
+            "PATCH",
+            &format!("/api/tasks/{id}"),
+            json!({"recurrence_rule":" rrule:FREQ=WEEKLY;BYDAY=MO "}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["recurrence_rule"], "FREQ=WEEKLY;BYDAY=MO");
+
+    let (status, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-01")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        range[0]["recurrence_rule"], "FREQ=WEEKLY;BYDAY=MO",
+        "stored bare"
+    );
+}
+
+#[tokio::test]
 async fn completing_one_occurrence_leaves_the_others_open() {
     let app = test_app().await;
 
@@ -2039,6 +2071,32 @@ async fn skipping_an_occurrence_removes_only_that_date() {
 }
 
 #[tokio::test]
+async fn completing_a_skipped_occurrence_is_rejected() {
+    let app = test_app().await;
+    let task = create_task(
+        &app,
+        json!({"title":"Water plants","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    assert_eq!(skip(&app, id, "2026-06-02").await, StatusCode::NO_CONTENT);
+
+    let (status, body) = send(
+        &app,
+        empty_req(
+            "POST",
+            &format!("/api/tasks/{id}/completions?occurrence_date=2026-06-02"),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        body["error"], "that occurrence is no longer part of the series",
+        "a skip is not described as a move"
+    );
+}
+
+#[tokio::test]
 async fn skipping_a_completed_occurrence_is_rejected_and_keeps_it() {
     let app = test_app().await;
     let task = create_task(
@@ -2101,4 +2159,51 @@ async fn skipping_a_bad_or_non_member_date_is_rejected() {
     // Jun 3 2026 is a Wednesday — not an occurrence.
     assert_eq!(skip(&app, id, "2026-06-03").await, StatusCode::BAD_REQUEST);
     assert_eq!(skip(&app, id, "June 8").await, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn turning_recurrence_off_clears_its_skips_but_changing_the_rule_keeps_them() {
+    let app = test_app().await;
+    let task = create_task(
+        &app,
+        json!({"title":"Water plants","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
+    )
+    .await;
+    let id = task["id"].as_i64().expect("id");
+    let uri = format!("/api/tasks/{id}");
+    assert_eq!(skip(&app, id, "2026-06-02").await, StatusCode::NO_CONTENT);
+
+    let (status, _) = send(
+        &app,
+        json_req(
+            "PATCH",
+            &uri,
+            json!({"recurrence_rule":"FREQ=DAILY;INTERVAL=1"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        series_dates(&app, id, "2026-06-01", "2026-06-03").await,
+        ["2026-06-01", "2026-06-03"],
+        "a rule-to-rule change keeps the skip"
+    );
+
+    let (status, _) = send(
+        &app,
+        json_req("PATCH", &uri, json!({"recurrence_rule":null})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = send(
+        &app,
+        json_req("PATCH", &uri, json!({"recurrence_rule":"FREQ=DAILY"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        series_dates(&app, id, "2026-06-01", "2026-06-03").await,
+        ["2026-06-01", "2026-06-02", "2026-06-03"],
+        "re-adding a rule after turning it off starts clean"
+    );
 }

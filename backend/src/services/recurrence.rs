@@ -24,6 +24,16 @@ fn invalid_rule() -> AppError {
     AppError::Validation("recurrence_rule must be a valid RRULE".into())
 }
 
+/// TickTick and hand-written API calls may send a leading `RRULE:`; we store the bare rule.
+pub fn normalize(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let body = match trimmed.get(0..6) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("RRULE:") => &trimmed[6..],
+        _ => trimmed,
+    };
+    body.trim().to_string()
+}
+
 /// Build the rrule set for `rule` starting at `dtstart`, mapping any parse /
 /// validation failure to a UI-safe error. Sub-daily frequencies are rejected
 /// here — the one gate every stored rule passes through (create, update,
@@ -131,6 +141,13 @@ pub fn expand(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_strips_the_rrule_prefix_any_case() {
+        assert_eq!(normalize("RRULE:FREQ=DAILY"), "FREQ=DAILY");
+        assert_eq!(normalize(" rrule:FREQ=WEEKLY "), "FREQ=WEEKLY");
+        assert_eq!(normalize("FREQ=DAILY"), "FREQ=DAILY");
+    }
 
     fn date(s: &str) -> NaiveDate {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()

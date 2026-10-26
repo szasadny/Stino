@@ -257,23 +257,12 @@ fn fmt_time(time: NaiveTime) -> String {
 
 /// Map TickTick's Repeat column to a stored recurrence rule. The rule needs a
 /// start date (DTSTART) and must parse; if either fails we drop the recurrence
-/// but still import the task (degrade, never lose it). TickTick may prefix the
-/// rule with `RRULE:`; our stored form is the bare rule, so strip it.
+/// but still import the task (degrade, never lose it).
 fn parse_repeat(raw: Option<&str>, due_date: Option<&str>) -> Option<String> {
     let raw = raw?;
     let start = due_date.and_then(|d| NaiveDate::parse_from_str(d, config::DATE_FORMAT).ok())?;
-    let rule = normalize_rule(raw);
+    let rule = recurrence::normalize(raw);
     recurrence::validate(&rule, start).ok().map(|()| rule)
-}
-
-/// Strip a leading `RRULE:` (any case) and surrounding whitespace.
-fn normalize_rule(raw: &str) -> String {
-    let trimmed = raw.trim();
-    let body = match trimmed.get(0..6) {
-        Some(prefix) if prefix.eq_ignore_ascii_case("RRULE:") => &trimmed[6..],
-        _ => trimmed,
-    };
-    body.trim().to_string()
 }
 
 /// The label name for a row: the first Tag (TickTick's colored labels), else the
@@ -442,13 +431,6 @@ mod tests {
             parse_due(None, false, Some("Europe/Amsterdam"), false),
             (None, None)
         );
-    }
-
-    #[test]
-    fn normalize_rule_strips_the_rrule_prefix_any_case() {
-        assert_eq!(normalize_rule("RRULE:FREQ=DAILY"), "FREQ=DAILY");
-        assert_eq!(normalize_rule(" rrule:FREQ=WEEKLY "), "FREQ=WEEKLY");
-        assert_eq!(normalize_rule("FREQ=DAILY"), "FREQ=DAILY");
     }
 
     #[test]

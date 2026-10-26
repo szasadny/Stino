@@ -59,7 +59,7 @@ pub(crate) async fn create_on(conn: &mut SqliteConnection, input: NewTask) -> Ap
     let due_date = input.due_date.map(|d| validate_date(&d)).transpose()?;
     let due_time = input.due_time.map(|t| validate_time(&t)).transpose()?;
     require_date_for_time(due_date.as_deref(), due_time.as_deref())?;
-    let recurrence_rule = clean_optional(input.recurrence_rule);
+    let recurrence_rule = clean_optional(input.recurrence_rule).map(|r| recurrence::normalize(&r));
     validate_recurrence(recurrence_rule.as_deref(), due_date.as_deref())?;
 
     let sort_order = db::task::next_sort_order(&mut *conn).await?;
@@ -112,7 +112,7 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<T
         None => current.due_time,
     };
     let recurrence_rule = match patch.recurrence_rule {
-        Some(rule) => clean_optional(rule),
+        Some(rule) => clean_optional(rule).map(|r| recurrence::normalize(&r)),
         None => current.recurrence_rule,
     };
     require_date_for_time(due_date.as_deref(), due_time.as_deref())?;
@@ -125,8 +125,21 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<T
     // in the same transaction as the date change. Recurring tasks key
     // completions per instance date, so theirs are left untouched.
     let reschedules = !was_recurring && recurrence_rule.is_none() && prev_due_date != due_date;
+    // Stale skips/moves would otherwise hide dates again if a rule is re-added.
+    let stops_recurring = was_recurring && recurrence_rule.is_none();
 
-    let task = if reschedules {
+    let task = if stops_recurring {
+        db::task::update_clearing_exceptions(
+            pool,
+            id,
+            &title,
+            notes.as_deref(),
+            label_id,
+            due_date.as_deref(),
+            due_time.as_deref(),
+        )
+        .await?
+    } else if reschedules {
         db::task::update_rescheduled(
             pool,
             id,
@@ -500,7 +513,7 @@ async fn ensure_real_occurrence(
         pool,
         task.id,
         date,
-        "that occurrence has been moved off the series",
+        "that occurrence is no longer part of the series",
     )
     .await
 }
