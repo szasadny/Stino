@@ -1736,10 +1736,10 @@ async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
 async fn unknown_task_list_params_are_rejected_but_the_known_forms_pass() {
     let app = test_app().await;
 
-    // A typo'd selector must 400, not silently return the Inbox. (Axum's query
-    // rejection is plain text, so check the status only.)
-    let status = status_of(&app, get("/api/tasks?fromm=2026-06-01")).await;
+    // A typo'd selector must 400, not silently return the Inbox.
+    let (status, body) = send(&app, get("/api/tasks?fromm=2026-06-01")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"].is_string());
 
     // The three shapes the SPA sends all still work.
     for uri in [

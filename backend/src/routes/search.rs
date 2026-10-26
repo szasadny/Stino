@@ -1,10 +1,10 @@
 //! Thin task-search handler; query and persistence logic live in the service.
 
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
+use super::extract::{Json, Query};
 use super::AppState;
 use crate::error::AppResult;
 use crate::services::search_service;

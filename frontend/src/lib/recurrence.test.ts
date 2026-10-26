@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildRRule,
   EMPTY_RECURRENCE,
+  isUnmodeledRule,
   parseRecurrencePhrase,
   parseRRule,
   summarize,
@@ -152,6 +153,11 @@ describe('parseRRule', () => {
   it('treats null/unmodeled rules as "none"', () => {
     expect(parseRRule(null).freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY').freq).toBe('none')
+  })
+
+  it('keeps a COUNT-limited rule unmodeled so a re-save cannot drop its end', () => {
+    expect(parseRRule('FREQ=DAILY;COUNT=5').freq).toBe('none')
+    expect(isUnmodeledRule('FREQ=WEEKLY;BYDAY=MO;COUNT=3')).toBe(true)
   })
 
   it('parses the modeled shapes back into the picker form', () => {
@@ -437,6 +443,7 @@ describe('summarize', () => {
     expect(summarizeRule('FREQ=MONTHLY;BYMONTHDAY=1,15')).toBe('Custom repeat')
     expect(summarizeRule('RRULE:FREQ=WEEKLY;BYDAY=MO')).toBe('Custom repeat')
     expect(summarizeRule('garbage')).toBe('Custom repeat')
+    expect(summarizeRule('FREQ=DAILY;COUNT=5')).toBe('Custom repeat')
     expect(summarizeRule(null)).toBe('Does not repeat')
   })
 })

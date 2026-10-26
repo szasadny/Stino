@@ -279,10 +279,10 @@ fn pick_label(record: &csv::StringRecord, headers: &Headers) -> Option<String> {
         .map(str::to_string)
 }
 
-/// A task counts as done if TickTick marked its status Completed (`1`) or stamped
-/// a Completed Time.
+/// A task counts as done if TickTick marked its status Completed (`1`) or
+/// Archived (`2`, only ever reached from completed), or stamped a Completed Time.
 fn is_completed(status: Option<&str>, completed_time: Option<&str>) -> bool {
-    status == Some("1") || completed_time.is_some()
+    matches!(status, Some("1" | "2")) || completed_time.is_some()
 }
 
 /// The first `max` characters of `value` (by `char`, so multibyte-safe).
@@ -448,6 +448,6 @@ mod tests {
         assert!(is_completed(Some("1"), None));
         assert!(is_completed(Some("0"), Some("2026-06-20T10:00:00+0000")));
         assert!(!is_completed(Some("0"), None));
-        assert!(!is_completed(Some("2"), None)); // archived, no completed time
+        assert!(is_completed(Some("2"), None));
     }
 }

@@ -1,11 +1,11 @@
 //! Thin task CRUD and completion handlers.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
+use super::extract::{Json, Path, Query};
 use super::{double_option, AppState};
 use crate::domain::{BatchOp, NewTask, TaskPatch};
 use crate::error::{AppError, AppResult};

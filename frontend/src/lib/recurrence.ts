@@ -231,9 +231,9 @@ function parseOrdinalDay(token: string): { position: OrdinalPosition | null; cod
 
 /**
  * Parse an RRULE back into the picker's structured form (best effort). A rule we
- * don't model (e.g. a monthly rule with two dates, or a multi-day list) maps
- * to `none`; callers should keep the original string and treat it as read-only
- * rather than overwrite it — see [[RecurrencePicker]]. An `UNTIL` end date is
+ * don't model (e.g. a monthly rule with two dates, a multi-day list, or a
+ * COUNT end) maps to `none`; callers should keep the original string and treat
+ * it as read-only rather than overwrite it — see [[RecurrencePicker]]. An `UNTIL` end date is
  * carried onto any modeled rule so editing a "repeat until" task keeps its end.
  */
 export function parseRRule(rule: string | null): RecurrenceValue {
@@ -247,6 +247,7 @@ export function parseRRule(rule: string | null): RecurrenceValue {
 function parseBase(rule: string | null): RecurrenceValue {
   if (!rule) return { ...EMPTY_RECURRENCE }
   const parts = parseParts(rule)
+  if (parts.has('COUNT')) return { ...EMPTY_RECURRENCE }
   const freq = parts.get('FREQ')
   const interval = parseInt(parts.get('INTERVAL') ?? '1', 10) || 1
   const byday = parts.get('BYDAY')

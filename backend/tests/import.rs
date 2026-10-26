@@ -277,6 +277,24 @@ async fn a_repeat_with_no_occurrence_is_dropped_but_the_task_still_imports() {
 }
 
 #[tokio::test]
+async fn an_archived_task_without_a_completed_time_imports_as_done() {
+    let csv = r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","Shelved","","","false","","2026-06-24T00:00:00+0000","","","0","2","2026-06-21T08:00:00+0000","","1","UTC","true","false"
+"#;
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+    assert_eq!(summary["created"]["completions"], 1);
+
+    let (_, day) = send(&app, get("/api/tasks?date=2026-06-24")).await;
+    let shelved = titled(&day, "Shelved");
+    assert_eq!(shelved.len(), 1);
+    assert_eq!(shelved[0]["completed"], true);
+}
+
+#[tokio::test]
 async fn an_import_larger_than_axums_default_body_limit_is_accepted() {
     // Axum caps request bodies at 2 MB by default; a real multi-year TickTick
     // backup can exceed that, so the import route takes up to 32 MB. Pad one

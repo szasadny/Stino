@@ -416,7 +416,7 @@
           onkeyup={syncCaret}
           onclick={syncCaret}
           type="text"
-          placeholder={compact ? 'gym tomorrow 9am' : 'call mum tomorrow 12am #social'}
+          placeholder={compact ? 'gym tomorrow 9am' : 'call mum tomorrow 6pm #social'}
           maxlength={TITLE_MAX_LENGTH}
           autocomplete="off"
           aria-label="New task title"

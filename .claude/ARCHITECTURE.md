@@ -37,6 +37,7 @@ Dependencies point downward only. Binding "must NOT" rules: AGENTS.md § Archite
 - Module declarations live in `lib.rs`; a thin `main.rs` calls `run()` — so integration tests can
   build the router against a temp database.
 - `error.rs` holds the single `AppError`, mapped to HTTP only at the boundary (`IntoResponse`).
+  Handlers extract via `routes/extract.rs` (`Json`/`Query`/`Path`), so malformed input is also `{"error": msg}`.
   Services return `AppResult` and never touch `axum`.
 - Cross-cutting validation primitives (trim + empty + length check, local date/time parsing) live
   once in `services/validation.rs`; the length caps and `YYYY-MM-DD` / `HH:MM` formats are
@@ -114,6 +115,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
     (e.g. `INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1` = every 3 months on the last workday). The
     phase is anchored at DTSTART's month. Parsing: a modeled monthly shape at `INTERVAL>1` ⇒ Custom
     months; at `INTERVAL=1` (or absent) ⇒ Monthly. Unmodeled shapes stay read-only.
+  - Any rule with `COUNT` is unmodeled (the picker only models an `UNTIL` end) and stays read-only.
   - Months lacking a chosen day (a 31st, a fifth Monday) are simply skipped by the `rrule` crate.
 
 ## 5. API contract
@@ -125,7 +127,7 @@ Foreign keys enforced (`PRAGMA foreign_keys = ON` per connection); deleting a ta
 | GET | `/api/health` | `{ "status": "ok", "db": true }` |
 | GET | `/api/labels` | `[{ id, name, color, emoji, sort_order }]`, ordered by `sort_order`, then `id` |
 | POST | `/api/labels` | body `{ name, color, emoji? }` → `201` Label |
-| PATCH | `/api/labels/reorder` | body `{ ids: [...] }` (the full ordered list of label ids) → `204`; sets each label's `sort_order` to its position, atomically (`404` if any id is unknown, then nothing changes). Registered before `/api/labels/{id}`; matchit gives the literal segment priority |
+| PATCH | `/api/labels/reorder` | body `{ ids: [...] }` (the full ordered list of label ids) → `204`; sets each label's `sort_order` to its position, atomically (`400` unless `ids` is exactly a permutation of every label id — none missing, duplicated, or unknown — then nothing changes). Registered before `/api/labels/{id}`; matchit gives the literal segment priority |
 | PATCH | `/api/labels/{id}` | partial body `{ name?, color?, emoji? }` → Label (`404` if unknown); explicit `emoji: null` clears it, an omitted key leaves it unchanged |
 | DELETE | `/api/labels/{id}` | `204`; tasks survive but lose the label (`ON DELETE SET NULL`) |
 | GET | `/api/tasks?inbox=true` | Inbox: unscheduled tasks (`due_date IS NULL`), by `sort_order` |
@@ -222,9 +224,9 @@ Behaviours that matter:
 - **Recurrence.** A leading `RRULE:` is stripped to our bare stored form; the rule is kept only if
   it validates against the task's start date (incl. yielding an occurrence) — otherwise dropped
   and the task still imports.
-- **Completion.** A row counts as done if `Status` is `1` or a `Completed Time` is present ⇒ a
-  `completion` for the task's own occurrence (series start for a recurring task; NULL for an
-  undated Inbox task).
+- **Completion.** A row counts as done if `Status` is `1` (Completed) or `2` (Archived), or a
+  `Completed Time` is present ⇒ a `completion` for the task's own occurrence (series start for a
+  recurring task; NULL for an undated Inbox task).
 - **Tolerance & atomicity.** Mapping is validated through `task_service::create_on` (the single
   task validator, on the import's connection); a row with unusable data — chiefly a missing
   title — is counted in `skipped`, not fatal. Only a real database error aborts — and the whole
@@ -293,7 +295,7 @@ Behaviours that matter:
   recurring row), `canSkipOccurrence(task)` (recurring AND not completed — a completed occurrence
   is history, deletable only with its series) and `withoutOccurrence(tasks, id, date)` (optimistic mirror of
   `api.tasks.skipOccurrence`).
-- `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion.
+- `errors.ts` — `errorMessage(err, fallback)`: the single thrown-value → UI-string conversion. `apiErrorMessage(body)`: the API's `{"error"}` text, else a generic message (`api.ts` maps network failures to `NETWORK_ERROR_MESSAGE`).
 - `calendar-board.ts` — `buildBoard`, the pure cell projection the `calendar-board` controller
   builds on (plus `cellItemId` keys and `appendedUntimedOrder` for a cross-day drop); an
   optional `labelOrder` arg projects each day through `labelDayOrder` (the by-label default). In

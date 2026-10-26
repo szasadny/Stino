@@ -69,12 +69,17 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> AppResult<()> {
     }
 }
 
-/// Persist a new manual label order: `ids` is the full ordered list of label ids,
-/// and each label's `sort_order` becomes its position. Atomic: an unknown id is a
-/// 404 and changes nothing. An empty list is a no-op.
+/// Each label's `sort_order` becomes its position in `ids`, atomically. `ids` must
+/// list every label exactly once, else untouched labels would tie `sort_order`.
 pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
-    if ids.is_empty() {
-        return Ok(());
+    let mut existing: Vec<i64> = db::label::list(pool).await?.iter().map(|l| l.id).collect();
+    let mut given = ids.to_vec();
+    existing.sort_unstable();
+    given.sort_unstable();
+    if given != existing {
+        return Err(AppError::Validation(
+            "ids must list every label exactly once".into(),
+        ));
     }
     db::label::reorder(pool, ids)
         .await

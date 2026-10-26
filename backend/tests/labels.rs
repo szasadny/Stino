@@ -177,7 +177,7 @@ async fn sort_order_appends_in_creation_order() {
 }
 
 #[tokio::test]
-async fn reorder_persists_a_new_label_order_and_rolls_back_unknown_ids() {
+async fn reorder_persists_a_new_label_order_and_rejects_non_permutations() {
     let app = test_app().await;
 
     // Three labels, created A, B, C (sort_order 0, 1, 2).
@@ -218,20 +218,28 @@ async fn reorder_persists_a_new_label_order_and_rolls_back_unknown_ids() {
     let (_, list) = send(&app, get("/api/labels")).await;
     assert_eq!(names(&list), ["C", "A", "B"]);
 
-    // An unknown id 404s and the whole batch rolls back (order unchanged).
-    let (status, _) = send(
-        &app,
-        json_req("PATCH", "/api/labels/reorder", json!({"ids":[a, 9999]})),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    // Anything but a permutation of every label id is a 400 and changes nothing.
+    for (case, ids) in [
+        ("partial", json!([a, b])),
+        ("duplicate", json!([a, a, b])),
+        ("unknown", json!([a, b, 9999])),
+        ("empty", json!([])),
+    ] {
+        let (status, body) = send(
+            &app,
+            json_req("PATCH", "/api/labels/reorder", json!({ "ids": ids })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{case} list");
+        assert_eq!(body["error"], "ids must list every label exactly once");
 
-    let (_, list) = send(&app, get("/api/labels")).await;
-    assert_eq!(
-        names(&list),
-        ["C", "A", "B"],
-        "the failed reorder changed nothing"
-    );
+        let (_, list) = send(&app, get("/api/labels")).await;
+        assert_eq!(
+            names(&list),
+            ["C", "A", "B"],
+            "the rejected {case} reorder changed nothing"
+        );
+    }
 }
 
 #[tokio::test]

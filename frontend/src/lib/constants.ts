@@ -2,6 +2,10 @@
 export const TITLE_MAX_LENGTH = 200
 export const LABEL_NAME_MAX_LENGTH = 60
 
+// User-facing fallbacks when the API gives no message of its own.
+export const NETWORK_ERROR_MESSAGE = 'Couldn’t reach Stinō — check your connection.'
+export const REQUEST_FAILED_MESSAGE = 'Something went wrong. Please try again.'
+
 // Calendar views use their compact layout at or below Tailwind's 640px `sm` break.
 export const COMPACT_MAX_WIDTH = 639
 

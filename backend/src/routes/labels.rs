@@ -1,11 +1,11 @@
 //! Thin label CRUD handlers; validation and persistence live below the route.
 
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
+use super::extract::{Json, Path};
 use super::{double_option, AppState};
 use crate::error::AppResult;
 use crate::services::label_service;

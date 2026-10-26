@@ -61,8 +61,7 @@ pub async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
     (status, body)
 }
 
-/// Send a request and return only the status — for responses whose body isn't
-/// JSON (e.g. axum's own query-string rejection, which is plain text).
+/// Send a request and return only the status, for tests that don't inspect the body.
 pub async fn status_of(app: &Router, req: Request<Body>) -> StatusCode {
     app.clone()
         .oneshot(req)

@@ -1,34 +1,31 @@
 // Typed HTTP boundary; components never call fetch directly.
+import { NETWORK_ERROR_MESSAGE } from './constants'
+import { apiErrorMessage } from './errors'
 import type { BatchOp, ImportSummary, Label, RolloverSummary, Task } from './types'
 
 const BASE = '/api'
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+    })
+  } catch {
+    // fetch only rejects when no response arrived (offline, aborted, server down).
+    throw new Error(NETWORK_ERROR_MESSAGE)
+  }
   if (!res.ok) {
-    throw new Error(await errorMessage(res, path, init))
+    // A 5xx message is server detail, not something the user can act on.
+    const body: unknown = res.status < 500 ? await res.json().catch(() => null) : null
+    throw new Error(apiErrorMessage(body))
   }
   // DELETE responses have no JSON body.
   if (res.status === 204) {
     return undefined as T
   }
   return (await res.json()) as T
-}
-
-// Prefer the backend's validation message, with a generic fallback.
-async function errorMessage(res: Response, path: string, init?: RequestInit): Promise<string> {
-  try {
-    const body = (await res.json()) as { error?: unknown }
-    if (typeof body.error === 'string') {
-      return body.error
-    }
-  } catch {
-    // Non-JSON error bodies use the generic message below.
-  }
-  return `${init?.method ?? 'GET'} ${path} failed: ${res.status}`
 }
 
 // `null` clears emoji; omission leaves it unchanged.
