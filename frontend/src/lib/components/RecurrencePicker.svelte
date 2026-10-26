@@ -6,6 +6,7 @@
   import WeekdayToggles from './WeekdayToggles.svelte'
   import {
     buildRRule,
+    isUnmodeledRule,
     monthlyDefaultsFor,
     parseRRule,
     summarize,
@@ -27,9 +28,7 @@
   } = $props()
 
   const parsed = untrack(() => parseRRule(value))
-  let unknownRule = $state(
-    untrack(() => (value && parseRRule(value).freq === 'none' ? value : null)),
-  )
+  let unknownRule = $state(untrack(() => (isUnmodeledRule(value) ? value : null)))
 
   let freq = $state<RecurrenceFreq>(parsed.freq)
   let interval = $state(parsed.interval)

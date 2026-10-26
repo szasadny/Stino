@@ -788,6 +788,70 @@ async fn recurrence_validation_rejects_a_missing_date_or_a_bad_rule() {
 }
 
 #[tokio::test]
+async fn recurrence_validation_rejects_a_rule_with_no_occurrence() {
+    let app = test_app().await;
+    for rule in [
+        "FREQ=DAILY;COUNT=0",
+        "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30",
+        "FREQ=DAILY;UNTIL=20260501",
+    ] {
+        let (status, body) = send(
+            &app,
+            json_req(
+                "POST",
+                "/api/tasks",
+                json!({"title":"Never","due_date":"2026-06-01","recurrence_rule":rule}),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{rule} was accepted");
+        assert!(body["error"].is_string());
+    }
+}
+
+#[tokio::test]
+async fn a_start_date_off_the_rule_still_has_occurrences_and_is_accepted() {
+    let app = test_app().await;
+    // 2026-05-31 is a Sunday; the first occurrence is the next day.
+    create_task(
+        &app,
+        json!({"title":"Gym","due_date":"2026-05-31","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
+    )
+    .await;
+    let (_, range) = send(&app, get("/api/tasks?from=2026-05-31&to=2026-06-07")).await;
+    assert_eq!(range.as_array().unwrap().len(), 1);
+    assert_eq!(range[0]["occurrence_date"], "2026-06-01");
+}
+
+#[tokio::test]
+async fn moving_a_series_start_past_its_until_is_rejected() {
+    let app = test_app().await;
+    let task = create_task(
+        &app,
+        json!({"title":"Sprint","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY;UNTIL=20260610"}),
+    )
+    .await;
+    let id = task["id"].as_i64().unwrap();
+
+    let status = status_of(
+        &app,
+        json_req(
+            "PATCH",
+            &format!("/api/tasks/{id}"),
+            json!({"due_date":"2026-06-20"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (_, kept) = send(&app, get("/api/tasks?date=2026-06-01")).await;
+    assert_eq!(
+        kept[0]["due_date"], "2026-06-01",
+        "the rejected update wrote nothing"
+    );
+}
+
+#[tokio::test]
 async fn delete_removes_the_task_and_unknown_ids_are_404() {
     let app = test_app().await;
 

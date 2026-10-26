@@ -388,7 +388,13 @@ function monthlyOn(value: MonthlyFields): string {
 
 /** A short summary straight from a stored RRULE string (for read-only badges). */
 export function summarizeRule(rule: string | null): string {
+  if (isUnmodeledRule(rule)) return 'Custom repeat'
   return summarize(parseRRule(rule))
+}
+
+/** A stored rule the picker can't represent, so it must be kept verbatim and shown read-only. */
+export function isUnmodeledRule(rule: string | null): rule is string {
+  return !!rule && parseRRule(rule).freq === 'none'
 }
 
 // Natural-language recurrence phrases for quick-add; all matches use buildRRule.

@@ -25,6 +25,9 @@ export const GHOST_CLICK_WINDOW_MS = 350
 export const PLAUSIBLE_YEAR_MIN = 1900
 export const PLAUSIBLE_YEAR_MAX = 2999
 
+// Days quick-add scans for a rule's first occurrence; two years covers every-12-months shapes.
+export const RECURRENCE_SNAP_MAX_DAYS = 731
+
 // Search request debounce.
 export const SEARCH_DEBOUNCE_MS = 200
 

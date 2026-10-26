@@ -1,6 +1,7 @@
 // Quick-add parsing is client-side (chrono-node) and preserves local date/time fields.
 import * as chrono from 'chrono-node'
 import { formatShortDate, fromISODate, toISODate } from './date'
+import { firstOccurrenceOnOrAfter } from './first-occurrence'
 import { parseRecurrencePhrase, summarizeRule } from './recurrence'
 
 export interface QuickAddDraft {
@@ -79,8 +80,9 @@ function stripMatch(text: string, index: number, matched: string): string {
  * inside it; chrono then takes the start date/time off the remainder. No date
  * phrase ⇒ just the trimmed title (a plain Inbox capture); a recurrence with no
  * explicit date defaults its DTSTART to `ref`, because the backend rejects a
- * rule without a date. A time is set only when chrono is certain about the hour,
- * so "friday" stays all-day while "friday 9am" gets a time. `forwardDate` biases
+ * rule without a date; either start then snaps to the rule's first occurrence.
+ * A time is set only when chrono is certain about the hour, so "friday" stays
+ * all-day while "friday 9am" gets a time. `forwardDate` biases
  * bare weekdays to the upcoming one. If stripping leaves nothing (the whole line
  * was schedule text), the original text is kept as the title.
  */
@@ -94,17 +96,21 @@ export function parseQuickAdd(input: string, ref: Date = new Date()): QuickAddDr
   const { text, label } = extractLabel(afterRec)
 
   // Re-read the phrase against the resolved start so a bare "every month" takes its day.
-  const ruleFrom = (start: string) =>
-    (rec && parseRecurrencePhrase(rec.matched, start)?.rule) ?? null
+  const schedule = (start: string) => {
+    const rule = (rec && parseRecurrencePhrase(rec.matched, start)?.rule) ?? null
+    return {
+      due_date: rule ? firstOccurrenceOnOrAfter(rule, start) : start,
+      recurrence_rule: rule,
+    }
+  }
 
   const match = chrono.parse(text, ref, { forwardDate: true })[0]
   if (!match) {
     return {
       title: text,
       label,
-      due_date: rec ? toISODate(ref) : null,
+      ...(rec ? schedule(toISODate(ref)) : { due_date: null, recurrence_rule: null }),
       due_time: null,
-      recurrence_rule: ruleFrom(toISODate(ref)),
     }
   }
 
@@ -112,9 +118,8 @@ export function parseQuickAdd(input: string, ref: Date = new Date()): QuickAddDr
   return {
     title: stripMatch(text, match.index, match.text) || text,
     label,
-    due_date: toISODate(date),
+    ...schedule(toISODate(date)),
     due_time: match.start.isCertain('hour') ? toLocalTime(date) : null,
-    recurrence_rule: ruleFrom(toISODate(date)),
   }
 }
 

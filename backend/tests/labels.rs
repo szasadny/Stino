@@ -248,3 +248,43 @@ async fn update_and_delete_unknown_id_are_404() {
     let (status, _) = send(&app, json_req("DELETE", "/api/labels/9999", Value::Null)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn duplicate_names_are_rejected_case_insensitively() {
+    let app = test_app().await;
+    let create = |name: &str| {
+        json_req(
+            "POST",
+            "/api/labels",
+            json!({"name":name,"color":"#2F5D50"}),
+        )
+    };
+
+    let (status, work) = send(&app, create("Work")).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let work_id = work["id"].as_i64().expect("id");
+    let (status, errands) = send(&app, create("Errands")).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let errands_id = errands["id"].as_i64().expect("id");
+
+    for dup in ["Work", "  work  ", "WORK"] {
+        let (status, body) = send(&app, create(dup)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{dup:?} should clash");
+        assert_eq!(body["error"], "a label with that name already exists");
+    }
+
+    let rename =
+        |id: i64, name: &str| json_req("PATCH", &format!("/api/labels/{id}"), json!({"name":name}));
+    let (status, _) = send(&app, rename(errands_id, "work")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, same) = send(&app, rename(work_id, "Work")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(same["name"], "Work");
+    let (status, recased) = send(&app, rename(work_id, "work")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(recased["name"], "work");
+
+    let (_, list) = send(&app, get("/api/labels")).await;
+    assert_eq!(list.as_array().expect("array").len(), 2);
+}

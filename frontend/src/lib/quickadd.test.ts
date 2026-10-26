@@ -70,11 +70,11 @@ describe('parseQuickAdd', () => {
     })
   })
 
-  it('extracts a monthly recurrence by date-of-month, defaulting the start to ref', () => {
+  it('extracts a monthly recurrence by date-of-month, starting on its first occurrence', () => {
     expect(parseQuickAdd('pay rent the 1st of every month', REF)).toEqual({
       title: 'pay rent',
       label: null,
-      due_date: '2026-06-25',
+      due_date: '2026-07-01',
       due_time: null,
       recurrence_rule: 'FREQ=MONTHLY;BYMONTHDAY=1',
     })
@@ -95,7 +95,7 @@ describe('parseQuickAdd', () => {
     expect(parseQuickAdd('payroll the last workday of every month', REF)).toEqual({
       title: 'payroll',
       label: null,
-      due_date: '2026-06-25',
+      due_date: '2026-06-30',
       due_time: null,
       recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
     })
@@ -112,7 +112,7 @@ describe('parseQuickAdd', () => {
   it('extracts a weekly recurrence without leaking a one-off date from the weekday', () => {
     expect(parseQuickAdd('standup first day of every week', REF)).toMatchObject({
       title: 'standup',
-      due_date: '2026-06-25',
+      due_date: '2026-06-29',
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
     })
     expect(parseQuickAdd('gym every monday', REF)).toMatchObject({
@@ -145,18 +145,29 @@ describe('parseQuickAdd', () => {
   })
 
   it('extracts interval repeats without chrono reading the interval as a date', () => {
-    const cases: [string, string, string][] = [
-      ['Trash every other tuesday', 'Trash', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU'],
-      ['Clean every 3 days', 'Clean', 'FREQ=DAILY;INTERVAL=3'],
-      ['Review every 2 weeks on mon and wed', 'Review', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE'],
-      ['Pay on the 31st every month', 'Pay', 'FREQ=MONTHLY;BYMONTHDAY=31'],
-      ['Rent every 2 months on the 15th', 'Rent', 'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15'],
+    // Interval weeks/months count from the start's own week/month, as RRULE does.
+    const cases: [string, string, string, string][] = [
+      ['Trash every other tuesday', 'Trash', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU', '2026-07-07'],
+      ['Clean every 3 days', 'Clean', 'FREQ=DAILY;INTERVAL=3', '2026-06-25'],
+      [
+        'Review every 2 weeks on mon and wed',
+        'Review',
+        'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE',
+        '2026-07-06',
+      ],
+      ['Pay on the 31st every month', 'Pay', 'FREQ=MONTHLY;BYMONTHDAY=31', '2026-07-31'],
+      [
+        'Rent every 2 months on the 15th',
+        'Rent',
+        'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15',
+        '2026-08-15',
+      ],
     ]
-    for (const [input, title, rule] of cases) {
+    for (const [input, title, rule, due_date] of cases) {
       expect(parseQuickAdd(input, REF)).toEqual({
         title,
         label: null,
-        due_date: '2026-06-25',
+        due_date,
         due_time: null,
         recurrence_rule: rule,
       })
@@ -171,6 +182,35 @@ describe('parseQuickAdd', () => {
       title: 'haircut',
       due_date: '2026-07-03',
       recurrence_rule: 'FREQ=MONTHLY;BYMONTHDAY=3',
+    })
+  })
+
+  it('snaps a start the rule never generates onto its first occurrence', () => {
+    const sunday = new Date(2026, 9, 25)
+    expect(parseQuickAdd('Gym every monday at 6pm', sunday)).toMatchObject({
+      title: 'Gym',
+      due_date: '2026-10-26',
+      due_time: '18:00',
+      recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+    })
+    expect(parseQuickAdd('Rent first monday of every month', sunday)).toMatchObject({
+      due_date: '2026-11-02',
+      recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1',
+    })
+    expect(parseQuickAdd('Payroll last workday of every month', sunday)).toMatchObject({
+      due_date: '2026-10-30',
+      recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+    })
+    expect(describeDraft(parseQuickAdd('Gym every monday at 6pm', sunday))).toMatch(
+      /^Mon 26 October, 18:00 · /,
+    )
+  })
+
+  it('keeps a plain weekly repeat on the start weekday', () => {
+    const sunday = new Date(2026, 9, 25)
+    expect(parseQuickAdd('Bins every week', sunday)).toMatchObject({
+      due_date: '2026-10-25',
+      recurrence_rule: 'FREQ=WEEKLY',
     })
   })
 

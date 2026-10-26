@@ -432,6 +432,13 @@ describe('summarize', () => {
   it('summarizes straight from a stored rule', () => {
     expect(summarizeRule('FREQ=WEEKLY;BYDAY=MO,WE')).toBe('Weekly on Mon, Wed')
   })
+
+  it('labels a stored rule the picker cannot model as a custom repeat', () => {
+    expect(summarizeRule('FREQ=MONTHLY;BYMONTHDAY=1,15')).toBe('Custom repeat')
+    expect(summarizeRule('RRULE:FREQ=WEEKLY;BYDAY=MO')).toBe('Custom repeat')
+    expect(summarizeRule('garbage')).toBe('Custom repeat')
+    expect(summarizeRule(null)).toBe('Does not repeat')
+  })
 })
 
 describe('parseRecurrencePhrase', () => {

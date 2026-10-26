@@ -157,17 +157,20 @@ the client updates exactly that row.
 
 **Recurrence validation (service layer).** A `recurrence_rule` must be a parseable RRULE **and**
 the task must have a `due_date` (the DTSTART) — otherwise `400`. Sub-daily frequencies
-(`FREQ=HOURLY/MINUTELY/SECONDLY`) are rejected — occurrences are whole calendar dates. The rule is
-stored verbatim. Writes gate; reads tolerate: a **stored** rule that no longer expands (e.g. one
-accepted before a stricter gate) is skipped with a warning by the range/day queries rather than
-failing the whole listing — one bad row must not brick the calendar.
+(`FREQ=HOURLY/MINUTELY/SECONDLY`) are rejected — occurrences are whole calendar dates — as is a
+rule that yields no occurrence from its start (`COUNT=0`, Feb 30, an `UNTIL` before the start),
+since that task would be dated yet on no calendar day. The rule is stored verbatim. Writes gate;
+reads tolerate: a **stored** rule that no longer expands (e.g. one accepted
+before a stricter gate) is skipped with a warning by the range/day queries rather than failing the
+whole listing — one bad row must not brick the calendar.
 
 **Completed reschedule.** Rescheduling a completed non-recurring task (single PATCH or bulk
 `schedule`) carries its `completion` row to the new date **in the same transaction**, so the task
 stays done on its new day (recurring tasks key completions per instance and are untouched).
 
-**Validation (service layer).** Label: `name` non-empty after trim, ≤ 60 chars; `color` must be one
-of the fixed palette hexes (case-insensitive, stored uppercase). Task: `title` non-empty, ≤ 200
+**Validation (service layer).** Label: `name` non-empty after trim, ≤ 60 chars, unique
+case-insensitively on create and rename; `color` must be one of the fixed palette hexes
+(case-insensitive, stored uppercase). Task: `title` non-empty, ≤ 200
 chars; `due_date` a real `YYYY-MM-DD`, `due_time` a real `HH:MM`; a `due_time` requires a
 `due_date`; unknown `label_id` rejected. Failures return `400 {"error": msg}` (message safe for the
 UI). New tasks/labels get the next `sort_order` (append). On PATCH, an omitted field keeps its
@@ -215,7 +218,8 @@ Behaviours that matter:
   zone-independent wall-clock and are kept **literally**. Missing/unrecognised `Timezone` or an
   unparseable instant ⇒ fall back to the literal read (degrade, never lose the task).
 - **Recurrence.** A leading `RRULE:` is stripped to our bare stored form; the rule is kept only if
-  it parses against the task's start date — otherwise dropped and the task still imports.
+  it validates against the task's start date (incl. yielding an occurrence) — otherwise dropped
+  and the task still imports.
 - **Completion.** A row counts as done if `Status` is `1` or a `Completed Time` is present ⇒ a
   `completion` for the task's own occurrence (series start for a recurring task; NULL for an
   undated Inbox task).
@@ -264,8 +268,12 @@ Behaviours that matter:
   inside it isn't read as a one-off date), then a `#tag` label (single non-space token; the first of
   several wins, all stripped), then `chrono-node` takes the date/time — local `YYYY-MM-DD`/`HH:MM`,
   a time only when the hour is certain. A recurrence with no explicit date defaults DTSTART to the
-  reference date; the rule is then re-read against that start. Also `describeDraft` (capture hint) and `activeLabelToken` / `removeActiveToken`
+  reference date; the rule is then re-read against that start, and the start snaps to the rule's
+  first occurrence on or after it (`first-occurrence.ts`). Also `describeDraft` (capture hint) and `activeLabelToken` / `removeActiveToken`
   (the `#tag` suggestion menu). Pure given a reference date.
+- `first-occurrence.ts` — `firstOccurrenceOnOrAfter(rule, start)`: the first local date a
+  picker-modeled rule generates, scanned over `RECURRENCE_SNAP_MAX_DAYS` (the backend's expansion
+  skips a non-matching DTSTART); an unmodeled rule keeps `start`. Used by quick-add.
 - `move.ts` — `dropKind` classifies a grid drop (same-cell untimed reorder / plain reschedule /
   recurring single-occurrence detach / no-op); `applyMove` projects the optimistic result.
 - `ordering.ts` — `applyUntimedOrder(tasks, ids)`: renumber untimed `sort_order` to a dragged id

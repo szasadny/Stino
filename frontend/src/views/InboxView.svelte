@@ -202,18 +202,21 @@
     }, 'Could not add the task')
   }
 
-  function openDetails() {
-    const labelId =
-      captureLabelId ?? (draft.label ? (existingLabel(draft.label)?.id ?? null) : null)
-    composerInitial = {
-      title: draft.title,
-      labelId,
-      date: draft.due_date ?? '',
-      time: draft.due_time ?? '',
-      rule: draft.recurrence_rule,
-    }
-    composerMode = 'create'
-    composerOpen = true
+  async function openDetails() {
+    await core.run(async () => {
+      // The dialog's label picker only knows saved labels, so a pending #tag is created first.
+      const labelId = await resolveCaptureLabelId()
+      if (labelId === undefined) return
+      composerInitial = {
+        title: draft.title,
+        labelId,
+        date: draft.due_date ?? '',
+        time: draft.due_time ?? '',
+        rule: draft.recurrence_rule,
+      }
+      composerMode = 'create'
+      composerOpen = true
+    }, 'Could not open the details')
   }
 
   function startEdit(task: Task) {

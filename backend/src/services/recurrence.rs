@@ -82,7 +82,13 @@ fn normalize_until_value(value: &str) -> String {
 
 /// Validate that `rule` is a usable RRULE for a task starting on `dtstart`.
 pub fn validate(rule: &str, dtstart: NaiveDate) -> AppResult<()> {
-    build(rule, dtstart).map(|_| ())
+    // `all` caps the crate's search loop, so a never-matching rule (Feb 30) ends empty, not spins.
+    if build(rule, dtstart)?.all(1).dates.is_empty() {
+        return Err(AppError::Validation(
+            "recurrence_rule never produces an occurrence".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// The occurrence dates of `rule` (series starting `dtstart`) that fall within
@@ -253,6 +259,14 @@ mod tests {
     fn an_invalid_rule_is_a_validation_error() {
         assert!(validate("FREQ=NONSENSE", date("2026-06-01")).is_err());
         assert!(validate("totally not a rule", date("2026-06-01")).is_err());
+    }
+
+    #[test]
+    fn a_rule_with_no_occurrence_is_rejected() {
+        // Every 4th year from 2025 skips every leap year, so Feb 29 never comes.
+        let never = "FREQ=YEARLY;INTERVAL=4;BYMONTH=2;BYMONTHDAY=29";
+        assert!(validate(never, date("2025-01-01")).is_err());
+        assert!(validate(never, date("2024-01-01")).is_ok());
     }
 
     #[test]

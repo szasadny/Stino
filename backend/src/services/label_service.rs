@@ -19,6 +19,7 @@ pub async fn create(
     emoji: Option<&str>,
 ) -> AppResult<Label> {
     let name = non_empty_capped(name, "label name", config::MAX_LABEL_NAME_LEN)?;
+    ensure_name_free(pool, &name).await?;
     let color = validate_color(color)?;
     let emoji = clean_emoji(emoji)?;
     let sort_order = db::label::next_sort_order(pool).await?;
@@ -37,7 +38,14 @@ pub async fn update(
 ) -> AppResult<Label> {
     let current = db::label::get(pool, id).await?.ok_or(AppError::NotFound)?;
     let name = match name {
-        Some(n) => non_empty_capped(n, "label name", config::MAX_LABEL_NAME_LEN)?,
+        Some(n) => {
+            let name = non_empty_capped(n, "label name", config::MAX_LABEL_NAME_LEN)?;
+            // Legacy duplicates stay editable as long as the rename adds no new clash.
+            if !name.eq_ignore_ascii_case(&current.name) {
+                ensure_name_free(pool, &name).await?;
+            }
+            name
+        }
         None => current.name,
     };
     let color = match color {
@@ -71,6 +79,16 @@ pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     db::label::reorder(pool, ids)
         .await
         .map_err(map_row_not_found)
+}
+
+/// Case-insensitive, matching how the importer and quick-add dedupe.
+async fn ensure_name_free(pool: &SqlitePool, name: &str) -> AppResult<()> {
+    if db::label::find_by_name(pool, name).await?.is_some() {
+        return Err(AppError::Validation(
+            "a label with that name already exists".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Normalize an optional emoji: trim it, treat blank as "no emoji" (`None`), and
