@@ -1,6 +1,3 @@
-//! Integration tests for the TickTick CSV import, driven through the real router
-//! against a fresh in-memory SQLite database (migrations applied per test).
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::Value;
@@ -8,7 +5,6 @@ use serde_json::Value;
 mod common;
 use common::*;
 
-/// POST a raw CSV body to the import endpoint, exactly as the SPA uploads a file.
 fn import_req(csv: &str) -> Request<Body> {
     Request::builder()
         .method("POST")
@@ -18,10 +14,8 @@ fn import_req(csv: &str) -> Request<Body> {
         .expect("build request")
 }
 
-/// A small but representative TickTick export: a preamble + blank line before the
-/// header, an all-day task, a completed timed task, a recurring task that takes
-/// its label from the List (no tags), a titleless row that must be skipped, and
-/// an undated Inbox note whose "Inbox" list must NOT become a label.
+/// Covers a preamble, all-day, completed timed, List-labelled recurring, titleless
+/// (skipped), and an undated note whose "Inbox" list must not become a label.
 const FIXTURE: &str = r#""Date: 2026-06-25+0000"
 "Version: 7.1"
 "Status: 0 Normal, 1 Completed, 2 Archived"
@@ -54,7 +48,6 @@ async fn imports_tasks_labels_and_completions_with_a_skipped_row() {
     assert_eq!(summary["created"]["completions"], 1);
     assert_eq!(summary["skipped"], 1); // the titleless row
 
-    // Labels were created on demand; the "Inbox" list did not become a label.
     let (_, labels) = send(&app, get("/api/labels")).await;
     let names: Vec<&str> = labels
         .as_array()
@@ -66,7 +59,6 @@ async fn imports_tasks_labels_and_completions_with_a_skipped_row() {
     assert!(names.contains(&"gear") && names.contains(&"health") && names.contains(&"Work"));
     assert!(!names.contains(&"Inbox"));
 
-    // The undated note is the only Inbox task, and it carries no label.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().unwrap().len(), 1);
     assert_eq!(inbox[0]["title"], "Loose note");
@@ -78,9 +70,7 @@ async fn all_day_keeps_its_date_and_timed_tasks_convert_into_the_export_timezone
     let app = test_app().await;
     send(&app, import_req(FIXTURE)).await;
 
-    // All-day task: TickTick stores it as local midnight in UTC
-    // (2026-06-25T22:00+0000 = midnight 26 Jun Amsterdam); converting into the zone
-    // lands it on 26 Jun (a literal read of the UTC date would be a day too soon).
+    // All-day is local midnight in UTC: 2026-06-25T22:00+0000 is 26 Jun in Amsterdam.
     let (_, june26) = send(&app, get("/api/tasks?date=2026-06-26")).await;
     let boots = titled(&june26, "Buy boots");
     assert_eq!(boots.len(), 1);
@@ -88,8 +78,6 @@ async fn all_day_keeps_its_date_and_timed_tasks_convert_into_the_export_timezone
     assert_eq!(boots[0]["due_time"], Value::Null);
     assert_eq!(boots[0]["completed"], false);
 
-    // Completed timed task: the UTC instant (07:30+0000) is converted into the
-    // export's Europe/Amsterdam zone (CEST, +2 in June) → 09:30, same day, done.
     let (_, june27) = send(&app, get("/api/tasks?date=2026-06-27")).await;
     let stretch = titled(&june27, "Stretch");
     assert_eq!(stretch.len(), 1);
@@ -99,10 +87,7 @@ async fn all_day_keeps_its_date_and_timed_tasks_convert_into_the_export_timezone
 
 #[tokio::test]
 async fn an_early_morning_timed_task_imports_on_the_correct_local_day() {
-    // Regression for the "imported a day too soon" bug: a task at 00:30 Amsterdam
-    // time on Jun 25 is exported as the *previous* UTC day (22:30 on Jun 24).
-    // Reading the UTC string literally put it on Jun 24; converting into the
-    // export's timezone must land it back on Jun 25 at 00:30.
+    // 00:30 Amsterdam on Jun 25 is exported as 22:30 UTC on Jun 24.
     let csv = r#""Date: 2026-06-25+0000"
 
 "Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
@@ -112,10 +97,8 @@ async fn an_early_morning_timed_task_imports_on_the_correct_local_day() {
     let (status, summary) = send(&app, import_req(csv)).await;
     assert_eq!(status, StatusCode::OK, "import failed: {summary}");
 
-    // Not on Jun 24 (the literal UTC day)...
     let (_, june24) = send(&app, get("/api/tasks?date=2026-06-24")).await;
     assert!(titled(&june24, "Midnight ping").is_empty());
-    // ...but on Jun 25, the real local day, at 00:30.
     let (_, june25) = send(&app, get("/api/tasks?date=2026-06-25")).await;
     let ping = titled(&june25, "Midnight ping");
     assert_eq!(ping.len(), 1);
@@ -128,7 +111,6 @@ async fn recurring_task_expands_across_the_window() {
     let app = test_app().await;
     send(&app, import_req(FIXTURE)).await;
 
-    // Weekly-on-Monday from 2026-06-29: three Mondays through 2026-07-13.
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-29&to=2026-07-13")).await;
     let standups = titled(&range, "Standup");
     assert_eq!(standups.len(), 3, "expected three weekly occurrences");
@@ -137,17 +119,12 @@ async fn recurring_task_expands_across_the_window() {
         standups[0]["recurrence_rule"],
         "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"
     );
-    // 09:00+0000 converted into the export's Europe/Amsterdam zone (CEST) → 11:00.
     assert_eq!(standups[0]["due_time"], "11:00");
 }
 
 #[tokio::test]
 async fn a_recurrence_with_an_until_end_date_imports_and_stops_on_time() {
-    // Regression: TickTick exports a recurrence end date as a bare `UNTIL=YYYYMMDD`
-    // (an RFC-5545 DATE value). Before the fix, the `rrule` build rejected it
-    // against our UTC-midnight DATE-TIME DTSTART, so every "repeat until" task
-    // silently lost its recurrence on import. It must now import and expand, with
-    // occurrences stopping on (and including) the UNTIL date.
+    // TickTick's bare `UNTIL=YYYYMMDD` must import and stop on (and include) that date.
     let csv = r#""Date: 2026-06-25+0000"
 
 "Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
@@ -158,10 +135,8 @@ async fn a_recurrence_with_an_until_end_date_imports_and_stops_on_time() {
     assert_eq!(status, StatusCode::OK, "import failed: {summary}");
     assert_eq!(summary["created"]["tasks"], 1);
 
-    // The recurrence survived import (the rule is stored, not dropped)...
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-29&to=2026-08-31")).await;
     let sprints = titled(&range, "Sprint");
-    // ...and stops on its UNTIL date: three Mondays (29 Jun, 6 + 13 Jul), no more.
     assert_eq!(sprints.len(), 3, "expected the series to stop at UNTIL");
     assert_eq!(sprints[0]["occurrence_date"], "2026-06-29");
     assert_eq!(sprints[2]["occurrence_date"], "2026-07-13");
@@ -178,7 +153,6 @@ async fn re_running_appends_tasks_but_dedupes_labels() {
     let (status, summary) = send(&app, import_req(FIXTURE)).await;
     assert_eq!(status, StatusCode::OK, "second import failed: {summary}");
 
-    // Add-only: tasks doubled, but labels are reused (deduped by name).
     assert_eq!(summary["created"]["tasks"], 4);
     assert_eq!(summary["created"]["labels"], 0);
 
@@ -196,11 +170,8 @@ async fn a_file_without_a_header_is_a_clean_validation_error() {
 
 #[tokio::test]
 async fn a_mid_file_database_error_rolls_the_whole_import_back() {
-    // The import runs in one transaction: if row N hits a real database error
-    // after rows 1..N-1 were mapped, NOTHING may commit — otherwise a re-run
-    // duplicates the earlier rows. Simulate infrastructure failure by dropping
-    // the `completion` table: row 1 (a plain task + its label) maps fine inside
-    // the transaction, row 2 is completed and its completion insert then fails.
+    // Dropping `completion` makes row 2's completion insert fail after row 1 mapped
+    // inside the transaction; nothing may commit.
     let pool = test_pool().await;
     sqlx::query("DROP TABLE completion")
         .execute(&pool)
@@ -234,9 +205,6 @@ async fn a_mid_file_database_error_rolls_the_whole_import_back() {
 
 #[tokio::test]
 async fn an_hourly_repeat_is_dropped_but_the_task_still_imports() {
-    // Sub-daily repeats are meaningless for calendar-date tasks; like any
-    // unusable rule the recurrence is dropped and the task kept (degrade,
-    // never lose it).
     let csv = r#""Date: 2026-06-25+0000"
 
 "Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
@@ -296,9 +264,7 @@ async fn an_archived_task_without_a_completed_time_imports_as_done() {
 
 #[tokio::test]
 async fn an_import_larger_than_axums_default_body_limit_is_accepted() {
-    // Axum caps request bodies at 2 MB by default; a real multi-year TickTick
-    // backup can exceed that, so the import route takes up to 32 MB. Pad one
-    // row's Content past 2 MB to prove the raised limit is in effect.
+    // Pad past Axum's 2 MB default to prove the raised import limit applies.
     let padding = "x".repeat(3 * 1024 * 1024);
     let csv = format!(
         r#""Date: 2026-06-25+0000"

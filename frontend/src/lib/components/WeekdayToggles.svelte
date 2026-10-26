@@ -1,6 +1,4 @@
 <script lang="ts">
-  // The "On days" weekday toggles, shared by the Weekly and Custom every-N-weeks
-  // modes of RecurrencePicker.
   import { WEEKDAY_OPTIONS, WORKDAYS } from '../recurrence'
 
   let {

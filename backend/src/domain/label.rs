@@ -1,23 +1,15 @@
 use serde::Serialize;
 
-/// A color label users assign to tasks. Mirrors the `label` table.
 #[derive(Debug, Clone, Serialize)]
 pub struct Label {
     pub id: i64,
     pub name: String,
     pub color: String,
-    /// Optional emoji glyph shown beside the color dot; `None` ⇒ color-only.
     pub emoji: Option<String>,
     pub sort_order: i64,
 }
 
-/// Fixed, nature-derived label palette — the colors a user may assign to a label.
-/// This is the backend copy of one source of truth that necessarily spans the
-/// language boundary: the frontend defines it once in `frontend/src/lib/palette.js`
-/// (which `constants.ts` and `tailwind.config.js` both import); this `const` must
-/// stay in sync with that file. The `palette_is_unchanged` test below guards the
-/// list against accidental edits. Label colors are the one user-data exception to
-/// "use design tokens, no raw hex".
+/// Backend copy of `frontend/src/lib/palette.js` — keep in sync.
 pub const LABEL_PALETTE: [&str; 8] = [
     "#2F5D50", // pine
     "#6F8F6B", // moss
@@ -33,8 +25,6 @@ pub const LABEL_PALETTE: [&str; 8] = [
 mod tests {
     use super::LABEL_PALETTE;
 
-    /// Pins the palette to its agreed values, so an accidental edit here fails
-    /// CI rather than silently drifting from the frontend's `palette.js` mirror.
     #[test]
     fn palette_is_unchanged() {
         assert_eq!(

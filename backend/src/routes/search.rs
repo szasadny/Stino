@@ -1,5 +1,3 @@
-//! Thin task-search handler; query and persistence logic live in the service.
-
 use axum::extract::State;
 use axum::response::IntoResponse;
 use serde::Deserialize;
@@ -9,8 +7,7 @@ use super::AppState;
 use crate::error::AppResult;
 use crate::services::search_service;
 
-/// `GET /api/search?q=` — a missing/blank `q` yields an empty list (calm), so the
-/// query param is optional.
+/// A missing/blank `q` yields an empty list.
 #[derive(Deserialize)]
 pub struct SearchParams {
     pub q: Option<String>,

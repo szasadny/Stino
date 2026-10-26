@@ -1,5 +1,4 @@
-//! SQL for the `label` table. `"col!"` overrides force NOT-NULL inference where
-//! SQLite otherwise reports nullable columns.
+//! `"col!"` overrides force NOT-NULL where SQLite infers nullable.
 
 use sqlx::{SqliteExecutor, SqlitePool};
 
@@ -31,10 +30,7 @@ pub async fn get(executor: impl SqliteExecutor<'_>, id: i64) -> Result<Option<La
     .await
 }
 
-/// Find a label by name, case-insensitively (`COLLATE NOCASE` folds ASCII case).
-/// Used by the importer to map a tag/list to an existing label instead of
-/// creating a duplicate — on any executor, so it runs inside the import's
-/// transaction.
+/// ASCII case-insensitive; any executor so the importer can reuse labels inside its transaction.
 pub async fn find_by_name(
     executor: impl SqliteExecutor<'_>,
     name: &str,
@@ -50,7 +46,6 @@ pub async fn find_by_name(
     .await
 }
 
-/// The next `sort_order` to assign so new labels append to the end.
 pub async fn next_sort_order(executor: impl SqliteExecutor<'_>) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "next!" FROM label"#)
         .fetch_one(executor)
@@ -78,7 +73,6 @@ pub async fn insert(
     .await
 }
 
-/// Update name, color, and emoji; returns `None` if no label has that id.
 pub async fn update(
     pool: &SqlitePool,
     id: i64,
@@ -101,11 +95,7 @@ pub async fn update(
     .await
 }
 
-/// Persist a new label order: set each label's `sort_order` to its position in
-/// `ids` (0-based) in one transaction, so the list reorders atomically. Returns
-/// `RowNotFound` — rolling the whole batch back — if any id doesn't exist. Mirrors
-/// `task::reorder`; the label `sort_order` drives both the Labels manager and the
-/// grouped day view's section order.
+/// Set each label's `sort_order` to its index in `ids`, atomically.
 pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
     for (index, id) in ids.iter().enumerate() {
@@ -124,7 +114,6 @@ pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> Result<(), sqlx::Error> 
     Ok(())
 }
 
-/// Returns `true` if a row was deleted, `false` if no label had that id.
 pub async fn delete(pool: &SqlitePool, id: i64) -> Result<bool, sqlx::Error> {
     let res = sqlx::query!("DELETE FROM label WHERE id = ?", id)
         .execute(pool)

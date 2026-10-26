@@ -1,4 +1,3 @@
-// Typed HTTP boundary; components never call fetch directly.
 import { NETWORK_ERROR_MESSAGE } from './constants'
 import { apiErrorMessage } from './errors'
 import type { BatchOp, ImportSummary, Label, RolloverSummary, Task } from './types'
@@ -35,7 +34,7 @@ export interface LabelInput {
   emoji: string | null
 }
 
-// For updates, `null` clears a field and omission leaves it unchanged.
+// On update, `null` clears a field and omission leaves it unchanged.
 export interface TaskInput {
   title: string
   notes?: string | null
@@ -45,14 +44,13 @@ export interface TaskInput {
   recurrence_rule?: string | null
 }
 
-// Completing/reopening targets one occurrence. Omitting the date defaults to the
-// task's own due_date (the only occurrence for a one-off; null for an Inbox task).
+// Omitting the date defaults to the task's own due_date.
 function occurrenceQuery(occurrenceDate?: string | null): string {
   return occurrenceDate ? `?occurrence_date=${occurrenceDate}` : ''
 }
 
 export const api = {
-  // Search title/notes; recurring tasks are returned as series rows.
+  // Recurring tasks come back as series rows, not occurrences.
   search: (q: string) => http<Task[]>(`/search?q=${encodeURIComponent(q)}`),
   labels: {
     list: () => http<Label[]>('/labels'),
@@ -61,12 +59,11 @@ export const api = {
     update: (id: number, input: Partial<LabelInput>) =>
       http<Label>(`/labels/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     remove: (id: number) => http<void>(`/labels/${id}`, { method: 'DELETE' }),
-    // Persist the complete manual label order.
+    // Must list every label.
     reorder: (ids: number[]) =>
       http<void>('/labels/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
   },
   tasks: {
-    // Inbox, one local day, or a calendar date range.
     inbox: () => http<Task[]>('/tasks?inbox=true'),
     forDate: (date: string) => http<Task[]>(`/tasks?date=${date}`),
     range: (from: string, to: string) => http<Task[]>(`/tasks?from=${from}&to=${to}`),
@@ -75,31 +72,26 @@ export const api = {
     update: (id: number, input: Partial<TaskInput>) =>
       http<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     remove: (id: number) => http<void>(`/tasks/${id}`, { method: 'DELETE' }),
-    // Detach one recurring occurrence; the series keeps repeating.
     moveOccurrence: (id: number, occurrenceDate: string, newDate: string) =>
       http<Task>(`/tasks/${id}/move_occurrence`, {
         method: 'POST',
         body: JSON.stringify({ occurrence_date: occurrenceDate, new_date: newDate }),
       }),
-    // Delete one recurring occurrence (skip its date); the series keeps repeating.
     skipOccurrence: (id: number, occurrenceDate: string) =>
       http<void>(`/tasks/${id}/skip_occurrence`, {
         method: 'POST',
         body: JSON.stringify({ occurrence_date: occurrenceDate }),
       }),
-    // Persist the complete order of untimed tasks; timed tasks stay time-sorted.
     reorder: (ids: number[]) =>
       http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
-    // Move overdue non-recurring tasks onto the browser-supplied local date.
+    // The browser supplies `today`; the backend never computes it.
     rollover: (today: string) =>
       http<RolloverSummary>('/tasks/rollover', {
         method: 'POST',
         body: JSON.stringify({ today }),
       }),
-    // Apply one atomic operation to Inbox-selected tasks.
     batch: (ids: number[], op: BatchOp) =>
       http<void>('/tasks/batch', { method: 'POST', body: JSON.stringify({ ids, op }) }),
-    // Complete/reopen one occurrence and return that row.
     complete: (id: number, occurrenceDate?: string | null) =>
       http<Task>(`/tasks/${id}/completions${occurrenceQuery(occurrenceDate)}`, { method: 'POST' }),
     uncomplete: (id: number, occurrenceDate?: string | null) =>
@@ -108,7 +100,7 @@ export const api = {
       }),
   },
   import: {
-    // Send the raw TickTick CSV so the browser supplies its content type.
+    // `headers: {}` drops the JSON content type so the browser sets the file's.
     ticktick: (file: File) =>
       http<ImportSummary>('/import/ticktick', { method: 'POST', body: file, headers: {} }),
   },

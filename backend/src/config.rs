@@ -2,58 +2,38 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 
-// Shared validation limits and local date/time wire formats.
-
-/// Cap titles so list rows stay legible; notes are unbounded (free text).
+/// Notes are unbounded free text.
 pub const MAX_TITLE_LEN: usize = 200;
 /// Cap label names so the UI chips stay legible; imported names are clamped to it.
 pub const MAX_LABEL_NAME_LEN: usize = 60;
-/// Cap a label's emoji by code-point count — enough for a single glyph including
-/// multi-codepoint ZWJ/flag sequences, while rejecting pasted sentences.
+/// Counted in code points so multi-codepoint ZWJ/flag glyphs fit but pasted text doesn't.
 pub const MAX_LABEL_EMOJI_LEN: usize = 8;
-/// Local calendar-date format (`YYYY-MM-DD`). Stored verbatim, never via UTC
-/// (Hard Rule 7). This is the `chrono` pattern, not the human label.
+/// Local calendar date, stored verbatim — never via UTC.
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
-/// Local wall-clock time format (`HH:MM`, 24-hour). The `chrono` pattern.
 pub const TIME_FORMAT: &str = "%H:%M";
-/// Request-body cap for the TickTick CSV import route. Axum's default limit is
-/// 2 MB, which a real multi-year backup can exceed; 32 MB is far beyond any
-/// plausible export while still bounding the upload.
+/// A multi-year TickTick backup can exceed Axum's 2 MB default.
 pub const IMPORT_MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
-/// How many days back the overdue rollover scans for missed recurring
-/// occurrences to detach onto today. A sliding window bounded to the recent past
-/// (not full history): older missed occurrences stay visible on their own day,
-/// and because the window slides with `today` they never re-enter it, so the
-/// rollover stays idempotent. One-off rollover has no such bound — a one-off can
-/// only move once, then it's on today.
+/// Sliding window for missed recurring occurrences: anything older stays on its own day
+/// and never re-enters the window, which keeps the rollover idempotent.
 pub const ROLLOVER_LOOKBACK_DAYS: i64 = 7;
 
-/// Runtime configuration, sourced entirely from environment variables so the
-/// same binary runs in local dev and in the container without code changes.
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// TCP port the HTTP server binds to.
     pub port: u16,
-    /// Directory that holds the SQLite database file (mounted volume in prod).
+    /// Mounted volume in prod.
     pub data_dir: PathBuf,
-    /// Optional explicit SQLx connection string. When unset we use
-    /// `<data_dir>/stino.db`, which is what dev and the container both rely on.
+    /// Defaults to `<data_dir>/stino.db`.
     pub database_url: Option<String>,
-    /// Directory of built frontend assets to serve (prod). In dev the Vite dev
-    /// server serves the UI and proxies `/api` here, so this can be absent.
+    /// Absent in dev, where Vite serves the UI.
     pub static_dir: PathBuf,
-    /// Optional Host-header allowlist (from `ALLOWED_HOSTS`, comma-separated
-    /// hostnames without ports) — a DNS-rebinding guard for a server that runs
-    /// without auth. `None` (unset/blank) accepts any Host, unchanged.
+    /// DNS-rebinding guard for an auth-less server. `None` accepts any Host.
     pub allowed_hosts: Option<Vec<String>>,
 }
 
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        // A present-but-unusable PORT fails startup loudly — silently falling
-        // back to 8080 would hide a broken deployment config, and 0 would bind
-        // an OS-assigned random port no port mapping points at. Absent still
-        // defaults.
+        // A present-but-unusable PORT fails loudly rather than silently defaulting;
+        // 0 would bind a random port no mapping points at.
         let port = match std::env::var("PORT") {
             Ok(raw) => raw
                 .trim()
@@ -85,8 +65,6 @@ impl Config {
     }
 }
 
-/// Split `ALLOWED_HOSTS` into trimmed, lowercased hostnames; empty entries (a
-/// trailing comma) are dropped.
 fn parse_allowed_hosts(raw: String) -> Vec<String> {
     raw.split(',')
         .map(|host| host.trim().to_ascii_lowercase())
@@ -98,9 +76,7 @@ fn parse_allowed_hosts(raw: String) -> Vec<String> {
 mod tests {
     use super::*;
 
-    /// One test covers all PORT cases so the env-var mutation stays sequential
-    /// (tests run in parallel threads; nothing else reads PORT, but two tests
-    /// setting it would race each other).
+    /// One test for all PORT cases: env mutation from parallel tests would race.
     #[test]
     fn port_defaults_when_absent_parses_when_valid_and_fails_startup_when_not() {
         std::env::remove_var("PORT");
@@ -113,8 +89,6 @@ mod tests {
         let err = Config::from_env().expect_err("garbage PORT must fail startup");
         assert!(err.to_string().contains("PORT"), "error names the variable");
 
-        // 0 parses as a u16 but binds an OS-assigned random port that no
-        // compose port mapping would reach — reject it like garbage.
         std::env::set_var("PORT", "0");
         Config::from_env().expect_err("PORT=0 must fail startup");
 

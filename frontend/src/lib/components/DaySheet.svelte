@@ -77,8 +77,6 @@
     }
   }
 
-  // Run one delete flavour (whole task/series or a single occurrence) with the sheet's
-  // own busy/error handling; success returns to the day agenda.
   async function runDelete(del: (task: Task) => Promise<void> | undefined, failMsg: string) {
     if (!composing || composing.mode !== 'edit' || busy) return
     busy = true
@@ -115,14 +113,11 @@
   panelClass="{SHEET_PANEL_CLASS} sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))]"
   containerClass={SHEET_CONTAINER_CLASS}
 >
-  <!-- dragEdgeScroll: a long day still reorders by touch — holding a task near the
-       sheet's top/bottom edge auto-scrolls the list to reach off-screen rows. -->
   <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-5" use:dragEdgeScroll>
     <ErrorAlert {error} class="mb-3" />
 
     {#if composing && date}
-      <!-- Key the editor on the editing identity so an edit→edit (or add→edit) transition
-           re-seeds the draft and resets its delete-confirm, even without remounting. -->
+      <!-- Keyed so an edit→edit switch re-seeds the draft and resets its delete-confirm. -->
       {#key composing.mode === 'edit' ? composing.task.id : 'add'}
         <TaskComposer
           {labels}

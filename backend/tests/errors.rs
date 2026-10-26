@@ -1,6 +1,3 @@
-//! Integration tests for extractor rejections: every API failure is a JSON
-//! `{"error": msg}` body, with axum's own rejection status preserved.
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 

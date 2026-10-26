@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Empty errors render nothing so callers can include the banner unconditionally.
   let { error, class: className = '' }: { error: string | null; class?: string } = $props()
 </script>
 

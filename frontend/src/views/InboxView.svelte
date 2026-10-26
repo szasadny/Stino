@@ -205,7 +205,7 @@
 
   async function openDetails() {
     await core.run(async () => {
-      // The dialog's label picker only knows saved labels, so a pending #tag is created first.
+      // The dialog's picker only knows saved labels, so create a pending #tag first.
       const labelId = await resolveCaptureLabelId()
       if (labelId === undefined) return
       composerInitial = {
@@ -254,15 +254,13 @@
   const lastTickAt = new Map<number, number>()
 
   function completeTask(task: Task) {
-    // A touch tap fires two clicks a beat apart (see lib/phantom-click.ts); with
-    // tap-again-to-undo the phantom would cancel its own completion. Drop any click within
-    // the ghost window of the last handled one.
+    // Ignore the touch phantom click, or it would undo its own completion.
     const now = performance.now()
     if (now - (lastTickAt.get(task.id) ?? -Infinity) < GHOST_CLICK_WINDOW_MS) return
     lastTickAt.set(task.id, now)
 
     if (completingIds.has(task.id)) {
-      // Ticked again during the hold: undo — nothing has been written yet.
+      // Ticked again during the hold: nothing written yet, just cancel.
       clearTimeout(completeTimers.get(task.id))
       completeTimers.delete(task.id)
       completingIds.delete(task.id)
@@ -305,7 +303,6 @@
       })
   }
 
-  // Done rows never show in the Inbox, so the last completion stays undoable for a moment.
   let undo = $state.raw<{ task: Task; index: number } | null>(null)
   let undoToken = $state(0)
 
@@ -347,7 +344,7 @@
 
   function reorderFinalize(event: CustomEvent<DndEvent<Task>>) {
     dragOrder = event.detail.items
-    dragging = false // clear before persisting so the revert/resync can re-project
+    dragging = false // before persisting, so the revert can re-project
     void core.reorder(dragOrder.map((t) => t.id))
   }
 

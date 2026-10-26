@@ -19,8 +19,7 @@ import {
   weekdayAbbrev,
 } from './date'
 
-// Dates are built from local Y/M/D components, so these are timezone-independent
-// (the same calendar date everywhere) — see Hard Rule 7.
+// Built from local Y/M/D components, so these hold in every timezone (Hard Rule 7).
 
 describe('toISODate / fromISODate', () => {
   it('formats a local date as YYYY-MM-DD without UTC drift', () => {

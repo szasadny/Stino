@@ -1,25 +1,21 @@
-// Shared client types mirroring the API contract.
-
 export interface Label {
   id: number
   name: string
   color: string
-  emoji: string | null // optional glyph shown beside the color dot; null => color-only
+  emoji: string | null
   sort_order: number
 }
 
-// TickTick import summary; imports are add-only and unmappable rows are skipped.
 export interface ImportSummary {
   created: { tasks: number; labels: number; completions: number }
   skipped: number
 }
 
-// Tasks landed on today: overdue one-offs moved + one copy per missed recurring series.
+// Overdue one-offs moved + one copy per missed recurring series.
 export interface RolloverSummary {
   moved: number
 }
 
-// Tagged bulk operation for Inbox multi-select.
 export type BatchOp =
   | { type: 'label'; label_id: number | null }
   | { type: 'schedule'; due_date: string }
@@ -31,14 +27,11 @@ export interface Task {
   title: string
   notes: string | null
   label_id: number | null
-  due_date: string | null // 'YYYY-MM-DD' local date; null => Inbox. For a recurring task this is the series start (DTSTART)
-  due_time: string | null // 'HH:MM' local time; null => untimed
-  recurrence_rule: string | null // RRULE; null => one-off
-  // The specific instance this row represents. For a recurring task the
-  // calendar/day queries return one Task per occurrence with `occurrence_date`
-  // set to the instance date; for a one-off it equals `due_date`. Key rows by
-  // `(id, occurrence_date)` — the same id repeats across a recurring series.
+  due_date: string | null // local date; null ⇒ Inbox; the series start for a recurring task
+  due_time: string | null
+  recurrence_rule: string | null
+  // Key rows by `(id, occurrence_date)` — a recurring series repeats its id per occurrence.
   occurrence_date: string | null
   sort_order: number
-  completed: boolean // a completion exists for this occurrence
+  completed: boolean // for this occurrence only
 }

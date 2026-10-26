@@ -1,5 +1,3 @@
-// Pure placement math for the desktop day panel; keeps the panel within the viewport.
-
 export interface Box {
   top: number
   left: number
@@ -19,17 +17,11 @@ export interface Point {
   top: number
 }
 
-// Clamp `v` into [min, max]; if the range is inverted (panel larger than the space)
-// prefer `min` so the panel pins to the top/left margin rather than going off-screen.
+// An inverted range (panel larger than the space) pins to `min`, never off-screen.
 const clamp = (v: number, min: number, max: number): number =>
   Math.min(Math.max(v, min), Math.max(min, max))
 
-/**
- * Place the panel just to the RIGHT of the anchor cell; if it would overflow the
- * viewport's right edge, flip it to the LEFT of the cell; either way clamp it fully
- * into view. Vertically, align the panel's top with the cell's top, clamped so the
- * whole panel stays on screen. All inputs/outputs are `position: fixed` pixels.
- */
+/** Right of the cell, flipping left on overflow, clamped into view; `position: fixed` px. */
 export function panelPosition(
   anchor: Box,
   panel: Size,
@@ -39,7 +31,6 @@ export function panelPosition(
 ): Point {
   let left = anchor.right + gap
   if (left + panel.width + margin > viewport.width) {
-    // Not enough room to the right — dock to the left of the cell instead.
     left = anchor.left - gap - panel.width
   }
   left = clamp(left, margin, viewport.width - panel.width - margin)

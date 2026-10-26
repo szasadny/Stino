@@ -1,15 +1,10 @@
-//! Case-insensitive task search over title and notes.
-
 use sqlx::SqlitePool;
 
 use crate::db;
 use crate::domain::Task;
 use crate::error::AppResult;
 
-/// Find tasks whose `title` or `notes` contain `q`. A blank query (empty after
-/// trim) returns no rows — a calm empty state, not an error. The term's LIKE
-/// wildcards (`%`, `_`) and the escape char (`\`) are escaped so they match
-/// literally rather than as patterns.
+/// A blank query returns no rows rather than an error.
 pub async fn search(pool: &SqlitePool, q: &str) -> AppResult<Vec<Task>> {
     let term = q.trim();
     if term.is_empty() {
@@ -19,9 +14,7 @@ pub async fn search(pool: &SqlitePool, q: &str) -> AppResult<Vec<Task>> {
     Ok(db::task::search(pool, &pattern).await?)
 }
 
-/// Escape LIKE metacharacters so a literal `%`/`_`/`\` in the term is matched as
-/// itself (paired with `ESCAPE '\'` in the query). Backslash first, so the
-/// escapes added afterwards aren't themselves re-escaped.
+/// Backslash first, so the escapes added afterwards aren't re-escaped.
 fn escape_like(term: &str) -> String {
     term.replace('\\', "\\\\")
         .replace('%', "\\%")

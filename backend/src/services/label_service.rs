@@ -1,5 +1,3 @@
-//! Label business rules: validate input, assign ordering, delegate SQL to `db`.
-
 use sqlx::SqlitePool;
 
 use crate::config;
@@ -26,9 +24,6 @@ pub async fn create(
     Ok(db::label::insert(pool, &name, &color, emoji.as_deref(), sort_order).await?)
 }
 
-/// Partial update: an absent field keeps its current value; an explicit `null`
-/// emoji clears it (the `Option<Option<…>>` mirrors the task PATCH semantics).
-/// 404 if the id is unknown.
 pub async fn update(
     pool: &SqlitePool,
     id: i64,
@@ -69,8 +64,7 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> AppResult<()> {
     }
 }
 
-/// Each label's `sort_order` becomes its position in `ids`, atomically. `ids` must
-/// list every label exactly once, else untouched labels would tie `sort_order`.
+/// `ids` must list every label exactly once, else untouched labels would tie `sort_order`.
 pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     let mut existing: Vec<i64> = db::label::list(pool).await?.iter().map(|l| l.id).collect();
     let mut given = ids.to_vec();
@@ -96,8 +90,6 @@ async fn ensure_name_free(pool: &SqlitePool, name: &str) -> AppResult<()> {
     Ok(())
 }
 
-/// Normalize an optional emoji: trim it, treat blank as "no emoji" (`None`), and
-/// cap its length so a single glyph is allowed but a pasted sentence is rejected.
 fn clean_emoji(emoji: Option<&str>) -> AppResult<Option<String>> {
     let Some(trimmed) = emoji.map(str::trim).filter(|e| !e.is_empty()) else {
         return Ok(None);
@@ -110,8 +102,7 @@ fn clean_emoji(emoji: Option<&str>) -> AppResult<Option<String>> {
     Ok(Some(trimmed.to_string()))
 }
 
-/// Accept only colors from the fixed palette (case-insensitive), storing the
-/// canonical uppercase hex.
+/// Stores the canonical uppercase hex.
 fn validate_color(color: &str) -> AppResult<String> {
     let candidate = color.trim();
     if LABEL_PALETTE

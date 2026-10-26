@@ -104,8 +104,6 @@
     )
   }
 
-  // Fetch the target month's range BEFORE the transition so the page never freezes on the
-  // network; the transition callback only swaps period state + commits the fetched data.
   function go(delta: number) {
     const next = addMonths(viewYear, viewMonth, delta)
     const [from, to] = rangeBoundsFor(buildMonthGrid(next.year, next.month))
@@ -138,8 +136,7 @@
   }
 </script>
 
-<!-- The swipe listener lives on the section, not the vt-calendar pane: a captured pane is
-     skipped for hit-testing mid-slide, so a fast follow-up swipe would be eaten. -->
+<!-- Swipe on the section, not the vt-calendar pane: a captured pane drops hit-testing mid-slide. -->
 <section
   class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
   use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
@@ -213,10 +210,6 @@
   </div>
 
   {#if isCompact()}
-    <!-- Phone: compact grid; tapping a day opens the split, its agenda rendering underneath
-         as a shared `calendar` drag zone so a held row drops onto any cell to reschedule.
-         While a held task dwells at the bottom, the agenda hides (`gridExpanded`) so the
-         whole month is the drop surface. Grid + agenda share the `vt-calendar` pane. -->
     <div bind:this={splitEl} class="vt-calendar flex min-h-0 flex-1 flex-col">
       <div
         class="grid min-h-0 flex-[11] grid-cols-7 gap-1"
@@ -286,8 +279,6 @@
   {/if}
 </section>
 
-<!-- Desktop day zoom: the floating, non-modal DayPanel — the grid stays live behind it, so a
-     task can be dragged out onto another day. (Phone's day zoom is the split agenda above.) -->
 {#if !isCompact() && sel.selectedDate && selectedKey}
   <DayPanel
     date={sel.selectedDate}

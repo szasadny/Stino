@@ -1,5 +1,3 @@
-//! Task validation, sorting, recurrence expansion, and completion rules.
-
 use std::collections::HashSet;
 
 use sqlx::{SqliteConnection, SqliteExecutor, SqlitePool};
@@ -13,15 +11,11 @@ use crate::services::validation::{
     clean_optional, non_empty_capped, parse_date, validate_date, validate_time,
 };
 
-/// Inbox = unscheduled tasks (`due_date IS NULL`). Recurring tasks always have a
-/// start date, so they never appear here.
+/// Recurring tasks always have a start date, so they never appear here.
 pub async fn list_inbox(pool: &SqlitePool) -> AppResult<Vec<Task>> {
     Ok(db::task::list_inbox(pool).await?)
 }
 
-/// Tasks on a single local date: the one-off tasks on that day plus every
-/// recurring task whose rule lands on it, each as its own occurrence. Sorted
-/// timed-first then by manual order.
 pub async fn list_for_date(pool: &SqlitePool, date: &str) -> AppResult<Vec<Task>> {
     let date = validate_date(date)?;
     let mut tasks = db::task::list_for_date(pool, &date).await?;
@@ -30,9 +24,7 @@ pub async fn list_for_date(pool: &SqlitePool, date: &str) -> AppResult<Vec<Task>
     Ok(tasks)
 }
 
-/// Tasks in the inclusive local-date range `[from, to]` for the month/week grid:
-/// one-off tasks in the window plus the expanded occurrences of every recurring
-/// task. Both bounds are validated; an inverted range yields no rows.
+/// Inclusive range; an inverted range yields no rows.
 pub async fn list_in_range(pool: &SqlitePool, from: &str, to: &str) -> AppResult<Vec<Task>> {
     let from = validate_date(from)?;
     let to = validate_date(to)?;
@@ -47,9 +39,7 @@ pub async fn create(pool: &SqlitePool, input: NewTask) -> AppResult<Task> {
     create_on(&mut conn, input).await
 }
 
-/// [`create`] on a single connection, so the importer can validate and insert
-/// every row inside its one transaction. The validation lives here — the one
-/// place that enforces the task rules — not forked per caller.
+/// The single validator, on one connection so the importer can run it inside its transaction.
 pub(crate) async fn create_on(conn: &mut SqliteConnection, input: NewTask) -> AppResult<Task> {
     let title = non_empty_capped(&input.title, "task title", config::MAX_TITLE_LEN)?;
     let notes = clean_optional(input.notes);
@@ -76,12 +66,8 @@ pub(crate) async fn create_on(conn: &mut SqliteConnection, input: NewTask) -> Ap
     .await?)
 }
 
-/// Partial update. Absent fields keep their current value; an explicit null
-/// clears a nullable field (see [`TaskPatch`]). 404 if the id is unknown.
 pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<Task> {
     let current = db::task::get(pool, id).await?.ok_or(AppError::NotFound)?;
-    // Capture the pre-update date/recurrence before the merge below consumes
-    // `current`; the completion migration after the write needs the old values.
     let prev_due_date = current.due_date.clone();
     let was_recurring = current.recurrence_rule.is_some();
 
@@ -118,12 +104,7 @@ pub async fn update(pool: &SqlitePool, id: i64, patch: TaskPatch) -> AppResult<T
     require_date_for_time(due_date.as_deref(), due_time.as_deref())?;
     validate_recurrence(recurrence_rule.as_deref(), due_date.as_deref())?;
 
-    // A non-recurring task's completion is keyed to its `due_date`
-    // (`completed` = a completion exists at `occurrence_date IS due_date`), so
-    // rescheduling it to another day would otherwise strand that completion and
-    // reopen the task. Carry the completion across with the move — atomically,
-    // in the same transaction as the date change. Recurring tasks key
-    // completions per instance date, so theirs are left untouched.
+    // One-off completions are keyed to `due_date`, so a reschedule carries them along atomically.
     let reschedules = !was_recurring && recurrence_rule.is_none() && prev_due_date != due_date;
     // Stale skips/moves would otherwise hide dates again if a rule is re-added.
     let stops_recurring = was_recurring && recurrence_rule.is_none();
@@ -175,14 +156,8 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> AppResult<()> {
     }
 }
 
-/// Move a SINGLE occurrence of a recurring task to another day, TickTick-style: the
-/// series keeps repeating, but the chosen instance is detached into its own one-off
-/// task on `new_date` (copying title/notes/label/time, no recurrence) while the series
-/// skips the original date via a `task_exception`. Validates that the task is recurring
-/// and that `occurrence_date` is a real instance of the series that hasn't already been
-/// detached (re-detaching it would orphan a second one-off). A same-day move is a
-/// no-op. 404 if the id is unknown; 400 if it isn't a recurring task, the date isn't an
-/// occurrence, or it has already been moved.
+/// Detach one occurrence into a one-off on `new_date`; the series skips the original via
+/// `task_exception`. A same-day move is a no-op.
 pub async fn move_occurrence(
     pool: &SqlitePool,
     id: i64,
@@ -198,13 +173,11 @@ pub async fn move_occurrence(
             "only a recurring task's occurrence can be moved".into(),
         ));
     };
-    // The date must actually be an instance of the series, or there is nothing to detach.
     ensure_series_member(rule, start, &occurrence_date)?;
     if new_date == occurrence_date {
         return Ok(task); // a no-op move — keep the series untouched
     }
-    // Already detached? The `task_exception` insert is idempotent, but creating the one-off
-    // is not — a second move of the same instance would orphan a duplicate. Reject it.
+    // Re-detaching would orphan a second one-off.
     ensure_not_detached(
         pool,
         id,
@@ -215,13 +188,7 @@ pub async fn move_occurrence(
     Ok(db::task::move_occurrence(pool, id, &occurrence_date, &new_date).await?)
 }
 
-/// Delete a SINGLE occurrence of a recurring task: the series skips that date via a
-/// `task_exception` and keeps repeating everywhere else. Completions are history and
-/// are never removed, so only an UNFINISHED occurrence can be skipped. Validates the
-/// task is recurring and that the date is a real instance of the series. Idempotent —
-/// skipping an already-skipped (or moved) occurrence is a no-op. 404 if the id is
-/// unknown; 400 if it isn't a recurring task, the date isn't an occurrence, or that
-/// occurrence is completed.
+/// Completions are history, so only an unfinished occurrence can be skipped. Idempotent.
 pub async fn skip_occurrence(pool: &SqlitePool, id: i64, occurrence_date: String) -> AppResult<()> {
     let occurrence_date = validate_date(&occurrence_date)?;
     let task = db::task::get(pool, id).await?.ok_or(AppError::NotFound)?;
@@ -243,11 +210,7 @@ pub async fn skip_occurrence(pool: &SqlitePool, id: i64, occurrence_date: String
     Ok(db::task::skip_occurrence(pool, id, &occurrence_date).await?)
 }
 
-/// Persist a new manual order: `ids` is the full ordered list for a list/day,
-/// and each task's `sort_order` becomes its position. The client sends only
-/// untimed task ids — timed and recurring tasks keep their time-sort — so this
-/// just rewrites positions. Atomic: an unknown id is a 404 and changes nothing.
-/// An empty list is a no-op.
+/// Only untimed ids are sent; timed and recurring tasks keep their time-sort.
 pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     if ids.is_empty() {
         return Ok(());
@@ -257,10 +220,6 @@ pub async fn reorder(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
         .map_err(map_row_not_found)
 }
 
-/// Apply one bulk operation to many tasks (the Inbox multi-select). Validation
-/// happens once up front — the same label/date applies to every id — then the
-/// repository runs the change in a single transaction. Atomic: an unknown id is
-/// a 404 and changes nothing. An empty id list is a no-op.
 pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()> {
     if ids.is_empty() {
         return Ok(());
@@ -274,12 +233,7 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
         }
         BatchOp::Schedule(due_date) => {
             let due_date = validate_date(&due_date)?;
-            // Bulk Schedule serves the Inbox, where a recurring task never
-            // lives (its rule requires a start date). Re-dating a series would
-            // also need its rule revalidated against the new DTSTART — reject
-            // rather than silently move a whole series. The repository already
-            // reads each row inside its transaction and reports a recurring id
-            // as a typed signal, so the check-then-write pair can't race.
+            // A series can't live in the Inbox, and re-dating one would need its rule revalidated.
             return db::task::batch_set_due_date(pool, ids, &due_date)
                 .await
                 .map_err(|err| match err {
@@ -295,20 +249,9 @@ pub async fn batch(pool: &SqlitePool, ids: &[i64], op: BatchOp) -> AppResult<()>
     result.map_err(map_row_not_found)
 }
 
-/// Roll overdue, uncompleted tasks onto `today` — the TickTick-style rollover the
-/// client requests on app open. `today` is the browser's local date (Hard Rule 7
-/// — the backend never computes "today"). Two parts:
-///
-/// 1. **One-off tasks:** every overdue, uncompleted one-off moves onto today (one
-///    UPDATE, keeping its `due_time`).
-/// 2. **Missed recurring occurrences:** a series' uncompleted occurrences in the
-///    last [`config::ROLLOVER_LOOKBACK_DAYS`] days collapse into ONE open rollover
-///    copy on today, reused across days (so step 1 must run first). Every missed
-///    date gets a `task_exception`; the series keeps repeating. Completed and
-///    already-detached occurrences are left alone, so a re-run moves nothing.
-///
-/// Returns the number of tasks that landed on today (one-offs relocated + new
-/// rollover copies).
+/// `today` is the browser's local date. Overdue one-offs move first, then each series'
+/// missed occurrences in the lookback window collapse into one reused copy on today
+/// (so the order matters). Idempotent: completed and detached occurrences are left alone.
 pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSummary> {
     let today = validate_date(today)?;
     let mut moved = db::task::rollover_overdue(pool, &today).await?;
@@ -316,11 +259,6 @@ pub async fn rollover(pool: &SqlitePool, today: &str) -> AppResult<RolloverSumma
     Ok(RolloverSummary { moved })
 }
 
-/// Detach every uncompleted recurring occurrence in the sliding lookback window
-/// `[today - ROLLOVER_LOOKBACK_DAYS, yesterday]` onto `today`, one open copy per
-/// series (see [`rollover`]). Skips occurrences that are already
-/// completed or already detached by a manual move, so it's idempotent across the
-/// day's retries. Returns how many new copies were created.
 async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u64> {
     let today_date = parse_date(today)?;
     let to_date = today_date - chrono::Duration::days(1);
@@ -337,8 +275,7 @@ async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u6
         else {
             continue; // a recurring row always has both; skip defensively
         };
-        // A stored rule that no longer expands must not abort the whole rollover —
-        // skip the series (same defensive stance as `append_recurring`).
+        // A rule that no longer expands must not abort the whole rollover.
         let dates = match recurrence::expand(rule, parse_date(start)?, from_date, to_date) {
             Ok(dates) => dates,
             Err(err) => {
@@ -376,11 +313,7 @@ async fn detach_missed_recurring(pool: &SqlitePool, today: &str) -> AppResult<u6
     Ok(detached)
 }
 
-/// Mark a task done for an occurrence. `occurrence_date` defaults to the task's
-/// own `due_date` (the only occurrence for a non-recurring task; NULL for an
-/// Inbox task). Writes a `completion` row — it never mutates the task — and
-/// returns the **toggled occurrence** (its `occurrence_date` and `completed`
-/// state) so the client can update exactly that row.
+/// Never mutates the task; returns the toggled occurrence so the client updates exactly that row.
 pub async fn complete(
     pool: &SqlitePool,
     id: i64,
@@ -393,8 +326,6 @@ pub async fn complete(
     Ok(occurrence_view(task, occurrence, true))
 }
 
-/// Reopen a task for an occurrence by removing its completion row. Returns the
-/// toggled occurrence with `completed = false`.
 pub async fn uncomplete(
     pool: &SqlitePool,
     id: i64,
@@ -407,9 +338,6 @@ pub async fn uncomplete(
     Ok(occurrence_view(task, occurrence, false))
 }
 
-/// Expand every recurring task across `[from, to]` and append one `Task` per
-/// occurrence — `occurrence_date` set to the instance date and `completed`
-/// resolved from that task's completion rows in the window.
 async fn append_recurring(
     pool: &SqlitePool,
     out: &mut Vec<Task>,
@@ -423,10 +351,8 @@ async fn append_recurring(
         else {
             continue; // a recurring row always has both; skip defensively
         };
-        // A stored rule that no longer expands (e.g. one accepted before a
-        // stricter validation gate, or a pathological occurrence count) must
-        // not fail the whole listing — one bad row would brick every calendar
-        // view. Skip the series instead; the task stays reachable via search.
+        // A rule that no longer expands (e.g. accepted before stricter validation) must not
+        // brick every calendar view; skip it — the task stays reachable via search.
         let dates = match recurrence::expand(rule, parse_date(start)?, from_date, to_date) {
             Ok(dates) => dates,
             Err(err) => {
@@ -441,8 +367,6 @@ async fn append_recurring(
             .await?
             .into_iter()
             .collect();
-        // Occurrences detached by a single-instance move: the series skips these dates
-        // (the moved instance now lives as its own one-off task on the new day).
         let detached: HashSet<String> = db::task::excepted_occurrences(pool, task.id, from, to)
             .await?
             .into_iter()
@@ -462,8 +386,6 @@ async fn append_recurring(
     Ok(())
 }
 
-/// The view sort rule across a (possibly multi-day) result set: by occurrence
-/// day, then timed tasks first by `due_time`, then manual `sort_order`, then id.
 /// `occurrence_date` is `YYYY-MM-DD`, so lexicographic order is chronological.
 fn sort_tasks(tasks: &mut [Task]) {
     tasks.sort_by(|a, b| {
@@ -476,8 +398,6 @@ fn sort_tasks(tasks: &mut [Task]) {
     });
 }
 
-/// Pick the occurrence to (un)complete: the given date if provided, else the
-/// task's own `due_date` (NULL for an Inbox task).
 fn resolve_occurrence(task: &Task, occurrence_date: Option<String>) -> AppResult<Option<String>> {
     match occurrence_date {
         Some(d) => Ok(Some(validate_date(&d)?)),
@@ -485,11 +405,7 @@ fn resolve_occurrence(task: &Task, occurrence_date: Option<String>) -> AppResult
     }
 }
 
-/// A completion may only key a date the client can actually show — otherwise
-/// the row is an orphan and the "completed" answer is a lie. For a recurring
-/// task the date must be a member of the series (the same check
-/// `move_occurrence` uses) that hasn't been detached; for a one-off it must be
-/// the task's own `due_date` (NULL for an Inbox task).
+/// Reject dates the client can't show, so no orphan completion rows are written.
 async fn ensure_real_occurrence(
     pool: &SqlitePool,
     task: &Task,
@@ -497,8 +413,6 @@ async fn ensure_real_occurrence(
 ) -> AppResult<()> {
     let (Some(rule), Some(start)) = (task.recurrence_rule.as_deref(), task.due_date.as_deref())
     else {
-        // Non-recurring: the only occurrence is the task's own due_date
-        // (NULL-safe — an Inbox task pairs with a NULL occurrence).
         if occurrence == task.due_date.as_deref() {
             return Ok(());
         }
@@ -506,7 +420,6 @@ async fn ensure_real_occurrence(
             "occurrence_date must match the task's due date".into(),
         ));
     };
-    // A recurring task always has a date, so the resolved occurrence is Some.
     let Some(date) = occurrence else {
         return Err(AppError::Validation(
             "a recurring task needs an occurrence_date".into(),
@@ -522,13 +435,8 @@ async fn ensure_real_occurrence(
     .await
 }
 
-/// The series-membership rule shared by `move_occurrence` and the completion
-/// endpoints: `date` counts when the rule generates it — or when it is the
-/// series start itself. DTSTART is a member even when the rule wouldn't
-/// regenerate it (e.g. a task due Wednesday repeating weekly on Mondays, which
-/// import and the picker both permit): search returns the canonical series row
-/// keyed at `due_date`, and the importer records completions there, so the
-/// start must stay toggleable.
+/// DTSTART counts even when the rule wouldn't regenerate it (e.g. due Wednesday,
+/// repeating Mondays): search and import key the series at `due_date`.
 fn ensure_series_member(rule: &str, start: &str, date: &str) -> AppResult<()> {
     if date == start {
         return Ok(());
@@ -542,8 +450,6 @@ fn ensure_series_member(rule: &str, start: &str, date: &str) -> AppResult<()> {
     Ok(())
 }
 
-/// Reject an occurrence that has been detached from its series by a
-/// single-instance move; `detached_msg` keeps each endpoint's own wording.
 async fn ensure_not_detached(
     pool: &SqlitePool,
     task_id: i64,
@@ -559,15 +465,12 @@ async fn ensure_not_detached(
     Ok(())
 }
 
-/// Present a task as the single occurrence that was just toggled.
 fn occurrence_view(mut task: Task, occurrence: Option<String>, completed: bool) -> Task {
     task.occurrence_date = occurrence;
     task.completed = completed;
     task
 }
 
-/// A timed task must be scheduled: a `due_time` without a `due_date` has nothing
-/// to anchor to and can't be placed on the calendar.
 fn require_date_for_time(due_date: Option<&str>, due_time: Option<&str>) -> AppResult<()> {
     if due_time.is_some() && due_date.is_none() {
         return Err(AppError::Validation(
@@ -577,8 +480,6 @@ fn require_date_for_time(due_date: Option<&str>, due_time: Option<&str>) -> AppR
     Ok(())
 }
 
-/// A recurring task needs a start date (DTSTART) and a parseable RRULE. The rule
-/// is validated by the recurrence service against that start.
 fn validate_recurrence(rule: Option<&str>, due_date: Option<&str>) -> AppResult<()> {
     let Some(rule) = rule else {
         return Ok(());
@@ -591,8 +492,7 @@ fn validate_recurrence(rule: Option<&str>, due_date: Option<&str>) -> AppResult<
     recurrence::validate(rule, parse_date(date)?)
 }
 
-/// Takes any executor so `create_on` can check labels inside the importer's
-/// transaction (where just-created labels aren't visible from the pool yet).
+/// Any executor so the importer sees labels its own transaction just created.
 async fn ensure_label(executor: impl SqliteExecutor<'_>, label_id: i64) -> AppResult<()> {
     if db::label::get(executor, label_id).await?.is_some() {
         Ok(())

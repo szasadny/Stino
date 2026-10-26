@@ -1,6 +1,3 @@
-//! Integration tests for the label API, driven through the real router against a
-//! fresh in-memory SQLite database (migrations applied per test for isolation).
-
 use axum::http::StatusCode;
 use serde_json::{json, Value};
 
@@ -61,7 +58,6 @@ async fn create_list_update_delete_lifecycle() {
 async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
     let app = test_app().await;
 
-    // Absent emoji on create ⇒ null.
     let (status, plain) = send(
         &app,
         json_req(
@@ -74,7 +70,6 @@ async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(plain["emoji"], Value::Null);
 
-    // Emoji on create round-trips, and is trimmed.
     let (status, home) = send(
         &app,
         json_req(
@@ -88,7 +83,6 @@ async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
     assert_eq!(home["emoji"], "🏠");
     let id = home["id"].as_i64().expect("id");
 
-    // A PATCH that omits emoji leaves it unchanged.
     let (_, kept) = send(
         &app,
         json_req(
@@ -100,7 +94,6 @@ async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
     .await;
     assert_eq!(kept["emoji"], "🏠", "omitted emoji must be left unchanged");
 
-    // An explicit null clears it.
     let (_, cleared) = send(
         &app,
         json_req("PATCH", &format!("/api/labels/{id}"), json!({"emoji":null})),
@@ -108,7 +101,6 @@ async fn emoji_is_optional_and_patch_distinguishes_clear_from_unchanged() {
     .await;
     assert_eq!(cleared["emoji"], Value::Null, "null emoji must clear it");
 
-    // A pasted multi-glyph string is rejected.
     let (status, _) = send(
         &app,
         json_req(
@@ -143,7 +135,6 @@ async fn validation_rejects_blank_name_and_off_palette_color() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    // A palette color in lowercase is accepted and normalized to canonical case.
     let (status, label) = send(
         &app,
         json_req("POST", "/api/labels", json!({"name":"X","color":"#2f5d50"})),
@@ -180,7 +171,6 @@ async fn sort_order_appends_in_creation_order() {
 async fn reorder_persists_a_new_label_order_and_rejects_non_permutations() {
     let app = test_app().await;
 
-    // Three labels, created A, B, C (sort_order 0, 1, 2).
     let id = |v: &Value| v["id"].as_i64().expect("id");
     let (_, a) = send(
         &app,
@@ -207,7 +197,6 @@ async fn reorder_persists_a_new_label_order_and_rejects_non_permutations() {
             .collect()
     };
 
-    // Drag C to the front: C, A, B.
     let (status, _) = send(
         &app,
         json_req("PATCH", "/api/labels/reorder", json!({"ids":[c, a, b]})),
@@ -218,7 +207,6 @@ async fn reorder_persists_a_new_label_order_and_rejects_non_permutations() {
     let (_, list) = send(&app, get("/api/labels")).await;
     assert_eq!(names(&list), ["C", "A", "B"]);
 
-    // Anything but a permutation of every label id is a 400 and changes nothing.
     for (case, ids) in [
         ("partial", json!([a, b])),
         ("duplicate", json!([a, a, b])),

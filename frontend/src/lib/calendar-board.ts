@@ -1,34 +1,18 @@
-// Grid drag zones use ids qualified by occurrence date because recurring rows reuse
-// the same task id across days.
 import type { Label, Task } from './types'
 import { labelDayOrder } from './grouping'
 import { completedLast } from './ordering'
 
-/** A draggable pill in a day cell. `id` is globally unique (see `cellItemId`). */
 export interface CellItem {
   id: string
   task: Task
 }
 
-/**
- * A stable, globally-unique id for a task on a given day. A recurring series
- * repeats its numeric `id` across days, so we qualify it with the occurrence day
- * (falling back to the series start, then empty) to keep svelte-dnd-action's
- * id-based drag tracking sound.
- */
+/** A recurring series repeats its `id` across days; svelte-dnd-action needs unique ids. */
 export function cellItemId(task: Task): string {
   return `${task.id}:${task.occurrence_date ?? task.due_date ?? ''}`
 }
 
-/**
- * Bucket a loaded range into one `CellItem[]` per day. EVERY key in `dayKeys` is
- * seeded with an array — including empty days, so they are valid drop targets.
- * Tasks with no `occurrence_date` (unscheduled) and tasks whose day is outside the
- * grid are skipped. Per-day input order (the server's timed-first/sort_order order)
- * is preserved — unless `labelOrder` is given, in which case each day is projected
- * through `labelDayOrder` (timed stay first by time; untimed regroup by label).
- * In either mode, completed tasks sink to the bottom of their day (`completedLast`).
- */
+/** Every day key gets an array, so empty days are valid drop targets. */
 export function buildBoard(
   tasks: Task[],
   dayKeys: string[],
@@ -49,16 +33,7 @@ export function buildBoard(
   return board
 }
 
-/**
- * The destination day's untimed task ids after a task is dragged onto it from
- * another day — the tasks already there, in their current order, with the moved
- * task appended at the end. This is what we send to `api.tasks.reorder` so the
- * incoming task *joins* the day without disturbing the order of the tasks already
- * on it. `tasks` is the loaded range in server (sorted) order; only untimed tasks
- * carry a manual order, so timed tasks are excluded (they sort by time). The moved
- * id is filtered from the existing set (it may still carry its old day in `tasks`)
- * and appended exactly once.
- */
+/** The moved task joins the end of the day's untimed order; timed tasks sort by time instead. */
 export function appendedUntimedOrder(tasks: Task[], dayKey: string, movedId: number): number[] {
   const existing = tasks
     .filter((t) => t.occurrence_date === dayKey && t.due_time == null && t.id !== movedId)

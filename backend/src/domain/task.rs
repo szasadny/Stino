@@ -1,19 +1,10 @@
 use serde::Serialize;
 
-/// A task. Mirrors the `task` table plus a derived `completed` flag (true when a
-/// `completion` row exists for this task's current occurrence). Mirror `Task` in
-/// `frontend/src/lib/types.ts`.
+/// Mirror `Task` in `frontend/src/lib/types.ts`. `completed` is derived per occurrence.
 ///
-/// `due_date` NULL ⇒ the task lives in the **Inbox** (unscheduled); `due_time`
-/// NULL ⇒ untimed. Both are local-timezone text (`YYYY-MM-DD` / `HH:MM`), never
-/// UTC instants.
-///
-/// `recurrence_rule` is the stored series definition; `due_date` is its start
-/// (DTSTART). For a recurring task the calendar/day queries return **one `Task`
-/// per occurrence** in the window: `due_date` stays the series start while
-/// `occurrence_date` carries the specific instance being rendered, and
-/// `completed` reflects that instance. For a one-off task `occurrence_date`
-/// equals `due_date`. Clients key rows by `(id, occurrence_date)`.
+/// For a recurring task the range/date queries return one `Task` per occurrence:
+/// `due_date` stays the series start (DTSTART) and `occurrence_date` is the instance,
+/// so clients key rows by `(id, occurrence_date)`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
     pub id: i64,
@@ -28,9 +19,7 @@ pub struct Task {
     pub completed: bool,
 }
 
-/// Fields for creating a task. `title` is required; the rest are optional.
-/// `recurrence_rule` (an RRULE) makes the task recurring and requires a
-/// `due_date` to anchor the series start.
+/// A `recurrence_rule` requires a `due_date` to anchor the series.
 #[derive(Debug, Clone)]
 pub struct NewTask {
     pub title: String,
@@ -41,33 +30,23 @@ pub struct NewTask {
     pub recurrence_rule: Option<String>,
 }
 
-/// A bulk operation applied to many tasks at once (the Inbox multi-select).
-/// Each variant maps to one transactional batch in the repository, so the whole
-/// set succeeds or rolls back together.
+/// Inbox multi-select; each op is one atomic batch.
 #[derive(Debug, Clone)]
 pub enum BatchOp {
-    /// Set the label on every task — or, with `None`, clear it.
     SetLabel(Option<i64>),
-    /// Give every task a due date, scheduling it out of the Inbox.
     Schedule(String),
-    /// Mark every task done at its own occurrence (its `due_date`, NULL in the Inbox).
     Complete,
-    /// Delete every task.
     Delete,
 }
 
-/// Result of the overdue rollover: how many tasks landed on today (overdue
-/// one-offs moved + new copies of missed recurring series). Mirror
+/// Overdue one-offs moved plus new copies of missed recurring series. Mirror
 /// `RolloverSummary` in `frontend/src/lib/types.ts`.
 #[derive(Debug, Clone, Serialize)]
 pub struct RolloverSummary {
     pub moved: u64,
 }
 
-/// A partial update. Each field uses `Option<Option<T>>` (the nullable ones) to
-/// distinguish three cases the API needs:
-/// `None` ⇒ absent, keep the current value; `Some(None)` ⇒ explicit null, clear
-/// it; `Some(Some(v))` ⇒ set it. `title` is non-nullable, so a plain `Option`.
+/// `None` ⇒ keep, `Some(None)` ⇒ clear, `Some(Some(v))` ⇒ set.
 #[derive(Debug, Clone, Default)]
 pub struct TaskPatch {
     pub title: Option<String>,

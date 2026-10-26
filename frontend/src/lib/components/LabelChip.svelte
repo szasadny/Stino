@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Label color is user data; surrounding chrome uses theme tokens.
   let {
     name,
     color,

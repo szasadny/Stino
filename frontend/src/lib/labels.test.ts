@@ -64,9 +64,7 @@ describe('nextPaletteColor', () => {
   })
 
   it('advances by max sort_order, not list length, matching the backend importer', () => {
-    // Three labels created (sort orders 0..2), then the middle one deleted: the
-    // list has 2 labels but the next sort_order is 3 — length % len would hand
-    // out palette[2] again while the importer would pick palette[3].
+    // After a delete, list length ≠ next sort_order; the importer keys off sort_order.
     const afterDelete = [label(1, 0), label(3, 2)]
     expect(nextPaletteColor(afterDelete)).toBe(LABEL_PALETTE[3].hex)
   })

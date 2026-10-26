@@ -1,6 +1,3 @@
-//! Integration tests for the task API, driven through the real router against a
-//! fresh in-memory SQLite database (migrations applied per test for isolation).
-
 use axum::http::StatusCode;
 use axum::Router;
 use serde_json::{json, Value};
@@ -66,7 +63,6 @@ async fn scheduling_moves_a_task_out_of_the_inbox() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(updated["due_date"], "2026-06-30");
 
-    // Gone from the Inbox, present on its day.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().expect("array").len(), 0);
     let (_, day) = send(&app, get("/api/tasks?date=2026-06-30")).await;
@@ -84,7 +80,6 @@ async fn patch_clears_a_field_with_explicit_null_but_keeps_omitted_ones() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // Explicit null clears notes; omitting title leaves it unchanged.
     let (status, updated) = send(
         &app,
         json_req("PATCH", &format!("/api/tasks/{id}"), json!({"notes":null})),
@@ -114,7 +109,6 @@ async fn complete_and_uncomplete_toggle_without_mutating_the_task() {
         "completion never mutates the task"
     );
 
-    // Completing again is idempotent (no duplicate completion rows / errors).
     let (status, _) = send(
         &app,
         empty_req("POST", &format!("/api/tasks/{id}/completions")),
@@ -138,7 +132,6 @@ async fn complete_and_uncomplete_toggle_without_mutating_the_task() {
 async fn rescheduling_a_completed_task_keeps_it_completed() {
     let app = test_app().await;
 
-    // Complete a task on its due day, then drag it to another day.
     let task = create_task(&app, json!({"title":"Chop wood","due_date":"2026-07-01"})).await;
     let id = task["id"].as_i64().expect("id");
     send(
@@ -163,7 +156,6 @@ async fn rescheduling_a_completed_task_keeps_it_completed() {
         "the completion follows the task to its new day"
     );
 
-    // It is done on the new day and absent from the old one.
     let (_, new_day) = send(&app, get("/api/tasks?date=2026-07-08")).await;
     let new_day = new_day.as_array().expect("array");
     assert_eq!(new_day.len(), 1);
@@ -183,7 +175,6 @@ async fn completing_an_inbox_task_removes_it_from_the_inbox() {
     let task = create_task(&app, json!({"title":"Someday"})).await;
     let id = task["id"].as_i64().expect("id");
 
-    // due_date is NULL here, so the completion's occurrence_date is NULL too.
     let (status, done) = send(
         &app,
         empty_req("POST", &format!("/api/tasks/{id}/completions")),
@@ -192,7 +183,6 @@ async fn completing_an_inbox_task_removes_it_from_the_inbox() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(done["completed"], true);
 
-    // A completed capture drops out of the Inbox — it doesn't linger struck-through.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert!(
         inbox.as_array().expect("array").is_empty(),
@@ -204,7 +194,6 @@ async fn completing_an_inbox_task_removes_it_from_the_inbox() {
 async fn day_view_sorts_timed_first_then_untimed_by_order() {
     let app = test_app().await;
 
-    // Created out of order; all on the same day.
     create_task(&app, json!({"title":"Untimed A","due_date":"2026-06-24"})).await;
     create_task(
         &app,
@@ -225,7 +214,6 @@ async fn day_view_sorts_timed_first_then_untimed_by_order() {
         .iter()
         .map(|t| t["title"].as_str().expect("title"))
         .collect();
-    // Timed first by time ascending, then untimed in creation (sort_order) order.
     assert_eq!(titles, ["Morning", "Evening", "Untimed A", "Untimed B"]);
 }
 
@@ -233,7 +221,6 @@ async fn day_view_sorts_timed_first_then_untimed_by_order() {
 async fn range_returns_tasks_across_month_edges_in_day_then_time_order() {
     let app = test_app().await;
 
-    // Inside the window, spanning a month boundary; created out of order.
     create_task(
         &app,
         json!({"title":"Jul 1 evening","due_date":"2026-07-01","due_time":"18:00"}),
@@ -249,7 +236,6 @@ async fn range_returns_tasks_across_month_edges_in_day_then_time_order() {
         json!({"title":"Jul 1 morning","due_date":"2026-07-01","due_time":"08:00"}),
     )
     .await;
-    // Outside the window and in the Inbox — neither should appear.
     create_task(&app, json!({"title":"Too early","due_date":"2026-06-29"})).await;
     create_task(&app, json!({"title":"In the inbox"})).await;
 
@@ -261,7 +247,6 @@ async fn range_returns_tasks_across_month_edges_in_day_then_time_order() {
         .iter()
         .map(|t| t["title"].as_str().expect("title"))
         .collect();
-    // Sorted by day, then timed-first by time within the day.
     assert_eq!(titles, ["Jun 30 untimed", "Jul 1 morning", "Jul 1 evening"]);
 }
 
@@ -327,7 +312,6 @@ async fn validation_rejects_blank_title_time_without_date_and_unknown_label() {
 async fn a_recurring_task_expands_to_one_occurrence_per_day_in_range() {
     let app = test_app().await;
 
-    // A daily task starting Jun 1; the series start is the DTSTART.
     let task = create_task(
         &app,
         json!({"title":"Stretch","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
@@ -340,8 +324,6 @@ async fn a_recurring_task_expands_to_one_occurrence_per_day_in_range() {
     assert_eq!(status, StatusCode::OK);
     let days = range.as_array().expect("array");
     assert_eq!(days.len(), 3, "one occurrence per day in the window");
-    // Same task id across all occurrences; due_date stays the series start while
-    // occurrence_date carries the instance — the (id, occurrence_date) key.
     for (i, expected) in ["2026-06-01", "2026-06-02", "2026-06-03"]
         .iter()
         .enumerate()
@@ -396,7 +378,6 @@ async fn completing_one_occurrence_leaves_the_others_open() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // Complete only the Jun 2 occurrence.
     let (status, done) = send(
         &app,
         empty_req(
@@ -412,7 +393,6 @@ async fn completing_one_occurrence_leaves_the_others_open() {
         "the toggled occurrence is returned, not the series start"
     );
 
-    // Only Jun 2 is done; Jun 1 and Jun 3 stay open.
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-03")).await;
     let days = range.as_array().expect("array");
     let done_for: Vec<bool> = days
@@ -421,7 +401,6 @@ async fn completing_one_occurrence_leaves_the_others_open() {
         .collect();
     assert_eq!(done_for, [false, true, false]);
 
-    // Reopen Jun 2.
     let (status, reopened) = send(
         &app,
         empty_req(
@@ -445,7 +424,7 @@ async fn completing_one_occurrence_leaves_the_others_open() {
 async fn moving_one_occurrence_detaches_it_and_leaves_the_series_repeating() {
     let app = test_app().await;
 
-    // A labeled, weekly-on-Mondays series from Jun 1 2026 (a Monday): Jun 1, 8, 15, 22, 29.
+    // Jun 1 2026 is a Monday.
     let (status, label) = send(
         &app,
         json_req(
@@ -465,7 +444,6 @@ async fn moving_one_occurrence_detaches_it_and_leaves_the_series_repeating() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // Drag the Jun 8 instance to Jun 10 (a Wednesday — not itself an occurrence).
     let (status, moved) = send(
         &app,
         json_req(
@@ -494,7 +472,6 @@ async fn moving_one_occurrence_detaches_it_and_leaves_the_series_repeating() {
         "the detached copy does not repeat"
     );
 
-    // The series still repeats every other Monday; only Jun 8 is gone.
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
     let days = range.as_array().expect("array");
     let series_dates: Vec<&str> = days
@@ -508,7 +485,6 @@ async fn moving_one_occurrence_detaches_it_and_leaves_the_series_repeating() {
         "Jun 8 detached; the rest keep repeating"
     );
 
-    // Jun 10 now carries the detached one-off, and nothing else.
     let detached: Vec<&Value> = days
         .iter()
         .filter(|d| d["occurrence_date"] == "2026-06-10")
@@ -544,7 +520,7 @@ async fn moving_an_occurrence_of_a_non_recurring_task_is_rejected() {
 async fn moving_a_date_that_is_not_an_occurrence_is_rejected() {
     let app = test_app().await;
 
-    // Weekly on Mondays from Jun 1; Jun 3 2026 is a Wednesday — not an occurrence.
+    // Jun 3 2026 is a Wednesday — not an occurrence.
     let task = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -572,7 +548,6 @@ async fn moving_a_date_that_is_not_an_occurrence_is_rejected() {
 async fn moving_an_occurrence_to_its_own_day_changes_nothing() {
     let app = test_app().await;
 
-    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
     let task = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -580,7 +555,6 @@ async fn moving_an_occurrence_to_its_own_day_changes_nothing() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // Moving Jun 8 onto Jun 8 is a no-op: no exception, no detached one-off.
     let (status, _) = send(
         &app,
         json_req(
@@ -609,7 +583,6 @@ async fn moving_an_occurrence_to_its_own_day_changes_nothing() {
 async fn moving_the_same_occurrence_twice_is_rejected() {
     let app = test_app().await;
 
-    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
     let task = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -617,7 +590,6 @@ async fn moving_the_same_occurrence_twice_is_rejected() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // First move detaches Jun 8 onto Jun 10.
     let (status, _) = send(
         &app,
         json_req(
@@ -629,7 +601,6 @@ async fn moving_the_same_occurrence_twice_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    // Re-moving the now-detached Jun 8 must be rejected, not create a second one-off.
     let (status, _) = send(
         &app,
         json_req(
@@ -645,7 +616,6 @@ async fn moving_the_same_occurrence_twice_is_rejected() {
         "Jun 8 was already detached; re-moving it must not orphan a duplicate one-off"
     );
 
-    // Exactly one detached one-off exists (on Jun 10); Jun 12 has nothing.
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
     let days = range.as_array().expect("array");
     let detached: Vec<&Value> = days
@@ -660,7 +630,7 @@ async fn moving_the_same_occurrence_twice_is_rejected() {
 async fn weekly_byday_only_lands_on_chosen_weekdays() {
     let app = test_app().await;
 
-    // 2026-06-01 is a Monday; repeat Mondays and Wednesdays.
+    // 2026-06-01 is a Monday.
     create_task(
         &app,
         json!({"title":"Class","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO,WE"}),
@@ -681,7 +651,7 @@ async fn weekly_byday_only_lands_on_chosen_weekdays() {
 async fn a_monthly_ordinal_weekday_task_expands_across_a_range() {
     let app = test_app().await;
 
-    // First Monday of every month; series starts Jan 1 2026 (a Thursday).
+    // Jan 1 2026 is a Thursday.
     let task = create_task(
         &app,
         json!({"title":"Pay rent","due_date":"2026-01-01","recurrence_rule":"FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1"}),
@@ -714,7 +684,6 @@ async fn completing_one_monthly_occurrence_leaves_the_others_open() {
     .await;
     let id = task["id"].as_i64().expect("id");
 
-    // Complete only the Feb 2 occurrence.
     let (status, done) = send(
         &app,
         empty_req(
@@ -735,7 +704,6 @@ async fn completing_one_monthly_occurrence_leaves_the_others_open() {
         .collect();
     assert_eq!(done_for, [false, true, false]);
 
-    // Reopen Feb 2.
     let (status, reopened) = send(
         &app,
         empty_req(
@@ -752,7 +720,6 @@ async fn completing_one_monthly_occurrence_leaves_the_others_open() {
 async fn a_monthly_last_day_task_tracks_short_months() {
     let app = test_app().await;
 
-    // BYMONTHDAY=-1 must validate and yield the real last day of each month.
     create_task(
         &app,
         json!({"title":"Close books","due_date":"2026-01-01","recurrence_rule":"FREQ=MONTHLY;BYMONTHDAY=-1"}),
@@ -780,7 +747,6 @@ async fn for_date_includes_recurring_occurrences_alongside_one_offs() {
     .await;
     create_task(&app, json!({"title":"One-off","due_date":"2026-06-03"})).await;
 
-    // Jun 3 is both a recurring occurrence (timed 09:00) and the one-off (untimed).
     let (_, day) = send(&app, get("/api/tasks?date=2026-06-03")).await;
     let titles: Vec<&str> = day
         .as_array()
@@ -788,7 +754,6 @@ async fn for_date_includes_recurring_occurrences_alongside_one_offs() {
         .iter()
         .map(|t| t["title"].as_str().expect("title"))
         .collect();
-    // Timed recurring occurrence sorts before the untimed one-off.
     assert_eq!(titles, ["Daily standup", "One-off"]);
 }
 
@@ -844,7 +809,7 @@ async fn recurrence_validation_rejects_a_rule_with_no_occurrence() {
 #[tokio::test]
 async fn a_start_date_off_the_rule_still_has_occurrences_and_is_accepted() {
     let app = test_app().await;
-    // 2026-05-31 is a Sunday; the first occurrence is the next day.
+    // 2026-05-31 is a Sunday.
     create_task(
         &app,
         json!({"title":"Gym","due_date":"2026-05-31","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -920,7 +885,6 @@ async fn search_matches_title_or_notes_case_insensitively() {
     .await;
     create_task(&app, json!({"title":"Unrelated errand"})).await;
 
-    // A lowercase query still matches "Boots"/"BOOTS" in title and notes.
     let (status, hits) = send(&app, get("/api/search?q=boots")).await;
     assert_eq!(status, StatusCode::OK);
     let titles: Vec<&str> = hits
@@ -939,7 +903,6 @@ async fn search_treats_wildcards_in_the_term_as_literal_text() {
     create_task(&app, json!({"title":"Pay 50% deposit"})).await;
     create_task(&app, json!({"title":"Read 50 pages"})).await;
 
-    // The `%` is escaped, so it must match a literal percent — not "any chars".
     let (_, hits) = send(&app, get("/api/search?q=50%25")).await; // %25 = '%'
     let titles: Vec<&str> = hits
         .as_array()
@@ -973,7 +936,6 @@ async fn search_orders_by_due_date_then_title_with_inbox_last() {
         .iter()
         .map(|t| t["title"].as_str().expect("title"))
         .collect();
-    // Scheduled tasks by date ascending, then the undated Inbox task last.
     assert_eq!(titles, ["trail: soon", "trail: later", "trail: inbox one"]);
 }
 
@@ -981,7 +943,6 @@ async fn search_orders_by_due_date_then_title_with_inbox_last() {
 async fn reorder_persists_a_new_manual_order_and_a_refetch_returns_it() {
     let app = test_app().await;
 
-    // Three untimed Inbox tasks, created A, B, C (sort_order 0, 1, 2).
     let a = create_task(&app, json!({"title":"A"})).await["id"]
         .as_i64()
         .expect("id");
@@ -1001,11 +962,9 @@ async fn reorder_persists_a_new_manual_order_and_a_refetch_returns_it() {
             .collect()
     };
 
-    // Starts in creation order.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(order(&inbox), ["A", "B", "C"]);
 
-    // Drag C to the front: C, A, B.
     let (status, _) = send(
         &app,
         json_req("PATCH", "/api/tasks/reorder", json!({"ids":[c, a, b]})),
@@ -1013,7 +972,6 @@ async fn reorder_persists_a_new_manual_order_and_a_refetch_returns_it() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // A re-fetch returns the new order.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(order(&inbox), ["C", "A", "B"]);
 }
@@ -1022,7 +980,6 @@ async fn reorder_persists_a_new_manual_order_and_a_refetch_returns_it() {
 async fn reorder_keeps_timed_tasks_time_sorted_and_rolls_back_unknown_ids() {
     let app = test_app().await;
 
-    // One day: two timed (sort by time) and two untimed (sort by manual order).
     create_task(
         &app,
         json!({"title":"Morning","due_date":"2026-06-24","due_time":"08:00"}),
@@ -1050,7 +1007,6 @@ async fn reorder_keeps_timed_tasks_time_sorted_and_rolls_back_unknown_ids() {
             .collect()
     };
 
-    // Reorder the untimed pair so B precedes A.
     let (status, _) = send(
         &app,
         json_req(
@@ -1063,13 +1019,11 @@ async fn reorder_keeps_timed_tasks_time_sorted_and_rolls_back_unknown_ids() {
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     let (_, day) = send(&app, get("/api/tasks?date=2026-06-24")).await;
-    // Timed first by time; untimed now B before A.
     assert_eq!(
         titles(&day),
         ["Morning", "Evening", "Untimed B", "Untimed A"]
     );
 
-    // An unknown id 404s and the whole batch rolls back (order unchanged).
     let (status, _) = send(
         &app,
         json_req(
@@ -1133,7 +1087,6 @@ async fn batch_sets_a_label_on_many_tasks_and_clears_it_again() {
         .as_i64()
         .expect("id");
 
-    // Label A and B (leave C untouched).
     let (status, _) = send(
         &app,
         json_req(
@@ -1159,7 +1112,6 @@ async fn batch_sets_a_label_on_many_tasks_and_clears_it_again() {
     assert_eq!(label_of(b), json!(label));
     assert_eq!(label_of(c), Value::Null, "C was not in the batch");
 
-    // A null label clears it on the selected tasks.
     let (status, _) = send(
         &app,
         json_req(
@@ -1197,7 +1149,6 @@ async fn batch_schedule_moves_tasks_out_of_the_inbox_onto_a_day() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // Both gone from the Inbox, both on their new day.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().expect("array").len(), 0);
     let (_, day) = send(&app, get("/api/tasks?date=2026-07-04")).await;
@@ -1225,13 +1176,11 @@ async fn batch_complete_marks_every_selected_task_done() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // Completed Inbox tasks stay in the list, but flagged done.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     for t in inbox.as_array().expect("array") {
         assert_eq!(t["completed"], true);
     }
 
-    // Re-completing is idempotent (the guarded insert is a no-op).
     let (status, _) = send(
         &app,
         json_req(
@@ -1284,7 +1233,6 @@ async fn batch_with_an_unknown_id_rolls_the_whole_batch_back() {
         .as_i64()
         .expect("id");
 
-    // One real id and one bogus id: the batch must 404 and change nothing.
     let (status, _) = send(
         &app,
         json_req(
@@ -1303,7 +1251,6 @@ async fn batch_with_an_unknown_id_rolls_the_whole_batch_back() {
         "the failed batch left A unlabeled"
     );
 
-    // Same atomicity for delete: A survives a batch that references a bad id.
     let (status, _) = send(
         &app,
         json_req(
@@ -1351,7 +1298,6 @@ async fn batch_rejects_a_bad_date_or_an_unknown_label() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "unknown label");
 
-    // The rejected ops left A unchanged in the Inbox.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     let task = &inbox.as_array().expect("array")[0];
     assert_eq!(task["due_date"], Value::Null);
@@ -1362,7 +1308,6 @@ async fn batch_rejects_a_bad_date_or_an_unknown_label() {
 async fn moving_a_completed_occurrence_carries_its_completion_to_the_one_off() {
     let (app, pool) = test_app_with_pool().await;
 
-    // A daily series; complete only the Jun 2 occurrence, then drag it to Jun 5.
     let task = create_task(
         &app,
         json!({"title":"Water plants","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
@@ -1394,8 +1339,6 @@ async fn moving_a_completed_occurrence_carries_its_completion_to_the_one_off() {
         "the detached one-off keeps the source occurrence's done state"
     );
 
-    // On the calendar: the one-off is done on Jun 5, the remaining series
-    // occurrences (Jun 1, 3, 4 — Jun 2 detached) stay open.
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-05")).await;
     let days = range.as_array().expect("array");
     let series: Vec<(&str, bool)> = days
@@ -1426,8 +1369,7 @@ async fn moving_a_completed_occurrence_carries_its_completion_to_the_one_off() {
     assert_eq!(one_off[0]["occurrence_date"], "2026-06-05");
     assert_eq!(one_off[0]["completed"], true);
 
-    // Behind the API: the completion row was re-keyed, not copied — nothing is
-    // left pointing at the series' old date.
+    // The completion row was re-keyed, not copied.
     let stale: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM completion WHERE task_id = ? AND occurrence_date = '2026-06-02'",
     )
@@ -1445,7 +1387,6 @@ async fn moving_a_completed_occurrence_carries_its_completion_to_the_one_off() {
 async fn batch_schedule_keeps_completed_tasks_completed() {
     let app = test_app().await;
 
-    // A completed Inbox task (occurrence NULL) and a completed dated task.
     let inbox_task = create_task(&app, json!({"title":"Inbox done"})).await["id"]
         .as_i64()
         .expect("id");
@@ -1473,7 +1414,6 @@ async fn batch_schedule_keeps_completed_tasks_completed() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
-    // Both land on the new day still done — bulk Schedule must not reopen them.
     let (_, day) = send(&app, get("/api/tasks?date=2026-07-10")).await;
     let day = day.as_array().expect("array");
     assert_eq!(day.len(), 2);
@@ -1501,8 +1441,6 @@ async fn batch_schedule_rejects_recurring_tasks() {
         .as_i64()
         .expect("id");
 
-    // Bulk Schedule serves the Inbox; re-dating a series would need its rule
-    // revalidated against the new DTSTART — rejected, and nothing changes.
     let (status, _) = send(
         &app,
         json_req(
@@ -1534,7 +1472,6 @@ async fn batch_schedule_rejects_recurring_tasks() {
 async fn an_hourly_recurrence_rule_is_rejected() {
     let app = test_app().await;
 
-    // Occurrences are calendar dates — a sub-daily repeat is meaningless.
     let (status, body) = send(
         &app,
         json_req(
@@ -1555,7 +1492,7 @@ async fn an_hourly_recurrence_rule_is_rejected() {
 async fn completing_a_date_that_is_not_a_real_occurrence_is_rejected() {
     let app = test_app().await;
 
-    // Weekly on Mondays from Jun 1; Jun 3 2026 is a Wednesday — not an instance.
+    // Jun 3 2026 is a Wednesday — not an instance.
     let series = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -1573,7 +1510,6 @@ async fn completing_a_date_that_is_not_a_real_occurrence_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "not an occurrence");
 
-    // A one-off may only be completed at its own due_date...
     let one_off = create_task(&app, json!({"title":"One-off","due_date":"2026-06-01"})).await["id"]
         .as_i64()
         .expect("id");
@@ -1587,7 +1523,6 @@ async fn completing_a_date_that_is_not_a_real_occurrence_is_rejected() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "mismatched one-off date");
 
-    // ...and an Inbox task (due NULL) never at a date.
     let inbox = create_task(&app, json!({"title":"Someday"})).await["id"]
         .as_i64()
         .expect("id");
@@ -1605,7 +1540,6 @@ async fn completing_a_date_that_is_not_a_real_occurrence_is_rejected() {
         "an Inbox task has no dated occurrence"
     );
 
-    // None of the rejected calls wrote an orphan "completed" state.
     let (_, day) = send(&app, get("/api/tasks?date=2026-06-01")).await;
     for t in day.as_array().expect("array") {
         assert_eq!(t["completed"], false);
@@ -1623,7 +1557,6 @@ async fn completing_a_detached_occurrence_of_the_series_is_rejected() {
     .await["id"]
         .as_i64()
         .expect("id");
-    // Detach Jun 8 onto Jun 10; the series no longer owns Jun 8.
     let (status, _) = send(
         &app,
         json_req(
@@ -1654,10 +1587,8 @@ async fn completing_a_detached_occurrence_of_the_series_is_rejected() {
 async fn a_series_start_the_rule_does_not_regenerate_still_toggles() {
     let app = test_app().await;
 
-    // Due a Wednesday, repeating weekly on Mondays: rrule never emits the
-    // non-matching DTSTART, but search shows the canonical row keyed at
-    // `due_date` (and import records completions there), so the start must stay
-    // completable and re-openable.
+    // rrule never emits a non-matching DTSTART, yet search and import key the series
+    // at `due_date`, so the start must stay completable.
     let series = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-03","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -1682,7 +1613,6 @@ async fn a_series_start_the_rule_does_not_regenerate_still_toggles() {
     assert_eq!(status, StatusCode::OK, "series start reopens: {reopened}");
     assert_eq!(reopened["completed"], false);
 
-    // Any other non-instance date is still rejected.
     let (status, _) = send(
         &app,
         empty_req(
@@ -1698,9 +1628,7 @@ async fn a_series_start_the_rule_does_not_regenerate_still_toggles() {
 async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
     let (app, pool) = test_app_with_pool().await;
 
-    // Legacy data: a rule that predates today's validation gate (sub-daily was
-    // once storable) sits in the DB alongside a healthy task. Simulate it by
-    // corrupting the rule behind the API.
+    // Simulate a rule that predates today's validation gate by corrupting it behind the API.
     let bad = create_task(
         &app,
         json!({"title":"Legacy","due_date":"2026-06-01","recurrence_rule":"FREQ=DAILY"}),
@@ -1715,8 +1643,6 @@ async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
         .expect("plant the legacy rule");
     create_task(&app, json!({"title":"Healthy","due_date":"2026-06-02"})).await;
 
-    // The listing must not 400 because of the one bad row: the unexpandable
-    // series is skipped, everything else still renders.
     let (status, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-30")).await;
     assert_eq!(status, StatusCode::OK, "one bad rule must not 400: {range}");
     let titles: Vec<&str> = range
@@ -1727,7 +1653,6 @@ async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
         .collect();
     assert_eq!(titles, ["Healthy"], "the bad series is skipped, not fatal");
 
-    // The task itself stays reachable (search shows the series row) for fixing.
     let (_, found) = send(&app, get("/api/search?q=Legacy")).await;
     assert_eq!(found.as_array().expect("array").len(), 1);
 }
@@ -1736,12 +1661,10 @@ async fn a_stored_rule_that_no_longer_expands_does_not_break_the_calendar() {
 async fn unknown_task_list_params_are_rejected_but_the_known_forms_pass() {
     let app = test_app().await;
 
-    // A typo'd selector must 400, not silently return the Inbox.
     let (status, body) = send(&app, get("/api/tasks?fromm=2026-06-01")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(body["error"].is_string());
 
-    // The three shapes the SPA sends all still work.
     for uri in [
         "/api/tasks?inbox=true",
         "/api/tasks?date=2026-06-01",
@@ -1806,7 +1729,6 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["moved"], 1, "only the open overdue one-off moves");
 
-    // The moved task sits on today, keeping its wall-clock time.
     let (_, today) = send(&app, get("/api/tasks?date=2026-07-07")).await;
     let today = today.as_array().expect("array");
     let moved = today
@@ -1820,7 +1742,6 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
         "today's own task is untouched"
     );
 
-    // The completed one-off stays done on its original day.
     let (_, past) = send(&app, get("/api/tasks?date=2026-07-02")).await;
     let past = past.as_array().expect("array");
     let done = past
@@ -1829,7 +1750,6 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
         .expect("completed task stays put");
     assert_eq!(done["completed"], true);
 
-    // The moved one-off left its old day.
     let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
     assert!(
         !old_day
@@ -1840,7 +1760,6 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
         "the moved one-off left its old day"
     );
 
-    // Inbox and future tasks are untouched.
     let (_, inbox) = send(&app, get("/api/tasks?inbox=true")).await;
     assert_eq!(inbox.as_array().expect("array").len(), 1);
     let (_, future) = send(&app, get("/api/tasks?date=2026-07-10")).await;
@@ -1854,15 +1773,10 @@ async fn rollover_moves_only_overdue_uncompleted_one_offs() {
     );
 }
 
-/// A series' missed (uncompleted) occurrences collapse into ONE standalone one-off
-/// on today. The series keeps repeating; every missed day is skipped; a completed
-/// occurrence stays put.
 #[tokio::test]
 async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
     let app = test_app().await;
 
-    // A daily series starting three days before "today" (2026-07-07): missed
-    // occurrences on 07-04, 07-05, 07-06 (all inside the 7-day lookback window).
     let series = create_task(
         &app,
         json!({
@@ -1875,7 +1789,6 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
     .await;
     let series_id = series["id"].as_i64().expect("id");
 
-    // Complete the 07-05 occurrence — it must NOT roll over.
     let (status, _) = send(
         &app,
         empty_req(
@@ -1892,11 +1805,8 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    // 07-04 and 07-06 are missed and uncompleted → one collapsed copy. 07-05
-    // is completed, and 07-07 is today (not overdue), so neither rolls.
     assert_eq!(body["moved"], 1, "one standalone copy per series");
 
-    // Today holds the single detached one-off plus the series' own today-occurrence.
     let (_, today) = send(&app, get("/api/tasks?date=2026-07-07")).await;
     let today = today.as_array().expect("array");
     let standalones: Vec<_> = today
@@ -1915,7 +1825,6 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
         "the series still generates today's occurrence"
     );
 
-    // The missed days no longer show the recurring occurrence (detached).
     for missed in ["2026-07-04", "2026-07-06"] {
         let (_, day) = send(&app, get(&format!("/api/tasks?date={missed}"))).await;
         assert!(
@@ -1927,7 +1836,6 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
         );
     }
 
-    // The completed occurrence stays on its own day, done.
     let (_, kept) = send(&app, get("/api/tasks?date=2026-07-05")).await;
     let kept = kept.as_array().expect("array");
     let done = kept
@@ -1937,15 +1845,11 @@ async fn rollover_collapses_missed_recurring_occurrences_into_one_copy() {
     assert_eq!(done["completed"], true);
 }
 
-/// The recurring detach is bounded to the last `ROLLOVER_LOOKBACK_DAYS` (7) days:
-/// a miss older than the window is left on its own day, and a second rollover the
-/// same day detaches nothing more.
 #[tokio::test]
 async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
     let app = test_app().await;
 
-    // Series starting well before the window; with today = 2026-07-20 the window
-    // is [2026-07-13, 2026-07-19]. 2026-07-01 is older than the window.
+    // With today = 2026-07-20 the window is [07-13, 07-19]; 07-01 is older.
     let series = create_task(
         &app,
         json!({"title":"Weekly review","due_date":"2026-07-01","recurrence_rule":"FREQ=DAILY"}),
@@ -1959,17 +1863,14 @@ async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    // 07-13 .. 07-19 inclusive = 7 missed days inside the window, one copy.
     assert_eq!(body["moved"], 1, "a week of misses collapses into one copy");
 
-    // Every in-window miss is skipped on its own day.
     let window = series_dates(&app, series_id, "2026-07-13", "2026-07-19").await;
     assert!(
         window.is_empty(),
         "no missed occurrence comes back: {window:?}"
     );
 
-    // The out-of-window miss is untouched on its own day.
     let (_, old_day) = send(&app, get("/api/tasks?date=2026-07-01")).await;
     assert!(
         old_day
@@ -1980,7 +1881,6 @@ async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
         "a miss older than the lookback window stays on its day"
     );
 
-    // A second run the same day detaches nothing more (idempotent).
     let (status, body) = send(
         &app,
         json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-20"})),
@@ -1998,7 +1898,6 @@ async fn rollover_recurring_is_bounded_to_the_lookback_window_and_idempotent() {
     assert_eq!(copies, 1, "exactly one detached copy on today");
 }
 
-/// Open rollover copies of `title` on `date` (uncompleted one-offs).
 async fn open_copies(app: &Router, title: &str, date: &str) -> Vec<Value> {
     let (_, day) = send(app, get(&format!("/api/tasks?date={date}"))).await;
     day.as_array()
@@ -2011,9 +1910,6 @@ async fn open_copies(app: &Router, title: &str, date: &str) -> Vec<Value> {
         .collect()
 }
 
-/// Ignoring a daily series across consecutive days keeps exactly ONE open copy:
-/// each rollover carries the existing copy forward instead of stacking a new one,
-/// and a new copy appears only once the previous one is completed.
 #[tokio::test]
 async fn rollover_on_consecutive_days_keeps_one_open_copy() {
     let app = test_app().await;
@@ -2041,12 +1937,10 @@ async fn rollover_on_consecutive_days_keeps_one_open_copy() {
             "{today}: one open copy"
         );
     }
-    // Every missed day stays skipped on the series.
     assert!(series_dates(&app, series_id, "2026-07-01", "2026-07-04")
         .await
         .is_empty());
 
-    // Completing the copy lets the next miss produce a fresh one.
     let copy = &open_copies(&app, "Stretch", "2026-07-05").await[0];
     let copy_id = copy["id"].as_i64().expect("id");
     let (status, _) = send(
@@ -2079,7 +1973,6 @@ async fn rollover_again_moves_nothing_and_a_bad_date_is_rejected() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["moved"], 1);
 
-    // Everything already sits on today — a second run is a no-op.
     let (status, body) = send(
         &app,
         json_req("POST", "/api/tasks/rollover", json!({"today":"2026-07-07"})),
@@ -2096,7 +1989,6 @@ async fn rollover_again_moves_nothing_and_a_bad_date_is_rejected() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-/// The dates the series `id` lands on in `[from, to]`.
 async fn series_dates(app: &Router, id: i64, from: &str, to: &str) -> Vec<String> {
     let (_, range) = send(app, get(&format!("/api/tasks?from={from}&to={to}"))).await;
     range
@@ -2124,7 +2016,6 @@ async fn skip(app: &Router, id: i64, date: &str) -> StatusCode {
 #[tokio::test]
 async fn skipping_an_occurrence_removes_only_that_date() {
     let app = test_app().await;
-    // Weekly on Mondays from Jun 1: Jun 1, 8, 15 in the window.
     let task = create_task(
         &app,
         json!({"title":"Standup","due_date":"2026-06-01","recurrence_rule":"FREQ=WEEKLY;BYDAY=MO"}),
@@ -2138,11 +2029,9 @@ async fn skipping_an_occurrence_removes_only_that_date() {
         ["2026-06-01", "2026-06-15"],
         "Jun 8 is gone; the series keeps repeating"
     );
-    // No one-off copy is created (unlike a move).
     let (_, range) = send(&app, get("/api/tasks?from=2026-06-01&to=2026-06-15")).await;
     assert_eq!(range.as_array().expect("array").len(), 2);
 
-    // Idempotent: skipping again is still a 204 and changes nothing.
     assert_eq!(skip(&app, id, "2026-06-08").await, StatusCode::NO_CONTENT);
     assert_eq!(
         series_dates(&app, id, "2026-06-01", "2026-06-15").await,
@@ -2236,7 +2125,7 @@ async fn skipping_a_bad_or_non_member_date_is_rejected() {
     )
     .await;
     let id = task["id"].as_i64().expect("id");
-    // Jun 3 2026 is a Wednesday — not an occurrence.
+    // Jun 3 2026 is a Wednesday.
     assert_eq!(skip(&app, id, "2026-06-03").await, StatusCode::BAD_REQUEST);
     assert_eq!(skip(&app, id, "June 8").await, StatusCode::BAD_REQUEST);
 }

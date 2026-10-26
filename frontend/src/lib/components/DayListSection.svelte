@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Optional handlers turn the section into a calendar drop zone or day-sheet trigger.
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
   import { dndzone, type DndEvent } from 'svelte-dnd-action'
@@ -29,7 +28,6 @@
     dateKey: string
     items: CellItem[]
     isToday: boolean
-    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onToggle: (task: Task) => void
@@ -60,7 +58,6 @@
 <section class="group">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
     {#if onSelect}
-      <!-- Tap the header to zoom into the day sheet; the chevron hints the affordance. -->
       <button
         type="button"
         onclick={onSelect}
@@ -117,7 +114,7 @@
   </div>
 
   {#if draggable}
-    <!-- Keep the empty-day placeholder outside the zone; children must match dnd items. -->
+    <!-- Outside the zone: its children must match dnd items. -->
     <div class="relative">
       <ul
         class="min-h-[2.75rem] space-y-2"

@@ -1,5 +1,4 @@
 import '@fontsource-variable/inter'
-// Self-hosted display font; Inter remains the body/UI face.
 import '@fontsource-variable/hanken-grotesk'
 import './app.css'
 import { mount } from 'svelte'

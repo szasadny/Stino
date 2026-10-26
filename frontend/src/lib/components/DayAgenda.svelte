@@ -1,7 +1,5 @@
 <script lang="ts">
-  // Each label group owns a flat dnd zone; distinct types prevent cross-group drops.
-  // Timed tasks stay pinned above untimed tasks, except completed ones, which sink below the zone.
-  // Sections use buttons because nested zones are unsupported.
+  // One flat zone per label group (nested zones break dnd); distinct types block cross-group drops.
   import { untrack } from 'svelte'
   import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
@@ -26,7 +24,6 @@
   }: {
     tasks: Task[]
     labels: Label[]
-    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     onToggle: (task: Task) => void
     onEdit?: (task: Task) => void
@@ -84,8 +81,7 @@
 
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
     untimed[key] = e.detail.items
-    dragging = false // clear before notifying so a resulting data change can re-project
-    // Persist untimed ids in grouped reading order.
+    dragging = false // before notifying, so the resulting data change can re-project
     const liveGroups = groups.map((group) => ({
       label: group.label,
       tasks: untimed[keyOf(group)] ?? [],

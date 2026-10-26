@@ -23,17 +23,11 @@ use tower_http::trace::TraceLayer;
 
 use crate::config;
 
-/// Shared state handed to every handler. Holds the SQLite pool today; future
-/// slices add more (config, clock) here rather than using globals.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: SqlitePool,
 }
 
-/// Build the application router: the JSON API under `/api`, and everything else
-/// served from the built SPA with a fallback to `index.html` for client routing.
-/// `allowed_hosts` (from `ALLOWED_HOSTS`) optionally gates every request on its
-/// Host header; `None` leaves behavior unchanged.
 pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<String>>) -> Router {
     let api = Router::new()
         .route("/health", get(health::health))
@@ -52,20 +46,15 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
         .route("/tasks/{id}/move_occurrence", post(tasks::move_occurrence))
         .route("/tasks/{id}/skip_occurrence", post(tasks::skip_occurrence))
         .route("/search", get(search::list))
-        // A real TickTick backup can exceed axum's default 2 MB body limit, so
-        // this route (only) takes up to IMPORT_MAX_BODY_BYTES.
         .route(
             "/import/ticktick",
             post(import::ticktick).layer(DefaultBodyLimit::max(config::IMPORT_MAX_BODY_BYTES)),
         )
-        // Unknown /api/* paths return a JSON 404 instead of falling through to
-        // the SPA index, so the client always gets a parseable error.
+        // JSON 404 for unknown /api paths instead of the SPA index.
         .fallback(api_not_found)
         .with_state(AppState { pool });
 
-    // Serve built assets; unknown paths fall back to index.html with a 200 so
-    // client-side routing works on deep-links/refresh (.fallback keeps the
-    // fallback's 200, unlike .not_found_service which forces a 404).
+    // SPA fallback keeps a 200 for deep links (.not_found_service would force a 404).
     let index = static_dir.join("index.html");
     let spa = ServeDir::new(static_dir).fallback(ServeFile::new(index));
 
@@ -85,9 +74,7 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
     }
 }
 
-/// DNS-rebinding guard: with `ALLOWED_HOSTS` configured, reject any request
-/// whose Host header (port stripped, case-insensitive) isn't in the list. Pure
-/// HTTP shape — it decides nothing about tasks — so it lives with the router.
+/// DNS-rebinding guard: reject requests whose Host (port stripped, case-insensitive) isn't allowed.
 async fn check_host(hosts: Arc<Vec<String>>, req: Request, next: Next) -> Response {
     let allowed = req
         .headers()
@@ -106,8 +93,7 @@ async fn check_host(hosts: Arc<Vec<String>>, req: Request, next: Next) -> Respon
     }
 }
 
-/// The hostname of a Host header value: strips a `:port`, keeping an IPv6
-/// literal (`[::1]:8080`) intact up to its closing bracket.
+/// Strips a `:port`, keeping an IPv6 literal (`[::1]:8080`) intact.
 fn host_name(header: &str) -> &str {
     if let Some(rest) = header.strip_prefix('[') {
         return rest.split_once(']').map_or(rest, |(name, _)| name);
@@ -115,10 +101,7 @@ fn host_name(header: &str) -> &str {
     header.split_once(':').map_or(header, |(name, _)| name)
 }
 
-/// Deserialize so a present JSON `null` becomes `Some(None)` (clear) rather than
-/// `None` (absent) — serde's default collapses both to `None`. Paired with
-/// `#[serde(default)]`, an omitted field stays `None`. Shared by the `tasks` and
-/// `labels` PATCH bodies, which both distinguish "clear" from "leave unchanged".
+/// Present `null` ⇒ `Some(None)` (clear); with `#[serde(default)]` an omitted field stays `None`.
 pub(super) fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,

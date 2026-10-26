@@ -79,7 +79,6 @@
     if (next === 'monthly') applyMonthlyDefaults()
     emit()
   }
-  /** Pre-select the day-of-month / Nth weekday the start date falls on. */
   function applyMonthlyDefaults() {
     const d = monthlyDefaultsFor(startDate)
     monthday = d.monthday
@@ -144,7 +143,6 @@
     </div>
 
     {#if freq !== 'none'}
-      <!-- Inset panel visually anchors the freq-specific options to the selected mode. -->
       <div
         transition:slide={{ duration: reduceMotion ? 0 : 150 }}
         class="space-y-2 rounded-lg border border-lichen bg-fog/70 p-2.5"

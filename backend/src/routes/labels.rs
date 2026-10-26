@@ -1,5 +1,3 @@
-//! Thin label CRUD handlers; validation and persistence live below the route.
-
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -14,11 +12,9 @@ use crate::services::label_service;
 pub struct CreateLabel {
     pub name: String,
     pub color: String,
-    /// Optional emoji glyph; absent/null ⇒ no emoji.
     pub emoji: Option<String>,
 }
 
-/// Reorder payload: the full ordered list of label ids (their new manual order).
 #[derive(Deserialize)]
 pub struct ReorderLabels {
     pub ids: Vec<i64>,
@@ -28,8 +24,6 @@ pub struct ReorderLabels {
 pub struct UpdateLabel {
     pub name: Option<String>,
     pub color: Option<String>,
-    /// `double_option` so an explicit `null` clears the emoji while an omitted
-    /// field leaves it unchanged.
     #[serde(default, deserialize_with = "double_option")]
     pub emoji: Option<Option<String>>,
 }

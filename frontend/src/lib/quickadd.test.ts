@@ -99,7 +99,6 @@ describe('parseQuickAdd', () => {
       due_time: null,
       recurrence_rule: 'FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
     })
-    // Phrase + #tag together still leave a clean title.
     expect(
       parseQuickAdd('send report #work the first business day of the month', REF),
     ).toMatchObject({
@@ -127,7 +126,6 @@ describe('parseQuickAdd', () => {
       due_date: '2026-06-25',
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
     })
-    // A stated time still rides along with the weekday repeat.
     expect(parseQuickAdd('standup every workday at 9am', REF)).toMatchObject({
       title: 'standup',
       due_time: '09:00',
@@ -241,7 +239,6 @@ describe('describeDraft', () => {
 
 describe('activeLabelToken', () => {
   it('finds the tag the caret sits in, capturing the partial', () => {
-    // "buy milk #gro" with the caret at the end.
     expect(activeLabelToken('buy milk #gro', 13)).toEqual({ start: 9, query: 'gro' })
   })
 

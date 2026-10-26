@@ -120,7 +120,6 @@
     }
   }
 
-  // `labels` is the owned dnd source; consider/finalize mutate it while edits and requests lock drag.
   const compact = $derived(isCompact())
   const reorderable = $derived(labels.length > 1 && editingId === null && !busy)
   let preDrag: Label[] = []
@@ -141,7 +140,7 @@
     try {
       await api.labels.reorder(ids)
     } catch (err) {
-      labels = before // revert to the pre-drag order
+      labels = before
       error = errorMessage(err, 'Could not save the label order')
     } finally {
       busy = false

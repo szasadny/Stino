@@ -1,5 +1,3 @@
-//! Plain data shapes (structs and enums), independent of HTTP and persistence.
-
 mod import;
 mod label;
 mod task;

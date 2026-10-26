@@ -27,9 +27,7 @@
     if (!dialogEl) return
     if (open) {
       if (!dialogEl.open) {
-        // `closedby="any"` gives native light-dismiss (backdrop click) where
-        // supported; set imperatively so it isn't fought by Svelte's attribute
-        // typing. `handleBackdropClick` is the fallback for browsers without it.
+        // Set imperatively so Svelte's attribute typing doesn't fight it.
         dialogEl.setAttribute('closedby', 'any')
         dialogEl.showModal()
         onOpen?.()
@@ -39,9 +37,7 @@
     }
   })
 
-  // Fallback light-dismiss for browsers lacking `closedby` (notably Safari):
-  // a click whose target is the <dialog> itself and lands outside its content
-  // box is a backdrop click, so close.
+  // Light-dismiss fallback for browsers lacking `closedby` (notably Safari).
   function handleBackdropClick(event: MouseEvent) {
     if (!dialogEl || 'closedBy' in HTMLDialogElement.prototype) return
     if (event.target !== dialogEl) return
@@ -95,7 +91,6 @@
 
 <style>
   dialog::backdrop {
-    /* `--scrim` is the one chrome token kept fixed across themes (see app.css). */
     background: rgb(var(--scrim) / 0.42);
     backdrop-filter: blur(3px);
   }

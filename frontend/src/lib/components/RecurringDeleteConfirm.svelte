@@ -1,7 +1,5 @@
 <script lang="ts">
-  // Delete for a recurring occurrence: the button opens a small stacked modal that asks
-  // whether to delete just this occurrence or the whole series (TickTick-style). A
-  // completed occurrence is history, so "This occurrence" is disabled for it.
+  // A completed occurrence is history, so "This occurrence" is disabled for it.
   import Modal from './Modal.svelte'
 
   let {

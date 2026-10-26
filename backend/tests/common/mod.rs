@@ -1,7 +1,4 @@
-//! Shared integration-test harness: build the real router over a fresh in-memory
-//! SQLite database, send requests through it, and decode JSON bodies. Included
-//! via `mod common;` in each test file. Not every test binary uses every helper,
-//! so dead code is allowed here rather than gated per file.
+//! Not every test binary uses every helper, so dead code is allowed here.
 #![allow(dead_code)]
 
 use axum::body::Body;
@@ -16,9 +13,8 @@ use tower::ServiceExt;
 
 use stino_backend::routes;
 
-/// A fresh in-memory database with migrations applied, so each test runs in
-/// full isolation. `max_connections(1)` keeps the single in-memory DB alive for
-/// the whole test; `min_connections(1)` stops it being reaped between requests.
+/// `max_connections(1)` keeps the single in-memory DB alive; `min_connections(1)`
+/// stops it being reaped between requests.
 pub async fn test_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
         .min_connections(1)
@@ -30,20 +26,16 @@ pub async fn test_pool() -> SqlitePool {
     pool
 }
 
-/// The real router over a [`test_pool`] database (no Host allowlist).
 pub async fn test_app() -> Router {
     routes::router(test_pool().await, Path::new("."), None)
 }
 
-/// [`test_app`] plus a handle on its pool, for tests that assert directly on
-/// the rows behind the API (e.g. that a completion row really moved).
 pub async fn test_app_with_pool() -> (Router, SqlitePool) {
     let pool = test_pool().await;
     (routes::router(pool.clone(), Path::new("."), None), pool)
 }
 
-/// Send a request through a clone of the router and decode the JSON body (empty
-/// bodies, e.g. 204, decode to `Value::Null`).
+/// Empty bodies (e.g. 204) decode to `Value::Null`.
 pub async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
     let res = app.clone().oneshot(req).await.expect("router response");
     let status = res.status();
@@ -61,7 +53,6 @@ pub async fn send(app: &Router, req: Request<Body>) -> (StatusCode, Value) {
     (status, body)
 }
 
-/// Send a request and return only the status, for tests that don't inspect the body.
 pub async fn status_of(app: &Router, req: Request<Body>) -> StatusCode {
     app.clone()
         .oneshot(req)
@@ -70,7 +61,6 @@ pub async fn status_of(app: &Router, req: Request<Body>) -> StatusCode {
         .status()
 }
 
-/// Build a JSON request with the given method, URI, and body.
 pub fn json_req(method: &str, uri: &str, body: Value) -> Request<Body> {
     Request::builder()
         .method(method)
@@ -80,8 +70,6 @@ pub fn json_req(method: &str, uri: &str, body: Value) -> Request<Body> {
         .expect("build request")
 }
 
-/// Build a bodyless request — the method carries the intent (DELETE, or a
-/// POST/PATCH with no payload).
 pub fn empty_req(method: &str, uri: &str) -> Request<Body> {
     Request::builder()
         .method(method)
@@ -90,7 +78,6 @@ pub fn empty_req(method: &str, uri: &str) -> Request<Body> {
         .expect("build request")
 }
 
-/// A bodyless GET.
 pub fn get(uri: &str) -> Request<Body> {
     empty_req("GET", uri)
 }

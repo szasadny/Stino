@@ -1,6 +1,5 @@
 <script lang="ts">
-  // Keep child/item parity for the drop-only mobile zone; hide overflow lines with `invisible`.
-  // When the day's agenda is open, freeze this cell so only the agenda owns the zone.
+  // Children must match dnd items, so overflow lines hide with `invisible`, not removal.
   import { dndzone, SHADOW_ITEM_MARKER_PROPERTY_NAME, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -27,9 +26,7 @@
     items: CellItem[]
     inCurrentMonth: boolean
     isToday: boolean
-    // The open day is owned by the agenda, so this cell must not mount a second zone.
     open?: boolean
-    // True while a dragged task hovers this cell — marks the whole cell as the drop target.
     dropTarget?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
@@ -37,13 +34,11 @@
     onFinalize: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
   } = $props()
 
-  // Measurements let fit logic adapt to the rendered cell size.
   let listEl = $state<HTMLUListElement | null>(null)
   let listHeight = $state(0)
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a rendered line; this effect only writes measurement state.
   $effect(() => {
     void items.length
     void listHeight
@@ -128,8 +123,7 @@
         useCursorForDetection: true,
         flipDurationMs: DND_FLIP_MS,
         dragDisabled: true,
-        // Keep the floating clone at its agenda-row size; morphing to the 10px cell line
-        // shrinks it to an unreadable sliver under the finger.
+        // Morphing to the 10px cell line would shrink the clone to a sliver under the finger.
         morphDisabled: true,
         dropTargetStyle: {},
         dropTargetClasses: ['rounded-md', ...DROP_TARGET_RING_CLASSES],

@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Outside-click and Escape close the custom picker.
   import type { Label } from '../types'
   import LabelChip from './LabelChip.svelte'
 

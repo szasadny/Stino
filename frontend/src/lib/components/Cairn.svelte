@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Theme-token fills keep the three-stone mark legible in dark mode.
   let { class: className = '' }: { class?: string } = $props()
 </script>
 

@@ -1,5 +1,4 @@
-//! Request extractors whose rejections surface as the JSON `AppError` body
-//! instead of axum's plain-text default.
+//! Extractors whose rejections surface as the JSON `AppError` body, not axum's plain text.
 
 use axum::extract::FromRequest;
 use axum::extract::FromRequestParts;

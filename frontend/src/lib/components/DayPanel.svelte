@@ -1,6 +1,5 @@
 <script lang="ts">
-  // This non-modal panel shares the day's `calendar` zone with the grid; the open cell freezes
-  // to avoid duplicate svelte-dnd-action zones. Phone uses DaySheet instead.
+  // Non-modal so a task can be dragged out onto another grid day.
   import { dragHandleZone, type DndEvent } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import type { CellItem } from '../calendar-board'
@@ -27,7 +26,6 @@
     dateKey: string
     items: CellItem[]
     labelFor: (task: Task) => Label | undefined
-    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     dragging?: boolean
     onConsider: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
@@ -125,8 +123,7 @@
   </header>
 
   <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-    <!-- The day's tasks as a shared `calendar` drag zone; an empty day keeps a min height so
-         it stays a droppable target. -->
+    <!-- Min height keeps an empty day droppable. -->
     <ul
       class="flex flex-col gap-1 {items.length === 0 ? 'min-h-[3rem]' : ''}"
       use:dragHandleZone={{

@@ -1,16 +1,6 @@
-// Pure layout math for phone month cells; capacity comes from measured pixels.
-
 /**
- * How many of `total` task lines to show in `listHeight` px, given a measured
- * per-line `lineHeight` px and the vertical `gap` px between lines (0 for a gapless
- * list). N lines occupy `N*lineHeight + (N-1)*gap`, so capacity is
- * `floor((listHeight + gap) / (lineHeight + gap))` — ignoring the gap would
- * over-count and clip lines with no "+N more" to hint at them. The overflow hint
- * renders OUTSIDE the measured list (a sibling row on desktop, the date row on the
- * phone), so the full capacity is available for task lines — no row is reserved here. Returns
- * `total` while unmeasured (either dimension `<= 0`), so the first paint shows
- * everything (clipped by `overflow-hidden`) rather than a wrong "+N more" before the
- * ResizeObserver reports real sizes.
+ * N lines need `N*lineHeight + (N-1)*gap`; ignoring the gap over-counts and clips lines with
+ * no "+N more". Returns `total` until measured, so first paint never shows a wrong "+N more".
  */
 export function visibleLineCount(
   total: number,

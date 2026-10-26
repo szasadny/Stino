@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Presentational form; validation and normalization live in lib/composer.ts.
   import { untrack } from 'svelte'
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
@@ -29,10 +28,7 @@
     onSubmit: (input: TaskInput) => void
     onCancel: () => void
     onDelete?: () => void
-    // Set when editing one occurrence of a recurring task: Delete then asks
-    // "this occurrence" (this) vs "whole series" (`onDelete`).
     onDeleteOccurrence?: () => void
-    // False for a completed occurrence: the popup still opens, "this occurrence" is disabled.
     canDeleteOccurrence?: boolean
   } = $props()
 

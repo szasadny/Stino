@@ -1,30 +1,26 @@
-// UI recurrence options ⇄ RFC-5545 RRULE mapping. Validation and expansion remain
-// backend responsibilities.
+// UI recurrence options ⇄ RFC-5545 RRULE mapping; the backend validates and expands.
 
 import { formatShortDate, fromISODate } from './date'
 
 export type RecurrenceFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 export type CustomUnit = 'day' | 'week' | 'month'
-/** Monthly repeats either on a date-number, or on the Nth weekday. */
 export type MonthlyMode = 'monthday' | 'weekday'
 /** BYSETPOS / "the Nth": 1..5 = first..fifth, -1 = last. */
 export type OrdinalPosition = 1 | 2 | 3 | 4 | 5 | -1
 
-/** The picker's structured form. `none` ⇒ the task does not repeat. */
 export interface RecurrenceValue {
   freq: RecurrenceFreq
-  interval: number // custom: every N units (≥ 1)
-  unit: CustomUnit // custom: days, weeks, or months (months use the monthly fields)
-  weekdays: string[] // weekly & custom weeks: RRULE day codes, e.g. ['MO','WE']; empty ⇒ the start weekday
-  // The monthly fields below serve both Monthly and Custom every-N-months.
-  monthlyMode: MonthlyMode // monthly: by date-number vs by Nth weekday
-  monthday: number // monthly/monthday: 1..31, or -1 ⇒ the last day
-  position: OrdinalPosition // monthly/weekday: which occurrence (BYSETPOS)
-  monthWeekday: string // monthly/weekday: a single BYDAY code, e.g. 'MO'
-  until: string | null // local end date (RRULE UNTIL), ISO YYYY-MM-DD; null ⇒ never ends
+  interval: number
+  unit: CustomUnit
+  weekdays: string[] // empty ⇒ the start weekday
+  // The monthly fields serve both Monthly and Custom every-N-months.
+  monthlyMode: MonthlyMode
+  monthday: number // -1 ⇒ the last day
+  position: OrdinalPosition
+  monthWeekday: string // a single BYDAY code, or WORKDAY_CODE
+  until: string | null // local ISO date; null ⇒ never ends
 }
 
-/** RRULE weekday codes in week order, with short labels for the toggles. */
 export const WEEKDAY_OPTIONS: { code: string; label: string }[] = [
   { code: 'MO', label: 'Mon' },
   { code: 'TU', label: 'Tue' },
@@ -35,7 +31,6 @@ export const WEEKDAY_OPTIONS: { code: string; label: string }[] = [
   { code: 'SU', label: 'Sun' },
 ]
 
-/** Full weekday names in week order — for the monthly "Nth weekday" select. */
 export const WEEKDAY_LONG: { code: string; label: string }[] = [
   { code: 'MO', label: 'Monday' },
   { code: 'TU', label: 'Tuesday' },
@@ -46,22 +41,15 @@ export const WEEKDAY_LONG: { code: string; label: string }[] = [
   { code: 'SU', label: 'Sunday' },
 ]
 
-/** The Monday–Friday set, in week order, expanded by the monthly "workday" option. */
 export const WORKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR']
-/**
- * Sentinel `monthWeekday` value for the monthly "first/last workday" option: it
- * stands in for the whole Mon–Fri set, so the Nth-weekday machinery (BYSETPOS)
- * yields the first/Nth/last *workday* of the month (`BYDAY=MO,TU,WE,TH,FR`).
- */
+/** Stands in for the Mon–Fri set, so BYSETPOS picks the Nth/last *workday* of the month. */
 export const WORKDAY_CODE = 'WD'
 
-/** Options for the monthly "Nth weekday" select: the workday set, then each weekday. */
 export const MONTH_WEEKDAY_OPTIONS: { code: string; label: string }[] = [
   { code: WORKDAY_CODE, label: 'Workday' },
   ...WEEKDAY_LONG,
 ]
 
-/** Ordinal positions for the monthly "Nth weekday" select — the one source. */
 export const ORDINAL_OPTIONS: { value: OrdinalPosition; label: string }[] = [
   { value: 1, label: 'First' },
   { value: 2, label: 'Second' },
@@ -93,27 +81,20 @@ function isOrdinalPosition(n: number): n is OrdinalPosition {
   return n === -1 || (n >= 1 && n <= 5)
 }
 
-/** True when `codes` is exactly the Mon–Fri set (already ordered & deduped). */
+/** Expects `codes` already ordered and deduped. */
 function isWorkdaySet(codes: string[]): boolean {
   return codes.length === WORKDAYS.length && codes.every((c, i) => c === WORKDAYS[i])
 }
 
-/** Label for an ordinal position, e.g. 1 → "First", -1 → "Last". */
 export function positionLabel(p: OrdinalPosition): string {
   return ORDINAL_OPTIONS.find((o) => o.value === p)?.label ?? String(p)
 }
 
-/** Sort weekday codes into canonical Monday-first order for stable output. */
 function orderWeekdays(codes: string[]): string[] {
   return [...new Set(codes)].sort((a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b))
 }
 
-/**
- * Sensible monthly defaults derived from a task's start date: the day-of-month
- * and the Nth-weekday it falls on, so switching to "Monthly" pre-selects
- * something matching the chosen date instead of always day 1. Pure (kept here,
- * out of the component).
- */
+/** Monthly fields matching the start date, so switching to Monthly doesn't always pick day 1. */
 export function monthlyDefaultsFor(
   iso: string | null,
 ): Pick<RecurrenceValue, 'monthday' | 'position' | 'monthWeekday'> {
@@ -128,7 +109,6 @@ export function monthlyDefaultsFor(
   return { monthday: day, position, monthWeekday: code }
 }
 
-/** The monthly fields shared by Monthly and Custom every-N-months. */
 export type MonthlyFields = Pick<
   RecurrenceValue,
   'monthlyMode' | 'monthday' | 'position' | 'monthWeekday'
@@ -141,16 +121,13 @@ const EMPTY_MONTHLY: MonthlyFields = {
   monthWeekday: EMPTY_RECURRENCE.monthWeekday,
 }
 
-/** Build the RRULE string for a structured value, or null when it doesn't repeat. */
 export function buildRRule(value: RecurrenceValue): string | null {
   const base = buildBase(value)
   if (!base) return null
-  // An end date is the bare-date `UNTIL=YYYYMMDD` TickTick uses; the backend
-  // promotes it to the UTC date-time the `rrule` crate needs (see recurrence.rs).
+  // Bare-date UNTIL like TickTick; the backend promotes it to the UTC date-time `rrule` needs.
   return value.until ? `${base};UNTIL=${isoToUntil(value.until)}` : base
 }
 
-/** The FREQ/BY… body of the rule, without the optional UNTIL end date. */
 function buildBase(value: RecurrenceValue): string | null {
   switch (value.freq) {
     case 'none':
@@ -162,12 +139,10 @@ function buildBase(value: RecurrenceValue): string | null {
     case 'monthly':
       return `FREQ=MONTHLY;${monthlyParts(value)}`
     case 'yearly':
-      // A plain yearly rule repeats on the start date's month and day.
       return 'FREQ=YEARLY'
     case 'custom': {
       const interval = Math.max(1, Math.floor(value.interval) || 1)
       if (value.unit === 'month') return `FREQ=MONTHLY;INTERVAL=${interval};${monthlyParts(value)}`
-      // Custom weeks keep their chosen weekdays; custom days never carry BYDAY.
       if (value.unit === 'week')
         return `FREQ=WEEKLY;INTERVAL=${interval}${bydayPart(value.weekdays)}`
       return `FREQ=DAILY;INTERVAL=${interval}`
@@ -175,35 +150,28 @@ function buildBase(value: RecurrenceValue): string | null {
   }
 }
 
-/**
- * The `;BYDAY=…` tail of a weekly rule (Monday-first, deduped), or '' when no
- * weekday is chosen — a plain weekly rule repeats on the start day.
- */
+/** '' when no weekday is chosen — a plain weekly rule repeats on the start day. */
 function bydayPart(weekdays: string[]): string {
   const days = orderWeekdays(weekdays)
   return days.length ? `;BYDAY=${days.join(',')}` : ''
 }
 
-/** The BY… parts of a monthly rule: a date-of-month, or the Nth weekday/workday. */
 function monthlyParts(value: MonthlyFields): string {
   if (value.monthlyMode !== 'weekday') return `BYMONTHDAY=${value.monthday}`
-  // "Workday" stands in for the whole Mon–Fri set; any real weekday is itself.
   const byday = value.monthWeekday === WORKDAY_CODE ? WORKDAYS.join(',') : value.monthWeekday
   return `BYDAY=${byday};BYSETPOS=${value.position}`
 }
 
-/** ISO `YYYY-MM-DD` → RRULE `YYYYMMDD` (the DATE form). */
 function isoToUntil(iso: string): string {
   return iso.replace(/-/g, '')
 }
 
-/** RRULE `UNTIL` (`YYYYMMDD` or `YYYYMMDDT…`) → ISO `YYYY-MM-DD`, or null. */
+/** Accepts both the DATE and DATE-TIME forms of UNTIL. */
 function untilToISO(raw: string | undefined): string | null {
   const m = raw?.trim().match(/^(\d{4})(\d{2})(\d{2})/)
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null
 }
 
-/** Split an RRULE into its `KEY=VALUE` parts (upper-cased keys). */
 function parseParts(rule: string): Map<string, string> {
   const parts = new Map<string, string>()
   for (const segment of rule.split(';')) {
@@ -213,11 +181,7 @@ function parseParts(rule: string): Map<string, string> {
   return parts
 }
 
-/**
- * Parse a single BYDAY token, optionally carrying a leading signed ordinal
- * (RFC-5545 also allows `1MO`/`-1FR` instead of a separate BYSETPOS). Returns
- * the day code and the embedded position (null when there's no prefix).
- */
+/** RFC-5545 also allows `1MO`/`-1FR` instead of a separate BYSETPOS. */
 function parseOrdinalDay(token: string): { position: OrdinalPosition | null; code: string } | null {
   const m = token
     .trim()
@@ -229,13 +193,7 @@ function parseOrdinalDay(token: string): { position: OrdinalPosition | null; cod
   return { position: pos, code: m[2] }
 }
 
-/**
- * Parse an RRULE back into the picker's structured form (best effort). A rule we
- * don't model (e.g. a monthly rule with two dates, a multi-day list, or a
- * COUNT end) maps to `none`; callers should keep the original string and treat
- * it as read-only rather than overwrite it — see [[RecurrencePicker]]. An `UNTIL` end date is
- * carried onto any modeled rule so editing a "repeat until" task keeps its end.
- */
+/** Best effort: an unmodeled rule (two dates, COUNT, …) maps to `none`; callers keep it read-only. */
 export function parseRRule(rule: string | null): RecurrenceValue {
   const base = parseBase(rule)
   if (base.freq === 'none' || !rule) return base
@@ -243,7 +201,6 @@ export function parseRRule(rule: string | null): RecurrenceValue {
   return until ? { ...base, until } : base
 }
 
-/** The FREQ/BY… shape, ignoring any UNTIL (applied by [`parseRRule`]). */
 function parseBase(rule: string | null): RecurrenceValue {
   if (!rule) return { ...EMPTY_RECURRENCE }
   const parts = parseParts(rule)
@@ -271,13 +228,10 @@ function parseBase(rule: string | null): RecurrenceValue {
     }
     return { ...EMPTY_RECURRENCE, freq: 'weekly', weekdays }
   }
-  // Yearly: only the plain shape (repeats on the start date). A yearly rule
-  // with BY… parts or an interval isn't modeled and stays read-only.
+  // A yearly rule with BY… parts or an interval stays unmodeled.
   if (freq === 'YEARLY' && interval === 1 && ![...parts.keys()].some((k) => k.startsWith('BY'))) {
     return { ...EMPTY_RECURRENCE, freq: 'yearly' }
   }
-  // Monthly: only the shapes the picker models. Interval 1 is the Monthly mode;
-  // a larger interval is Custom every-N-months over the same shapes.
   if (freq === 'MONTHLY') {
     const shape = parseMonthlyParts(parts, byday, weekdays)
     if (shape) {
@@ -289,7 +243,6 @@ function parseBase(rule: string | null): RecurrenceValue {
   return { ...EMPTY_RECURRENCE }
 }
 
-/** The modeled monthly BY… shapes → the monthly fields, or null when unmodeled. */
 function parseMonthlyParts(
   parts: Map<string, string>,
   byday: string | undefined,
@@ -297,13 +250,10 @@ function parseMonthlyParts(
 ): MonthlyFields | null {
   const bysetpos = parts.get('BYSETPOS')
   const bymonthday = parts.get('BYMONTHDAY')
-  // The picker models a date-of-month OR an Nth weekday, never a mix: any other BY…
-  // combination (e.g. "Friday the 13th" = BYDAY=FR;BYMONTHDAY=13) stays unmodeled, so
-  // re-saving can't silently drop a part.
+  // A mixed shape (e.g. Friday the 13th) stays unmodeled so re-saving can't drop a part.
   const modeled = bymonthday ? ['BYMONTHDAY'] : ['BYDAY', 'BYSETPOS']
   if ([...parts.keys()].some((k) => k.startsWith('BY') && !modeled.includes(k))) return null
   const setpos = bysetpos ? parseInt(bysetpos, 10) : NaN
-  // Workday: the full Mon–Fri BYDAY set plus a position ⇒ first/Nth/last workday.
   if (isWorkdaySet(weekdays) && isOrdinalPosition(setpos)) {
     return {
       ...EMPTY_MONTHLY,
@@ -312,7 +262,6 @@ function parseMonthlyParts(
       monthWeekday: WORKDAY_CODE,
     }
   }
-  // Nth weekday: a single BYDAY (possibly `1MO`-style) plus a position.
   if (byday && !byday.includes(',')) {
     const od = parseOrdinalDay(byday)
     const pos = bysetpos ? parseInt(bysetpos, 10) : (od?.position ?? null)
@@ -320,7 +269,6 @@ function parseMonthlyParts(
       return { ...EMPTY_MONTHLY, monthlyMode: 'weekday', position: pos, monthWeekday: od.code }
     }
   }
-  // Date of month: a single BYMONTHDAY value (incl. -1 = last day).
   if (bymonthday && !bymonthday.includes(',')) {
     const n = parseInt(bymonthday, 10)
     if (!Number.isNaN(n) && (n === -1 || (n >= 1 && n <= 31))) {
@@ -334,12 +282,10 @@ function codeLabel(code: string): string {
   return WEEKDAY_OPTIONS.find((d) => d.code === code)?.label ?? code
 }
 
-/** Like [`codeLabel`] but renders the monthly workday sentinel as "workday". */
 function monthWeekdayLabel(code: string): string {
   return code === WORKDAY_CODE ? 'workday' : codeLabel(code)
 }
 
-/** A short human summary of a structured value, e.g. "Weekly on Mon, Wed". */
 export function summarize(value: RecurrenceValue): string {
   const base = summarizeBase(value)
   if (value.freq === 'none' || !value.until) return base
@@ -373,13 +319,11 @@ function summarizeBase(value: RecurrenceValue): string {
   }
 }
 
-/** The "on …" tail of a custom-weeks summary, e.g. "on Mon, Wed" / "on weekdays". */
 function weeklyOn(weekdays: string[]): string {
   const days = orderWeekdays(weekdays)
   return isWorkdaySet(days) ? 'on weekdays' : `on ${days.map(codeLabel).join(', ')}`
 }
 
-/** The "on …" tail of a monthly summary, e.g. "on day 15" / "on the last workday". */
 function monthlyOn(value: MonthlyFields): string {
   if (value.monthlyMode === 'weekday') {
     return `on the ${positionLabel(value.position).toLowerCase()} ${monthWeekdayLabel(value.monthWeekday)}`
@@ -387,20 +331,16 @@ function monthlyOn(value: MonthlyFields): string {
   return value.monthday === -1 ? 'on the last day' : `on day ${value.monthday}`
 }
 
-/** A short summary straight from a stored RRULE string (for read-only badges). */
 export function summarizeRule(rule: string | null): string {
   if (isUnmodeledRule(rule)) return 'Custom repeat'
   return summarize(parseRRule(rule))
 }
 
-/** A stored rule the picker can't represent, so it must be kept verbatim and shown read-only. */
+/** The picker can't represent it, so keep it verbatim and read-only. */
 export function isUnmodeledRule(rule: string | null): rule is string {
   return !!rule && parseRRule(rule).freq === 'none'
 }
 
-// Natural-language recurrence phrases for quick-add; all matches use buildRRule.
-
-/** A recurrence found in free text: the rule plus the exact substring to strip. */
 export interface RecurrenceMatch {
   rule: string
   matched: string
@@ -491,8 +431,7 @@ const PHRASE_RULES: { re: RegExp; value: PhraseValue }[] = [
     re: new RegExp(`\\b${EVERY_MONTH}\\s+on\\s+the\\s+(first|last)\\s+day\\b`, 'i'),
     value: (m) => monthlyMonthday(firstOrLast(m[2]), m[1]),
   },
-  // "the 15th of every month" / "the 31st every month"; a bare number needs "the" or a
-  // suffix so a count like "buy 2 every month" isn't read as a date
+  // "the 15th of every month"; a bare number needs "the" or a suffix so "buy 2 every month" isn't a date
   {
     re: new RegExp(
       `\\b(?:the\\s+(\\d{1,2})(?:st|nd|rd|th)?|(\\d{1,2})(?:st|nd|rd|th))\\s+${OF_EVERY_MONTH}\\b`,
@@ -539,14 +478,14 @@ const PHRASE_RULES: { re: RegExp; value: PhraseValue }[] = [
     re: new RegExp(`\\b${EVERY_WEEK}\\b(?:\\s+on\\s+(${WEEKDAY_LIST})\\b)?`, 'i'),
     value: (m) => repeatWeekly(m[1], m[2]),
   },
-  // A bare "every (N) month(s)" repeats on the start date's day of the month.
+  // bare "every (N) month(s)" ⇒ the start date's day of the month
   {
     re: new RegExp(`\\b${EVERY_MONTH}\\b`, 'i'),
     value: (m, start) => monthlyMonthday(monthlyDefaultsFor(start).monthday, m[1]),
   },
 ]
 
-/** A typed count ("3" / "other") → interval; absent ⇒ 1, null when not a positive count. */
+/** "other" ⇒ 2; null when not a positive count. */
 function intervalOf(count: string | undefined): number | null {
   if (!count) return 1
   const n = count.toLowerCase() === 'other' ? 2 : Number(count)
@@ -610,12 +549,7 @@ function monthlyWorkday(ordinal: string, count: string | undefined): RecurrenceV
   })
 }
 
-/**
- * Find a recurrence phrase in free text. Returns the RRULE and the matched
- * substring (so the caller can strip it from the title) or null when none is
- * found. Patterns are tried most-specific first. `start` (ISO) anchors a bare
- * "every month" to its day of the month.
- */
+/** `matched` is the substring to strip from the title; `start` anchors a bare "every month". */
 export function parseRecurrencePhrase(
   text: string,
   start: string | null = null,

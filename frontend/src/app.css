@@ -17,7 +17,6 @@
   --lichen: 221 227 221;
   /* Keep the backdrop scrim dark in every theme. */
   --scrim: 30 58 52;
-  /* Cell grounds swap in dark mode so the current month remains the focus. */
   --cell: 251 252 250;
   --cell-out: 244 246 243;
   /* Render-time label legibility only; the stored label hex is never themed. */
@@ -26,7 +25,6 @@
   --label-edge: 0%;
 }
 
-/* System mode follows the OS when no explicit theme is selected. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
@@ -48,7 +46,6 @@
   }
 }
 
-/* Explicit dark mode wins over the system media query. */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --fog: 18 23 28;
@@ -77,7 +74,6 @@
     @apply bg-fog text-ink antialiased;
   }
 
-  /* A token-driven gradient adds a restrained background atmosphere. */
   body::before {
     content: '';
     position: fixed;
@@ -88,7 +84,7 @@
   }
 }
 
-/* Label colors arrive as `--label` (user hex); dark grounds add an ink ring/edge so dark hues stay visible. */
+/* Dark grounds add an ink ring/edge so dark label hues stay visible. */
 .label-dot {
   background-color: var(--label);
   box-shadow: 0 0 0 1px rgb(var(--ink) / var(--label-ring));
@@ -195,7 +191,6 @@
   }
 }
 
-/* View Transition slide for the calendar pane; unsupported browsers swap instantly. */
 .vt-calendar {
   view-transition-name: calendar-pane;
 }

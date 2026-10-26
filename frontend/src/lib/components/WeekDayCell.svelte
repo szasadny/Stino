@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Keep child/item parity for svelte-dnd-action and freeze the cell while DayPanel owns its zone.
+  // Children must match dnd items, so overflow pills hide with `invisible`, not removal.
   import {
     dragHandleZone,
     SHADOW_ITEM_MARKER_PROPERTY_NAME,
@@ -32,9 +32,7 @@
     dateKey: string
     items: CellItem[]
     isToday: boolean
-    // The open day is owned by DayPanel, so this cell must not mount a second zone.
     open?: boolean
-    // Prevent a new drag while a mutation is in flight.
     pending?: boolean
     labelFor: (task: Task) => Label | undefined
     onSelect: () => void
@@ -50,7 +48,6 @@
   let lineHeight = $state(0)
   let rowGap = $state(0)
 
-  // Measure a rendered pill; this effect only writes measurement state.
   $effect(() => {
     void items.length
     void listHeight

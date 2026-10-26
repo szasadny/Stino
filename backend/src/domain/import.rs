@@ -1,7 +1,6 @@
 use serde::Serialize;
 
-/// What a TickTick import wrote, by entity. Mirror `ImportSummary` in
-/// `frontend/src/lib/types.ts`.
+/// Mirror `ImportSummary` in `frontend/src/lib/types.ts`.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ImportCreated {
     pub tasks: usize,
@@ -9,9 +8,7 @@ pub struct ImportCreated {
     pub completions: usize,
 }
 
-/// Result of a TickTick CSV import: the counts created and how many rows were
-/// skipped (couldn't be mapped — e.g. a row with no title). The import is
-/// **add-only** — it never deletes existing data — so a re-run appends.
+/// Add-only, so a re-run appends; `skipped` counts rows that couldn't be mapped.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ImportSummary {
     pub created: ImportCreated,

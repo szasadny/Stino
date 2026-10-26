@@ -1,11 +1,5 @@
-// Shared task orchestration for Today, Month, Week, and Inbox; HTTP stays behind api.ts.
-//
-// Two invariants every mutation upholds:
-//  • ONE `pending` lock — every mutating action (toggle, reorder, move, remove, save) bails
-//    while another is in flight, so writes can't interleave and a drag can be disabled while
-//    a save runs (`dragDisabled: core.pending`).
-//  • Uniform optimistic update — apply locally, persist, REVERT to the pre-change snapshot on
-//    failure. Loads are sequence-token guarded so an out-of-order response can't land stale.
+// One `pending` lock so writes never interleave (drags bind `dragDisabled: core.pending`);
+// every mutation is optimistic and reverts to its snapshot on failure.
 import { api, type TaskInput } from '../api'
 import type { Label, Task } from '../types'
 import { errorMessage } from '../errors'
@@ -20,9 +14,7 @@ import {
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
-// Shown when a write landed but the follow-up refetch failed: the save itself must
-// never read as a failure (a retry would duplicate the task), so editors close and
-// this soft message points at the stale view instead.
+// A landed write must never read as failed — a retry would duplicate the task.
 const REFRESH_FAILED_MSG = 'Saved, but refreshing the view failed — switch tabs to reload it.'
 
 export function createTaskCore() {
@@ -31,12 +23,11 @@ export function createTaskCore() {
   let loading = $state(true)
   let error = $state<string | null>(null)
   let pending = $state(false)
-  // Only the newest load may write state.
+  // Only the newest load may write state, so an out-of-order response can't land stale.
   let loadToken = 0
 
-  // Fetch first, then commit through a wrapper (e.g. a View Transition) so the network
-  // wait never happens inside the wrapper's paused-rendering window — only the cheap
-  // state swap does. `loadWith` is the plain case where the commit runs immediately.
+  // Fetch before the wrapper (e.g. a View Transition) so the network wait never lands in
+  // its paused-rendering window.
   async function loadThrough(
     fetcher: () => Promise<{ tasks: Task[]; labels?: Label[] }>,
     commitWrap: (commit: () => void) => Promise<void>,
@@ -67,7 +58,6 @@ export function createTaskCore() {
     return loadThrough(fetcher, async (commit) => commit(), failMsg)
   }
 
-  // Optimistic mutation primitive; returns false when locked or failed.
   async function optimistic(
     apply: () => void,
     persist: () => Promise<void>,
@@ -84,8 +74,7 @@ export function createTaskCore() {
       await persist()
       return true
     } catch (err) {
-      // Revert only if no load began since the snapshot (loadWith isn't gated by
-      // `pending`): a newer load's data is server truth and must not be clobbered.
+      // Loads aren't gated by `pending`; never revert over a newer load's server data.
       if (loadToken === tokenAtStart) {
         tasks = snapTasks
         labels = snapLabels
@@ -97,7 +86,6 @@ export function createTaskCore() {
     }
   }
 
-  // Locked runner for flows that update their own list and do not reload.
   async function run(fn: () => Promise<void>, failMsg: string): Promise<boolean> {
     if (pending) return false
     pending = true
@@ -113,7 +101,6 @@ export function createTaskCore() {
     }
   }
 
-  // A landed persist reports reload failures through the soft refresh message.
   async function softReload(reload: () => Promise<void>) {
     try {
       await reload()
@@ -122,8 +109,7 @@ export function createTaskCore() {
     }
   }
 
-  // Create/update holds the lock through persist and reload because the server assigns ids
-  // and expands recurrence. A reload failure after persistence still reports success.
+  // Hold the lock through the reload: the server assigns ids and expands recurrence.
   async function save(
     persist: () => Promise<void>,
     reload: () => Promise<void>,
@@ -146,7 +132,6 @@ export function createTaskCore() {
     }
   }
 
-  // Variant for callers that render their own persist errors; it shares the mutation lock.
   async function saveOrThrow(
     persist: () => Promise<void>,
     reload: () => Promise<void>,
@@ -192,8 +177,6 @@ export function createTaskCore() {
     run,
     save,
 
-    // Complete/reopen the occurrence this row represents: flip optimistically, then reconcile
-    // with the authoritative occurrence row the server returns.
     toggle(task: Task): Promise<boolean> {
       return optimistic(
         () => {
@@ -206,7 +189,7 @@ export function createTaskCore() {
       )
     },
 
-    // Undo for a list that drops done rows (the Inbox): reinsert at `index`, then reopen.
+    // Undo for a list that drops done rows (the Inbox).
     reopen(task: Task, index: number): Promise<boolean> {
       const open = { ...task, completed: false }
       return optimistic(
@@ -220,7 +203,6 @@ export function createTaskCore() {
       )
     },
 
-    // Persist a manual untimed order (drag-to-reorder in a day view / the Inbox).
     reorder(ids: number[]): Promise<boolean> {
       return optimistic(
         () => {
@@ -231,7 +213,6 @@ export function createTaskCore() {
       )
     },
 
-    // Reorder the visible label sections; fold them into the global label order, then save.
     reorderLabels(visibleIds: number[]): Promise<boolean> {
       const ids = mergeLabelOrder(labels, visibleIds)
       return optimistic(
@@ -243,7 +224,6 @@ export function createTaskCore() {
       )
     },
 
-    // Delete a task: drop it locally, then persist (revert on failure).
     remove(id: number): Promise<boolean> {
       return optimistic(
         () => {
@@ -254,8 +234,6 @@ export function createTaskCore() {
       )
     },
 
-    // Delete ONE occurrence of a recurring task: drop just its `(id, occurrence_date)` row,
-    // then skip that date server-side (revert on failure). The series keeps repeating.
     removeOccurrence(id: number, occurrenceDate: string): Promise<boolean> {
       return optimistic(
         () => {
@@ -266,11 +244,8 @@ export function createTaskCore() {
       )
     },
 
-    // Throwing create/update/delete bound to a view's range `reload`, for the Month/Week day
-    // sheet (which owns its inline error). Each routes through the shared `pending` lock and
-    // reloads on success, so a day-sheet edit serializes against grid toggles/drags and the
-    // grid re-renders from fresh data — closing the gap where a view called `api.tasks.*`
-    // directly. The server assigns the id / re-expands recurrence, so a reload is the resync.
+    // Throwing CRUD for the day sheet (owns its inline error); shares the lock so its edits
+    // serialize against grid toggles/drags.
     dayCrud(reload: () => Promise<void>) {
       const through = (persist: () => Promise<void>) => saveOrThrow(persist, reload)
       return {

@@ -1,18 +1,11 @@
-// Cross-view refresh generation for overlays that mutate data outside a view's core.
-
 let version = $state(0)
 
-/** Signal every standing view to reload (call when a mutating overlay closes). */
+/** Call when an overlay that mutated data outside a view's core closes. */
 export function bumpRefresh(): void {
   version += 1
 }
 
-/**
- * Re-run `reload` whenever the version bumps AFTER component init (the mount
- * load is the view's own `onMount` — skipping the init value avoids a double
- * fetch). Call at component init, like any rune factory, so the `$effect`
- * attaches to the view's lifecycle.
- */
+/** Skips the init value (the view's `onMount` already loads); call at component init. */
 export function onRefresh(reload: () => unknown): void {
   let seen = version
   $effect(() => {

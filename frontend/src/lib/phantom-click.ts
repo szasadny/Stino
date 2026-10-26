@@ -1,10 +1,8 @@
-// Swallow the duplicate click emitted by svelte-dnd-action after a touch edit, and its
-// mousedown, which would otherwise focus the control under the finger. Arm only for
-// coarse pointers; mouse clicks must never be swallowed.
+// svelte-dnd-action emits a duplicate click (and mousedown, which would focus the control
+// under the finger) after a touch tap; swallow both. Mouse clicks must never be swallowed.
 import { GHOST_CLICK_WINDOW_MS } from './constants'
 
 export function openWithoutPhantomClick(open: () => void): void {
-  // No phantom without a touch tap — a mouse click that opens the editor is safe on its own.
   if (!window.matchMedia('(pointer: coarse)').matches) {
     open()
     return

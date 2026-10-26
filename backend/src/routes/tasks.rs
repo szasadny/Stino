@@ -1,5 +1,3 @@
-//! Thin task CRUD and completion handlers.
-
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -11,16 +9,12 @@ use crate::domain::{BatchOp, NewTask, TaskPatch};
 use crate::error::{AppError, AppResult};
 use crate::services::task_service;
 
-/// `GET /api/tasks` selectors, most specific first: `?from=&to=` lists a date
-/// range (the calendar grid), `?date=YYYY-MM-DD` lists one day, and otherwise
-/// (incl. `?inbox=true`) the Inbox. Giving only one of `from`/`to` is a 400.
-/// Unknown params are a 400 too (`deny_unknown_fields`) — a typo'd selector
-/// must not silently return the Inbox.
+/// Selectors, most specific first: `from`+`to` range, `date`, else the Inbox.
+/// Unknown params are a 400 so a typo'd selector can't silently return the Inbox.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ListParams {
-    /// Accepted for the explicit `?inbox=true` form; the Inbox is also the
-    /// default when no selector is given, so only deserialization reads it.
+    /// Only read by deserialization; the Inbox is also the default.
     #[allow(dead_code)]
     pub inbox: Option<bool>,
     pub date: Option<String>,
@@ -38,8 +32,6 @@ pub struct CreateTask {
     pub recurrence_rule: Option<String>,
 }
 
-/// Partial update. Nullable fields use `double_option` so a JSON `null` clears
-/// the field, while omitting it leaves the field untouched.
 #[derive(Deserialize)]
 pub struct UpdateTask {
     pub title: Option<String>,
@@ -55,50 +47,40 @@ pub struct UpdateTask {
     pub recurrence_rule: Option<Option<String>>,
 }
 
-/// Optional occurrence for (un)completing; defaults to the task's own due_date.
+/// Defaults to the task's own due_date.
 #[derive(Deserialize)]
 pub struct CompletionParams {
     pub occurrence_date: Option<String>,
 }
 
-/// Move one occurrence of a recurring task: `occurrence_date` is the instance to
-/// detach, `new_date` the day it moves to. The series keeps repeating elsewhere.
 #[derive(Deserialize)]
 pub struct MoveOccurrence {
     pub occurrence_date: String,
     pub new_date: String,
 }
 
-/// Skip (delete) one occurrence of a recurring task; the series keeps repeating.
 #[derive(Deserialize)]
 pub struct SkipOccurrence {
     pub occurrence_date: String,
 }
 
-/// Rollover payload: the client's local date (Hard Rule 7 — the browser is the
-/// single source of "today"; the backend never computes it).
+/// The client's local date — the backend never computes "today".
 #[derive(Deserialize)]
 pub struct RolloverTasks {
     pub today: String,
 }
 
-/// Reorder payload: the full ordered list of (untimed) task ids for a list/day.
-/// Each task's `sort_order` becomes its position in this list.
 #[derive(Deserialize)]
 pub struct ReorderTasks {
     pub ids: Vec<i64>,
 }
 
-/// Bulk-edit payload (Inbox multi-select): the target `ids` and one `op` to apply
-/// to all of them.
 #[derive(Deserialize)]
 pub struct BatchTasks {
     pub ids: Vec<i64>,
     pub op: BatchOpBody,
 }
 
-/// The wire form of a [`BatchOp`], tagged by `type`. `label_id` is nullable
-/// (a `null`/absent label clears it); `schedule` carries the date to set.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BatchOpBody {

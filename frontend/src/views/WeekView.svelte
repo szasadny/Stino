@@ -62,8 +62,6 @@
     )
   }
 
-  // Fetch the target week's range BEFORE the transition so the page never freezes on the
-  // network; the transition callback only swaps period state + commits the fetched data.
   function go(delta: number) {
     const nextAnchor = addWeeks(anchor, delta)
     const nextWeek = buildWeekGrid(nextAnchor)
@@ -109,8 +107,7 @@
   }
 </script>
 
-<!-- The swipe listener lives on the section, not the vt-calendar pane: a captured pane is
-     skipped for hit-testing mid-slide, so a fast follow-up swipe would be eaten. -->
+<!-- Swipe on the section, not the vt-calendar pane: a captured pane drops hit-testing mid-slide. -->
 <section
   class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
   use:swipe={{ onLeft: () => go(1), onRight: () => go(-1) }}
@@ -178,10 +175,6 @@
   <ErrorAlert error={core.error} class="mb-3" />
 
   {#if isCompact()}
-    <!-- Phone: each day is a full-width section of readable rows, the whole week scrolling.
-         The rows are a shared `calendar` drag zone, so a held task drags from one day to
-         another; a day-header tap zooms into the day sheet. dragEdgeScroll auto-scrolls the
-         stack while a held task sits near an edge, so a drag can reach off-screen days. -->
     <div class="vt-calendar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto" use:dragEdgeScroll>
       {#each week as date, i (weekKeys[i])}
         <DayListSection
@@ -224,8 +217,6 @@
   {/if}
 </section>
 
-<!-- Day zoom. Phone: the full-screen grouped DaySheet. Desktop: the floating, non-modal
-     DayPanel — the grid stays live behind it, so a task can be dragged out onto another day. -->
 {#if isCompact()}
   <DaySheet
     date={sel.selectedDate}

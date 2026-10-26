@@ -1,6 +1,4 @@
 <script lang="ts">
-  // The monthly day-of-month controls, shared by the Monthly and Custom
-  // every-N-months modes of RecurrencePicker.
   import {
     MONTH_WEEKDAY_OPTIONS,
     ORDINAL_OPTIONS,

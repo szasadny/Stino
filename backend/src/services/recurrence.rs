@@ -1,18 +1,14 @@
-//! Parse, validate, and expand RFC-5545 RRULEs over local calendar-date windows.
-//! Occurrences are anchored at UTC midnight and only their date component is
-//! used, so timezone conversion cannot shift an occurrence to another day.
+//! Occurrences are anchored at UTC midnight and only their date is read back, so
+//! timezone conversion can never shift an occurrence to another day.
 
 use chrono::{DateTime, Datelike, NaiveDate, TimeZone};
 use rrule::{Frequency, RRule, RRuleSet, Tz, Unvalidated};
 
 use crate::error::{AppError, AppResult};
 
-/// Upper bound on occurrences from one expansion. The window bounds keep real
-/// counts tiny (a month grid is ≤ 42 days); this only guards a pathological rule.
+/// Guards a pathological rule; real windows are ≤ 42 days.
 const MAX_OCCURRENCES: u16 = 1000;
 
-/// Anchor a local calendar date at UTC midnight for the rrule datetime math. We
-/// read only the date component back, so UTC keeps that date stable.
 fn at_midnight(date: NaiveDate) -> DateTime<Tz> {
     Tz::UTC
         .with_ymd_and_hms(date.year(), date.month(), date.day(), 0, 0, 0)
@@ -34,11 +30,8 @@ pub fn normalize(raw: &str) -> String {
     body.trim().to_string()
 }
 
-/// Build the rrule set for `rule` starting at `dtstart`, mapping any parse /
-/// validation failure to a UI-safe error. Sub-daily frequencies are rejected
-/// here — the one gate every stored rule passes through (create, update,
-/// import) — because occurrences are whole calendar dates: an hourly repeat is
-/// meaningless on a calendar and would emit the same date many times over.
+/// The one gate every stored rule passes through. Sub-daily frequencies are rejected:
+/// occurrences are whole dates, so they'd emit the same date many times.
 fn build(rule: &str, dtstart: NaiveDate) -> AppResult<RRuleSet> {
     let normalized = normalize_until(rule.trim());
     let parsed: RRule<Unvalidated> = normalized.parse().map_err(|_| invalid_rule())?;
@@ -58,14 +51,8 @@ fn build(rule: &str, dtstart: NaiveDate) -> AppResult<RRuleSet> {
     Ok(set)
 }
 
-/// TickTick writes a recurrence end date as a bare `UNTIL=YYYYMMDD` (an RFC-5545
-/// DATE value), but we anchor DTSTART at UTC midnight — a DATE-TIME — and the
-/// `rrule` crate rejects a rule whose `UNTIL` value type differs from DTSTART's.
-/// Left unfixed, every "repeat until <date>" task silently loses its recurrence
-/// on import. Promote a date-only `UNTIL` to the matching UTC DATE-TIME
-/// (`…T000000Z`); the end date stays inclusive because every occurrence also
-/// lands at UTC midnight. A rule without `UNTIL`, or one already carrying a UTC
-/// time, is returned unchanged.
+/// TickTick writes a date-only `UNTIL`, but `rrule` rejects an UNTIL whose type differs
+/// from DTSTART's (a UTC DATE-TIME). Promote it to UTC midnight; it stays inclusive.
 fn normalize_until(rule: &str) -> String {
     rule.split(';')
         .map(|part| match part.split_once('=') {
@@ -80,17 +67,15 @@ fn normalize_until(rule: &str) -> String {
 
 fn normalize_until_value(value: &str) -> String {
     if value.len() == 8 && value.bytes().all(|b| b.is_ascii_digit()) {
-        // DATE form (YYYYMMDD) → UTC midnight DATE-TIME, matching DTSTART.
         format!("{value}T000000Z")
     } else if value.contains('T') && !value.ends_with('Z') {
-        // A local DATE-TIME → UTC (`rrule` requires UNTIL be in UTC).
+        // `rrule` requires UNTIL in UTC.
         format!("{value}Z")
     } else {
         value.to_string()
     }
 }
 
-/// Validate that `rule` is a usable RRULE for a task starting on `dtstart`.
 pub fn validate(rule: &str, dtstart: NaiveDate) -> AppResult<()> {
     // `all` caps the crate's search loop, so a never-matching rule (Feb 30) ends empty, not spins.
     if build(rule, dtstart)?.all(1).dates.is_empty() {
@@ -101,9 +86,7 @@ pub fn validate(rule: &str, dtstart: NaiveDate) -> AppResult<()> {
     Ok(())
 }
 
-/// The occurrence dates of `rule` (series starting `dtstart`) that fall within
-/// the inclusive window `[from, to]`, ascending. Empty if the window is inverted
-/// or the series has no occurrence inside it.
+/// Inclusive window, ascending; empty if inverted.
 pub fn expand(
     rule: &str,
     dtstart: NaiveDate,
@@ -113,15 +96,11 @@ pub fn expand(
     if to < from {
         return Ok(Vec::new());
     }
-    // Apply the explicit date bounds after expansion as the authoritative filter.
     let set = build(rule, dtstart)?
         .after(at_midnight(from))
         .before(at_midnight(to));
     let result = set.all(MAX_OCCURRENCES);
-    // With sub-daily frequencies rejected above, no real rule can produce 1000
-    // occurrences inside a calendar window — but if one somehow does, refuse
-    // rather than silently truncate the calendar. Validation fits: the rule is
-    // client-supplied input and the message is safe to show.
+    // Refuse rather than silently truncate the calendar.
     if result.limited {
         return Err(AppError::Validation(
             "recurrence_rule produces too many occurrences".into(),
@@ -198,7 +177,6 @@ mod tests {
 
     #[test]
     fn weekly_byday_lands_on_selected_weekdays_only() {
-        // Mondays and Wednesdays in the first full week of June 2026.
         // 2026-06-01 is a Monday.
         let got = expand(
             "FREQ=WEEKLY;BYDAY=MO,WE",
@@ -212,10 +190,8 @@ mod tests {
 
     #[test]
     fn interval_weekly_byday_is_anchored_at_the_start_week() {
-        // Every 2 weeks on Mon and Wed from Wed 2026-06-03: the start week
-        // yields only Wed (Mon Jun 1 precedes DTSTART), then the off week
-        // (Jun 8-14) is skipped, then Jun 15/17, skip, Jun 29 / Jul 1. A window
-        // opening in an off week still keeps the phase.
+        // Start week yields only Wed (Mon precedes DTSTART); off weeks are skipped, and a
+        // window opening in an off week keeps the phase.
         let rule = "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE";
         let got = expand(
             rule,
@@ -288,8 +264,6 @@ mod tests {
 
     #[test]
     fn sub_daily_frequencies_are_rejected() {
-        // Occurrences are calendar dates; an hourly (or finer) repeat is
-        // meaningless and would emit the same date many times over.
         for rule in ["FREQ=HOURLY", "FREQ=MINUTELY", "FREQ=SECONDLY"] {
             assert!(validate(rule, date("2026-06-01")).is_err(), "{rule}");
             assert!(
@@ -307,9 +281,7 @@ mod tests {
 
     #[test]
     fn until_end_date_is_honored_and_inclusive() {
-        // TickTick exports the end date as a bare `UNTIL=YYYYMMDD` (DATE form).
-        // Daily from Jun 1 ending Jun 3 must yield exactly Jun 1, 2, 3 — the
-        // UNTIL date itself included — not run on to the end of the window.
+        // TickTick's bare `UNTIL=YYYYMMDD`; the UNTIL date itself is included.
         let got = expand(
             "FREQ=DAILY;UNTIL=20260603;INTERVAL=1",
             date("2026-06-01"),
@@ -325,9 +297,7 @@ mod tests {
 
     #[test]
     fn a_series_that_ended_before_the_window_validates_but_yields_nothing() {
-        // The reported bug: a real TickTick "repeat until" rule whose end date is
-        // in the past must still *validate* (so the recurrence imports rather than
-        // being silently dropped) yet produce no occurrences in a future window.
+        // A past "repeat until" must still validate (so it imports) yet yield nothing.
         let rule = "FREQ=WEEKLY;WKST=MO;UNTIL=20240623;INTERVAL=1;BYDAY=MO";
         assert!(validate(rule, date("2024-01-01")).is_ok());
         let got = expand(
@@ -412,8 +382,7 @@ mod tests {
 
     #[test]
     fn interval_monthly_bymonthday_is_anchored_at_the_start_month() {
-        // Every 3 months on the 15th from Feb 2026: Feb, May, Aug, Nov — never the
-        // months in between, and the phase follows DTSTART's month, not January.
+        // Every 3 months on the 15th from Feb: the phase follows DTSTART's month.
         let got = expand(
             "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=15",
             date("2026-02-10"),
@@ -434,8 +403,7 @@ mod tests {
 
     #[test]
     fn interval_monthly_phase_holds_for_a_window_after_the_start() {
-        // Started Jan 2026, every 2 months ⇒ odd months only; a window opening in
-        // an "off" month (Apr) still lands on May and Jul.
+        // Odd months only; a window opening in an off month (Apr) still lands on May and Jul.
         let got = expand(
             "FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15",
             date("2026-01-15"),
@@ -448,8 +416,7 @@ mod tests {
 
     #[test]
     fn interval_monthly_last_workday() {
-        // Every 2 months on the last workday from Jan 2026: Jan 31 is a Saturday ⇒
-        // Fri Jan 30; Mar 31 is a Tuesday; May 31 is a Sunday ⇒ Fri May 29.
+        // Jan 31 is a Saturday ⇒ Fri Jan 30; May 31 is a Sunday ⇒ Fri May 29.
         let got = expand(
             "FREQ=MONTHLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
             date("2026-01-01"),
@@ -465,8 +432,7 @@ mod tests {
 
     #[test]
     fn interval_monthly_bymonthday_31_skips_its_months_without_it() {
-        // Every 2 months on the 31st from Jan 2026 visits Jan, Mar, May, Jul, Sep,
-        // Nov; Sep and Nov have no 31st and are skipped (not moved to the 30th).
+        // Sep and Nov have no 31st and are skipped, not moved to the 30th.
         let got = expand(
             "FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=31",
             date("2026-01-31"),
@@ -487,8 +453,7 @@ mod tests {
 
     #[test]
     fn monthly_first_workday_skips_weekend_starts() {
-        // First weekday (Mon–Fri) of each month, Jan–Mar 2026. Jan 1 is a Thursday
-        // (a workday); Feb 1 and Mar 1 are Sundays, so the first workday is the 2nd.
+        // Feb 1 and Mar 1 are Sundays, so the first workday is the 2nd.
         let got = expand(
             "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1",
             date("2026-01-01"),
@@ -504,8 +469,7 @@ mod tests {
 
     #[test]
     fn monthly_last_workday_skips_weekend_ends() {
-        // Last weekday of each month, Jan–Mar 2026. Jan 31 and Feb 28 are Saturdays,
-        // so the last workday is the preceding Friday; Mar 31 is a Tuesday.
+        // Jan 31 and Feb 28 are Saturdays ⇒ the preceding Friday.
         let got = expand(
             "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
             date("2026-01-01"),

@@ -78,7 +78,7 @@
   function onInput(event: Event) {
     query = (event.target as HTMLInputElement).value
     clearTimeout(timer)
-    const current = ++token // invalidate any pending or in-flight request
+    const current = ++token
     const term = query.trim()
     if (!term) {
       tasks = []
@@ -288,7 +288,6 @@
 
 <style>
   dialog::backdrop {
-    /* `--scrim` is the one chrome token kept fixed across themes (see app.css). */
     background: rgb(var(--scrim) / 0.42);
     backdrop-filter: blur(3px);
   }

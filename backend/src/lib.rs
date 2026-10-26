@@ -1,4 +1,4 @@
-//! Backend library crate; keeping wiring here lets integration tests import it.
+//! Wiring lives in the library so integration tests can import it.
 
 pub mod config;
 pub mod db;
@@ -14,7 +14,6 @@ use anyhow::Context;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use tracing_subscriber::EnvFilter;
 
-/// Boot the server: configure logging, open the pool, run migrations, serve.
 pub async fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -36,11 +35,9 @@ pub async fn run() -> anyhow::Result<()> {
     }
     .create_if_missing(true)
     .foreign_keys(true)
-    // WAL + NORMAL avoids an fsync for every import row while retaining crash
-    // durability for normal app/OS failures.
+    // WAL + NORMAL avoids an fsync per import row while staying crash-durable.
     .journal_mode(SqliteJournalMode::Wal)
     .synchronous(SqliteSynchronous::Normal)
-    // Wait for a writer instead of failing with SQLITE_BUSY.
     .busy_timeout(Duration::from_secs(5));
 
     let pool = SqlitePoolOptions::new()

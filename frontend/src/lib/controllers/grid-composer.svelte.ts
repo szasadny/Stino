@@ -1,4 +1,3 @@
-// Shared Month/Week task-dialog state and CRUD routing through TaskCore.
 import { api, type TaskInput } from '../api'
 import { taskToDraft, type ComposerDraft } from '../composer'
 import { openWithoutPhantomClick } from '../phantom-click'
@@ -8,7 +7,6 @@ import type { TaskCore } from './task-core.svelte'
 
 export type GridComposer = ReturnType<typeof createGridComposer>
 
-// 'add' prefills a day (the header "+"); 'edit' opens a tapped pill.
 type Editing = { mode: 'add'; date: string } | { mode: 'edit'; task: Task }
 
 export function createGridComposer(core: TaskCore, reload: () => Promise<void>) {
@@ -24,7 +22,6 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
     editing = null
   }
 
-  // Reload after persistence so recurrence expansion and server-assigned ids are current.
   async function submit(input: TaskInput): Promise<void> {
     const e = editing
     if (!e) return
@@ -48,7 +45,6 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
       editing = null
   }
 
-  // Delete just the edited recurring occurrence; the rest of the series stays.
   async function removeOccurrence(): Promise<void> {
     if (editing?.mode !== 'edit') return
     const occurrence = skippableOccurrence(editing.task)
@@ -76,17 +72,14 @@ export function createGridComposer(core: TaskCore, reload: () => Promise<void>) 
       if (editing?.mode === 'add') return { date: editing.date }
       return {}
     },
-    // Present only when editing — the dialog shows a Delete button when this is set.
     get onDelete(): (() => void) | undefined {
       return editing?.mode === 'edit' ? remove : undefined
     },
-    // Present only when editing a recurring occurrence — Delete then asks occurrence vs series.
     get onDeleteOccurrence(): (() => void) | undefined {
       return editing?.mode === 'edit' && skippableOccurrence(editing.task) != null
         ? removeOccurrence
         : undefined
     },
-    // False for a completed occurrence — it's history, so only the whole series can go.
     get canDeleteOccurrence(): boolean {
       return editing?.mode !== 'edit' || canSkipOccurrence(editing.task)
     },

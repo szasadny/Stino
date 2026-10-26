@@ -1,5 +1,3 @@
-//! Application errors map to HTTP at this boundary; services return `AppResult`.
-
 use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -8,18 +6,15 @@ use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    /// Client sent invalid input; the message is safe to return verbatim.
+    /// The message is safe to return verbatim.
     #[error("{0}")]
     Validation(String),
-    /// The requested resource does not exist.
     #[error("not found")]
     NotFound,
-    /// Any database failure. The underlying error is logged, not returned, so we
-    /// never leak SQL or schema details to the client.
+    /// Logged, never returned, so SQL/schema details don't leak.
     #[error("internal error")]
     Db(#[from] sqlx::Error),
-    /// An axum extractor rejected the request before it reached a handler; keeps
-    /// the extractor's own status (400/413/415/422).
+    /// An axum extractor rejection; keeps its own status (400/413/415/422).
     #[error("{message}")]
     Rejected {
         status: StatusCode,
@@ -29,10 +24,7 @@ pub enum AppError {
 
 pub type AppResult<T> = Result<T, AppError>;
 
-/// The reorder/batch repositories report an unknown id by rolling the whole
-/// transaction back and returning `RowNotFound`; surface that as a `404` while
-/// letting every other database failure fall through as an internal error. The
-/// single place that maps this signal, shared by the reorder/batch services.
+/// Batch repositories signal an unknown id with `RowNotFound`; that's a 404, anything else is internal.
 pub fn map_row_not_found(err: sqlx::Error) -> AppError {
     match err {
         sqlx::Error::RowNotFound => AppError::NotFound,

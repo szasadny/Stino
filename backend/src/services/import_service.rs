@@ -1,8 +1,4 @@
-//! TickTick CSV import into the task model. Imports are add-only and tolerate
-//! unmappable rows; labels are reused case-insensitively. TickTick due dates are
-//! UTC instants plus a timezone, including all-day local midnight, so conversion
-//! happens before extracting date/time. Floating or invalid-zone values remain
-//! literal. Each row goes through [`task_service::create`] for validation.
+//! TickTick CSV import: add-only, per-row tolerant, labels reused case-insensitively.
 
 use std::collections::HashMap;
 
@@ -16,9 +12,7 @@ use crate::domain::{ImportCreated, ImportSummary, NewTask, LABEL_PALETTE};
 use crate::error::{AppError, AppResult};
 use crate::services::{recurrence, task_service};
 
-// TickTick CSV column names we read, lowercased (the header map is lowercased so
-// matching is case-insensitive). Columns we don't map — Reminder, Priority,
-// Start Date, Order, taskId, … — are simply never looked up.
+// Lowercased TickTick columns we read; unmapped ones (Reminder, Priority, …) are never looked up.
 const COL_TITLE: &str = "title";
 const COL_CONTENT: &str = "content";
 const COL_TAGS: &str = "tags";
@@ -31,38 +25,27 @@ const COL_REPEAT: &str = "repeat";
 const COL_STATUS: &str = "status";
 const COL_COMPLETED: &str = "completed time";
 
-/// TickTick's default list; mapping it to a label would mint a confusing "Inbox"
-/// label, so the list fallback skips it.
+/// TickTick's default list — not mapped to a label.
 const DEFAULT_LIST: &str = "inbox";
 
-/// How TickTick writes a Due Date instant: an offset with no colon (`+0000`), so
-/// it parses with `%z`, not RFC-3339 (which wants `+00:00`).
+/// Offset without a colon (`+0000`), so `%z`, not RFC-3339.
 const TICKTICK_DT_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%z";
 
-/// Lowercased TickTick column name → its index in the data rows.
 type Headers = HashMap<String, usize>;
 
-/// Import a TickTick CSV backup. Returns the counts created plus how many rows
-/// were skipped. A mapping problem skips one row; only a real database error
-/// aborts the whole import — and because every row runs in ONE transaction, an
-/// abort rolls all of it back, so a failed import leaves the database untouched
-/// (a re-run can't duplicate the rows before the failure).
+/// A bad row is skipped; a database error aborts. The whole file runs in one
+/// transaction, so a failed import leaves the database untouched.
 pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<ImportSummary> {
     let text = decode(csv_bytes);
     let (headers, records) = parse_csv(&text)?;
 
     let mut created = ImportCreated::default();
     let mut skipped = 0usize;
-    // Lowercased label name → id, so a tag/list seen twice in one file reuses the
-    // same label without re-querying.
     let mut label_ids: HashMap<String, i64> = HashMap::new();
 
-    // One transaction for the whole file. Returning an error drops it
-    // uncommitted, so any Db failure rolls every imported row back.
     let mut tx = pool.begin().await?;
 
     for record in &records {
-        // A titleless row is the one thing we can't import — skip it.
         let Some(title) = field(record, &headers, COL_TITLE) else {
             skipped += 1;
             continue;
@@ -93,9 +76,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
             recurrence_rule,
         };
 
-        // task_service::create_on is the single validator; a Validation error
-        // means this row's data is unusable, so skip it. A Db error is
-        // infrastructure, not data, so it aborts (and rolls the import back).
+        // A Validation error skips the row; a Db error aborts the import.
         match task_service::create_on(&mut tx, new_task).await {
             Ok(task) => {
                 created.tasks += 1;
@@ -103,8 +84,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
                     field(record, &headers, COL_STATUS),
                     field(record, &headers, COL_COMPLETED),
                 ) {
-                    // Mark the task done for its own occurrence (the series start
-                    // for a recurring task; NULL for an undated Inbox task).
+                    // Its own occurrence: the series start, or NULL for an Inbox task.
                     db::task::add_completion(&mut *tx, task.id, task.due_date.as_deref()).await?;
                     created.completions += 1;
                 }
@@ -118,18 +98,14 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
     Ok(ImportSummary { created, skipped })
 }
 
-/// Decode the upload as UTF-8 (lossy, to tolerate stray bytes), stripping a
-/// leading BOM that some exports include.
+/// Lossy, to tolerate stray bytes; strips a leading BOM.
 fn decode(bytes: &[u8]) -> String {
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// Split the CSV into a lowercased header map and the data rows after it. A
-/// TickTick export prefixes a few metadata lines ("Date: …", "Version: …") before
-/// the real header, so we scan for the first row that has a `Title` column and
-/// treat everything after it as data. `flexible` is required because those
-/// preamble lines have a different field count than the header.
+/// TickTick prefixes metadata lines before the real header, so scan for the first
+/// row with a `Title` column. `flexible` because the preamble's field counts differ.
 fn parse_csv(text: &str) -> AppResult<(Headers, Vec<csv::StringRecord>)> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -142,7 +118,6 @@ fn parse_csv(text: &str) -> AppResult<(Headers, Vec<csv::StringRecord>)> {
         let record =
             result.map_err(|_| AppError::Validation("the file is not valid CSV".into()))?;
         match headers {
-            // Still looking for the header: ignore preamble lines until we find it.
             None => headers = header_map(&record),
             Some(_) => records.push(record),
         }
@@ -157,8 +132,6 @@ fn parse_csv(text: &str) -> AppResult<(Headers, Vec<csv::StringRecord>)> {
     }
 }
 
-/// A header row maps lowercased column name → index — but only if it actually has
-/// a `Title` column, which is how we tell the header apart from a preamble line.
 fn header_map(record: &csv::StringRecord) -> Option<Headers> {
     let map: Headers = record
         .iter()
@@ -168,30 +141,18 @@ fn header_map(record: &csv::StringRecord) -> Option<Headers> {
     map.contains_key(COL_TITLE).then_some(map)
 }
 
-/// A trimmed, non-empty cell by column name, or `None` if the column is absent,
-/// out of range for this row, or blank.
 fn field<'a>(record: &'a csv::StringRecord, headers: &Headers, name: &str) -> Option<&'a str> {
     let index = *headers.get(name)?;
     let value = record.get(index)?.trim();
     (!value.is_empty()).then_some(value)
 }
 
-/// A TickTick boolean column (`Is All Day`, `Is Floating`) is `true`/`false`;
-/// absent/blank ⇒ false.
 fn is_true(raw: Option<&str>) -> bool {
     raw.is_some_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
-/// Resolve a TickTick Due Date into our stored local `(due_date, due_time)`.
-///
-/// A **timed, non-floating** task is a UTC instant (`2026-06-24T22:30:00+0000`)
-/// that TickTick shows in its `timezone` column's zone, so we convert into that
-/// zone before reading the date + time — otherwise an early-morning local time
-/// lands a day too soon (Hard Rule 7). **All-day** tasks (a floating UTC-midnight
-/// date) and **floating** tasks (a zone-independent wall-clock) are read
-/// literally — converting them could itself slip a day. We also fall back to the
-/// literal read when the timezone is missing/unknown or the instant won't parse,
-/// degrading rather than losing the task; an unparseable date drops to the Inbox.
+/// Timed, non-floating values are converted into the row's timezone (see below);
+/// floating values and unknown zones are read literally. An unparseable date ⇒ Inbox.
 fn parse_due(
     raw: Option<&str>,
     all_day: bool,
@@ -209,12 +170,9 @@ fn parse_due(
         return (None, None);
     };
 
-    // A non-floating Due Date is a UTC instant TickTick shows in its `timezone`
-    // zone — and that includes ALL-DAY tasks, which it stores as **local midnight
-    // expressed in UTC** (e.g. `2026-06-17T22:00:00+0000` is midnight 18 Jun in
-    // Amsterdam). So convert the instant into the zone before reading the date,
-    // then drop the time for all-day. Reading the literal UTC date put these a day
-    // too soon (the import bug).
+    // A non-floating Due Date is a UTC instant — including all-day tasks, stored as
+    // local midnight in UTC (`2026-06-17T22:00:00+0000` is 18 Jun in Amsterdam).
+    // Convert before reading the date, or it lands a day too soon.
     if !floating {
         if let Some((date, time)) = timezone
             .and_then(|name| name.parse::<Tz>().ok())
@@ -225,8 +183,7 @@ fn parse_due(
         }
     }
 
-    // Floating, or no usable timezone: read the literal wall-clock (no convert) —
-    // the leading HH:MM, ignoring seconds and offset; all-day drops the time.
+    // Literal read: the leading HH:MM, ignoring seconds and offset.
     let due_time = if all_day {
         None
     } else {
@@ -238,9 +195,6 @@ fn parse_due(
     (Some(fmt_date(literal_date)), due_time)
 }
 
-/// Convert a TickTick UTC instant string into a wall-clock date + time in `tz`.
-/// `None` if the instant doesn't parse, so the caller can fall back to a literal
-/// read.
 fn to_local(raw: &str, tz: Tz) -> Option<(NaiveDate, NaiveTime)> {
     let instant = DateTime::parse_from_str(raw, TICKTICK_DT_FORMAT).ok()?;
     let local = instant.with_timezone(&tz);
@@ -255,9 +209,7 @@ fn fmt_time(time: NaiveTime) -> String {
     time.format(config::TIME_FORMAT).to_string()
 }
 
-/// Map TickTick's Repeat column to a stored recurrence rule. The rule needs a
-/// start date (DTSTART) and must parse; if either fails we drop the recurrence
-/// but still import the task (degrade, never lose it).
+/// A rule without a start date or that fails to parse is dropped; the task still imports.
 fn parse_repeat(raw: Option<&str>, due_date: Option<&str>) -> Option<String> {
     let raw = raw?;
     let start = due_date.and_then(|d| NaiveDate::parse_from_str(d, config::DATE_FORMAT).ok())?;
@@ -265,9 +217,7 @@ fn parse_repeat(raw: Option<&str>, due_date: Option<&str>) -> Option<String> {
     recurrence::validate(&rule, start).ok().map(|()| rule)
 }
 
-/// The label name for a row: the first Tag (TickTick's colored labels), else the
-/// List name (its project) — but never the default "Inbox" list, which isn't a
-/// real label. `None` ⇒ no label.
+/// The first Tag, else the List name — but never the default "Inbox" list.
 fn pick_label(record: &csv::StringRecord, headers: &Headers) -> Option<String> {
     if let Some(tags) = field(record, headers, COL_TAGS) {
         if let Some(first) = tags.split(',').map(str::trim).find(|t| !t.is_empty()) {
@@ -279,19 +229,16 @@ fn pick_label(record: &csv::StringRecord, headers: &Headers) -> Option<String> {
         .map(str::to_string)
 }
 
-/// A task counts as done if TickTick marked its status Completed (`1`) or
-/// Archived (`2`, only ever reached from completed), or stamped a Completed Time.
+/// Archived (`2`) is only ever reached from completed.
 fn is_completed(status: Option<&str>, completed_time: Option<&str>) -> bool {
     matches!(status, Some("1" | "2")) || completed_time.is_some()
 }
 
-/// The first `max` characters of `value` (by `char`, so multibyte-safe).
 fn clamp_chars(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
 }
 
-/// Clamp an over-long title to the cap instead of letting the validator skip the
-/// row, keeping the full original at the top of the notes so nothing is lost.
+/// Clamp rather than let the validator skip the row; the full title moves into the notes.
 fn fit_title(title: &str, content: Option<&str>) -> (String, Option<String>) {
     if title.chars().count() <= config::MAX_TITLE_LEN {
         return (title.to_string(), content.map(str::to_string));
@@ -303,10 +250,7 @@ fn fit_title(title: &str, content: Option<&str>) -> (String, Option<String>) {
     (clamp_chars(title, config::MAX_TITLE_LEN), Some(notes))
 }
 
-/// Find or create the label for `name`, caching the id. New labels take the next
-/// palette color deterministically (by append position), so colors are stable
-/// for a given starting database. Runs on the import's transaction connection so
-/// created labels roll back with the rest of a failed import.
+/// New labels take the next palette color by append position, so colors are deterministic.
 async fn resolve_label(
     conn: &mut SqliteConnection,
     label_ids: &mut HashMap<String, i64>,
@@ -336,11 +280,7 @@ mod tests {
 
     #[test]
     fn timed_task_converts_the_utc_instant_into_the_tasks_timezone() {
-        // The reported bug: TickTick stores a timed task as a UTC instant. An
-        // early-morning Amsterdam time (00:30 CEST on Jun 25) is written as the
-        // *previous* UTC day (22:30 on Jun 24). Read literally it imported a day
-        // too soon at the wrong clock; converted into Europe/Amsterdam it must
-        // land back on Jun 25 at 00:30.
+        // 00:30 CEST on Jun 25 is written as 22:30 UTC on Jun 24; it must land back on Jun 25.
         assert_eq!(
             parse_due(
                 Some("2026-06-24T22:30:00+0000"),
@@ -350,8 +290,6 @@ mod tests {
             ),
             (Some("2026-06-25".into()), Some("00:30".into()))
         );
-        // A daytime instant shifts only the clock by the offset, not the day:
-        // 07:30 UTC → 09:30 CEST, still Jun 27.
         assert_eq!(
             parse_due(
                 Some("2026-06-27T07:30:00+0000"),
@@ -361,7 +299,6 @@ mod tests {
             ),
             (Some("2026-06-27".into()), Some("09:30".into()))
         );
-        // A western zone shifts the other way: 01:00 UTC Jun 27 → 21:00 EDT Jun 26.
         assert_eq!(
             parse_due(
                 Some("2026-06-27T01:00:00+0000"),
@@ -375,10 +312,7 @@ mod tests {
 
     #[test]
     fn all_day_task_converts_its_local_midnight_instant_to_the_right_day() {
-        // The real bug from the user's export: TickTick stores an all-day task as
-        // LOCAL midnight expressed in UTC — `2026-06-17T22:00:00+0000` is midnight
-        // 18 Jun in Amsterdam (CEST). A literal read gave 17 Jun (a day too soon);
-        // converting into the zone must yield 18 Jun, with no time.
+        // All-day stored as local midnight in UTC: `2026-06-17T22:00:00+0000` is 18 Jun in Amsterdam.
         assert_eq!(
             parse_due(
                 Some("2026-06-17T22:00:00+0000"),
@@ -392,8 +326,6 @@ mod tests {
 
     #[test]
     fn floating_tasks_keep_their_literal_wall_clock() {
-        // A floating task's wall-clock is zone-independent — kept literally, no
-        // conversion (date and time both as written).
         assert_eq!(
             parse_due(
                 Some("2026-06-27T07:30:00+0000"),
@@ -403,7 +335,6 @@ mod tests {
             ),
             (Some("2026-06-27".into()), Some("07:30".into()))
         );
-        // A floating all-day task keeps its literal date and drops the time.
         assert_eq!(
             parse_due(Some("2026-06-27T00:00:00+0000"), true, None, true),
             (Some("2026-06-27".into()), None)
@@ -412,8 +343,6 @@ mod tests {
 
     #[test]
     fn unknown_or_missing_timezone_falls_back_to_a_literal_read() {
-        // No timezone column, or an unrecognised name: degrade to the literal
-        // wall-clock rather than losing the time.
         assert_eq!(
             parse_due(Some("2026-06-27T07:30:00+0000"), false, None, false),
             (Some("2026-06-27".into()), Some("07:30".into()))

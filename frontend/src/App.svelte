@@ -29,12 +29,8 @@
   let settingsOpen = $state(false)
   const Active = $derived(VIEW_COMPONENTS[current])
 
-  // Overdue rollover: on open — and again when the tab comes back into view on a
-  // later day (a Tailscale tab often stays open across midnight) — every
-  // uncompleted task with a past due date moves onto today. The browser supplies
-  // "today" (Hard Rule 7); at most one call per local day, retried on the next
-  // visibility change if the backend was unreachable. The shared "today" advances
-  // only after the rollover so views reload with the moved tasks in place.
+  // Also re-run on visibility change: a tab often stays open across midnight. Advance the
+  // shared "today" only after the rollover so views reload with the moved tasks in place.
   let rolledOverOn = ''
   async function rolloverOverdue() {
     const today = toISODate(new Date())
@@ -44,8 +40,7 @@
         moved = (await api.tasks.rollover(today)).moved
         rolledOverOn = today
       } catch {
-        // Transient (offline, backend restarting) — the views surface their own
-        // load errors; the next visibility change retries the rollover.
+        // Transient; views show their own load errors and the next visibility change retries.
       }
     }
     if (setToday(today) || moved > 0) bumpRefresh()
@@ -187,9 +182,7 @@
     {/each}
   </nav>
 
-  <!-- Search / Labels / Import can mutate tasks or labels behind the standing view, so
-       closing them bumps the refresh signal and the active view reloads. Settings only
-       touches the theme, so it doesn't. -->
+  <!-- Search / Labels / Import mutate data behind the view, so closing them bumps refresh. -->
   <SearchDialog
     open={searchOpen}
     onClose={() => {

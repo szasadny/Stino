@@ -177,7 +177,7 @@ describe('parseRRule', () => {
       interval: 2,
       weekdays: ['TU'],
     })
-    // The bug case: an imported every-2-weeks rule keeps both its days.
+    // An imported every-2-weeks rule keeps both its days.
     expect(parseRRule('FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,MO,WE;UNTIL=20261231')).toMatchObject({
       freq: 'custom',
       unit: 'week',
@@ -222,7 +222,6 @@ describe('parseRRule', () => {
       position: -1,
       monthWeekday: 'FR',
     })
-    // First/last workday: the full Mon–Fri BYDAY set + a BYSETPOS.
     expect(parseRRule('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1')).toMatchObject({
       freq: 'monthly',
       monthlyMode: 'weekday',
@@ -240,14 +239,12 @@ describe('parseRRule', () => {
       monthWeekday: 'WD',
       position: -1,
     })
-    // A monthly rule we don't model stays read-only.
     expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=1,15').freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=1,15').freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY;INTERVAL=2').freq).toBe('none')
     // The weekend pair isn't the workday set, so it stays unmodeled.
     expect(parseRRule('FREQ=MONTHLY;BYDAY=SA,SU;BYSETPOS=-1').freq).toBe('none')
-    // A date AND a weekday ("Friday the 13th") is an intersection the picker can't
-    // show — it must stay unmodeled (read-only) so a re-save can't drop the BYDAY.
+    // "Friday the 13th" stays unmodeled so a re-save can't drop the BYDAY.
     expect(parseRRule('FREQ=MONTHLY;BYDAY=FR;BYMONTHDAY=13').freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY;INTERVAL=2;BYDAY=FR;BYMONTHDAY=13').freq).toBe('none')
     expect(parseRRule('FREQ=MONTHLY;BYMONTHDAY=13;BYSETPOS=1').freq).toBe('none')
@@ -311,7 +308,6 @@ describe('parseRRule', () => {
     expect(
       parseRRule('FREQ=WEEKLY;WKST=MO;UNTIL=20260520T000000Z;INTERVAL=1;BYDAY=WE'),
     ).toMatchObject({ freq: 'weekly', weekdays: ['WE'], until: '2026-05-20' })
-    // No UNTIL ⇒ never ends.
     expect(parseRRule('FREQ=DAILY').until).toBeNull()
   })
 
@@ -355,7 +351,6 @@ describe('summarize', () => {
     expect(summarize(value({ freq: 'daily' }))).toBe('Every day')
     expect(summarize(value({ freq: 'weekly', weekdays: ['WE', 'MO'] }))).toBe('Weekly on Mon, Wed')
     expect(summarize(value({ freq: 'weekly' }))).toBe('Every week')
-    // The full Mon–Fri set reads as the cleaner "Every weekday".
     expect(summarize(value({ freq: 'weekly', weekdays: ['FR', 'MO', 'TU', 'TH', 'WE'] }))).toBe(
       'Every weekday',
     )
@@ -417,7 +412,6 @@ describe('summarize', () => {
     expect(months({ interval: 2, monthlyMode: 'weekday', position: 1, monthWeekday: 'MO' })).toBe(
       'Every 2 months on the first Mon',
     )
-    // Interval 1 drops the count, like "Every day" / "Every week".
     expect(months({ interval: 1, monthlyMode: 'monthday', monthday: 15 })).toBe(
       'Every month on day 15',
     )
