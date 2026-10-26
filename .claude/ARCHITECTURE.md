@@ -193,7 +193,7 @@ Add-only (never deletes — Hard Rule 3), per-row tolerant (a bad row is skipped
 
 | TickTick CSV | → Stinō |
 | --- | --- |
-| Title / Content | `task.title` / `task.notes` |
+| Title / Content | `task.title` / `task.notes` (a title over the 200-char cap is clamped, its full text prepended to the notes) |
 | Tags / List | `label` (first **Tag**, else the **List** name unless "Inbox"; created on demand, deduped by name case-insensitively, next palette color by append order) |
 | Due Date, Is All Day, Is Floating, Timezone | `task.due_date` / `task.due_time` (timed tasks converted from the UTC instant into the export's `Timezone`; see below) |
 | Repeat (RRULE) | `task.recurrence_rule` |
@@ -244,7 +244,7 @@ Behaviours that matter:
 ### Pure helpers (`lib/*.ts` — unit-tested with Vitest, `*.test.ts` beside each; `npm test`)
 
 - `date.ts` — all calendar date math: month-grid builder, `monthWeekCount`, month/week nav helpers
-  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `formatWeekRange`), formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
+  (`startOfWeek`, `buildWeekGrid`, `addWeeks`, `addDays`, `formatWeekRange`), formatters. Local dates only — never `toISOString()` (Hard Rule 7). Views/components call it; no
   inline date math.
 - `grouping.ts` — `groupByLabel(tasks, labels)` (label sections in label `sort_order`, "No label"
   pinned last, input order kept within groups); `labelDayOrder(tasks, labels)` (one day flattened
@@ -254,15 +254,17 @@ Behaviours that matter:
   per-day index the month/week grids share). Grouping is client-side presentation — no SQL does it.
 - `recurrence.ts` — option⇄RRULE mapping (`buildRRule` / `parseRRule` / `summarize`; the monthly
   BY… parts are built/parsed/summarized by one helper each, shared by Monthly and Custom months) +
-  `parseRecurrencePhrase(text)` (rule-based extraction of typed phrases like "first Monday of every
-  month", returning the RRULE and the matched substring to strip). Presentation only — the backend
-  validates/expands.
+  `parseRecurrencePhrase(text, start?)` (rule-based extraction of typed phrases like "first Monday
+  of every month", "every other tuesday", "every 2 weeks on mon and wed", "every 3 months on the
+  15th", returning the RRULE and the matched substring to strip; an interval > 1 yields the picker's
+  Custom shape, and a bare "every (N) month(s)" takes `start`'s day of the month). Presentation
+  only — the backend validates/expands.
 - `quickadd.ts` — `parseQuickAdd(input) → { title, label?, due_date?, due_time?, recurrence_rule? }`:
   client-side natural-language capture. Order matters: first strip a recurrence phrase (so a weekday
   inside it isn't read as a one-off date), then a `#tag` label (single non-space token; the first of
   several wins, all stripped), then `chrono-node` takes the date/time — local `YYYY-MM-DD`/`HH:MM`,
   a time only when the hour is certain. A recurrence with no explicit date defaults DTSTART to the
-  reference date. Also `describeDraft` (capture hint) and `activeLabelToken` / `removeActiveToken`
+  reference date; the rule is then re-read against that start. Also `describeDraft` (capture hint) and `activeLabelToken` / `removeActiveToken`
   (the `#tag` suggestion menu). Pure given a reference date.
 - `move.ts` — `dropKind` classifies a grid drop (same-cell untimed reorder / plain reschedule /
   recurring single-occurrence detach / no-op); `applyMove` projects the optimistic result.
@@ -328,6 +330,10 @@ Behaviours that matter:
   core (Search edits, `LabelManager`, a TickTick import) call `bumpRefresh()` on close; each
   standing view re-runs its load via `onRefresh(reload)` (skips the init value to avoid a double
   fetch with `onMount`).
+- `today.svelte.ts` — the app-wide local "today": `todayKey()` (`YYYY-MM-DD`) / `todayDate()`.
+  Only `App.svelte`'s day-change check advances it (`setToday`); Today/Month/Week and
+  `TaskComposer` derive their date, today highlight, and quick-date chips from it, so a tab left
+  open past midnight follows the new day.
 
 ### Controllers (`lib/controllers/` — rune factories, `*.svelte.ts`)
 
@@ -355,7 +361,7 @@ Behaviours that matter:
   series" vs Cancel; `TaskComposer` uses it instead of `DeleteConfirm` when given
   `onDeleteOccurrence`; `canDeleteOccurrence={false}` (a completed row) disables "This occurrence"
   with a "kept in your history" note), `Cairn` (the logo mark).
-- **Task UI:** `TaskRow` (complete-toggle + title + time + repeat affordance + label chip;
+- **Task UI:** `TaskRow` (complete-toggle — an inert same-size placeholder without `onToggle` — + title + time + repeat affordance + label chip;
   `leading`/`trailing` snippets, `selectable` mode, `holdToDrag`; `slim` = the one-line phone
   day-list row — label-colour dot + truncated title + inline time, no meta line; `completing` =
   the Inbox send-off state — renders as done with the checkmark pop before the row leaves; the
@@ -395,14 +401,17 @@ Behaviours that matter:
   launchers for `LabelManager`, `SearchDialog`, and `SettingsDialog`. Also owns the **overdue
   rollover**: on mount — and on `visibilitychange` when the tab returns on a later local day — it
   posts `api.tasks.rollover(today)` (at most once per local day, retried after a failure) and
-  bumps the refresh signal when anything moved, so the standing view reloads. The server both
+  then advances `today.svelte.ts` and bumps the refresh signal when the day changed or anything
+  moved, so the standing view reloads for the new day with the moved tasks in place. The server both
   relocates overdue one-offs and detaches each missed recurring occurrence from the last 7 days
   onto today as a standalone one-off (see the endpoint row above).
 - **Search is an overlay, not a tab:** `SearchDialog` debounces `?q=` over `api.search`; flat
   `TaskRow` results (each shows its planned day, or "Inbox"); a row tap opens the editor inline,
   swapping the list so no second modal stacks; saving/deleting re-runs the search; recurring tasks
-  appear as their series row (no real instance), so Delete there removes the whole series via the
-  plain two-step confirm — the occurrence-vs-series popup is only offered from calendar/day views.
+  appear as their series row (no real instance), so the row has no checkbox and no done state
+  (occurrences are completed from calendar/day views), and Delete there removes the
+  whole series via the plain two-step confirm — the occurrence-vs-series popup is only offered from
+  calendar/day views.
 
 ## 8. Calendar layouts & drag-and-drop
 

@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import { formatDayFull, toISODate } from '../lib/date'
+  import { formatDayFull } from '../lib/date'
   import { PRIMARY_BTN_CLASS } from '../lib/constants'
   import { onRefresh } from '../lib/refresh.svelte'
+  import { todayDate, todayKey } from '../lib/today.svelte'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import { createGridComposer } from '../lib/controllers/grid-composer.svelte'
   import DayAgenda from '../lib/components/DayAgenda.svelte'
@@ -11,9 +12,7 @@
   import EmptyState from '../lib/components/EmptyState.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
-  const today = new Date()
-  const heading = formatDayFull(today)
-  const todayKey = toISODate(today)
+  const heading = $derived(formatDayFull(todayDate()))
 
   const core = createTaskCore()
   const composer = createGridComposer(core, load)
@@ -26,7 +25,7 @@
 
   function load() {
     return core.loadWith(async () => {
-      const [tasks, labels] = await Promise.all([api.tasks.forDate(todayKey), api.labels.list()])
+      const [tasks, labels] = await Promise.all([api.tasks.forDate(todayKey()), api.labels.list()])
       return { tasks, labels }
     }, 'Could not load today')
   }
@@ -47,7 +46,7 @@
     </div>
     <button
       type="button"
-      onclick={() => composer.add(todayKey)}
+      onclick={() => composer.add(todayKey())}
       class="{PRIMARY_BTN_CLASS} flex shrink-0 items-center gap-1.5 px-3 py-2"
     >
       <svg

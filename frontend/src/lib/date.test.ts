@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addDays,
   addMonths,
   addWeeks,
   buildMonthGrid,
@@ -9,6 +10,7 @@ import {
   formatShortDate,
   formatWeekRange,
   fromISODate,
+  isPlausibleISODate,
   isSameMonth,
   monthWeekCount,
   startOfWeek,
@@ -29,6 +31,27 @@ describe('toISODate / fromISODate', () => {
     const d = fromISODate(iso)
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 5, 24])
     expect(toISODate(d)).toBe(iso)
+  })
+})
+
+describe('isPlausibleISODate', () => {
+  it('accepts a real date in range', () => {
+    expect(isPlausibleISODate('2026-11-05')).toBe(true)
+    expect(isPlausibleISODate('2028-02-29')).toBe(true)
+  })
+
+  it('rejects the partial years Chromium emits while the year is typed', () => {
+    expect(isPlausibleISODate('0002-11-05')).toBe(false)
+    expect(isPlausibleISODate('0020-11-05')).toBe(false)
+    expect(isPlausibleISODate('0202-11-05')).toBe(false)
+    expect(isPlausibleISODate('30000-11-05')).toBe(false)
+  })
+
+  it('rejects empty, malformed and impossible dates', () => {
+    expect(isPlausibleISODate('')).toBe(false)
+    expect(isPlausibleISODate('2026-1-5')).toBe(false)
+    expect(isPlausibleISODate('2026-02-30')).toBe(false)
+    expect(isPlausibleISODate('2027-02-29')).toBe(false)
   })
 })
 
@@ -69,6 +92,12 @@ describe('week helpers', () => {
 
   it('steps by whole weeks', () => {
     expect(toISODate(addWeeks(new Date(2026, 5, 3), 1))).toBe('2026-06-10')
+  })
+
+  it('steps by calendar days across month and year ends', () => {
+    expect(toISODate(addDays(new Date(2026, 5, 30), 1))).toBe('2026-07-01')
+    expect(toISODate(addDays(new Date(2026, 11, 31), 1))).toBe('2027-01-01')
+    expect(toISODate(addDays(new Date(2026, 2, 1), -1))).toBe('2026-02-28')
   })
 })
 

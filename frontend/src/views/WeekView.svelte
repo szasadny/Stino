@@ -4,6 +4,7 @@
   import { addWeeks, buildWeekGrid, formatWeekRange, startOfWeek, toISODate } from '../lib/date'
   import { isCompact } from '../lib/viewport.svelte'
   import { onRefresh } from '../lib/refresh.svelte'
+  import { todayDate, todayKey } from '../lib/today.svelte'
   import { dragEdgeScroll } from '../lib/drag-scroll'
   import { swipe } from '../lib/swipe'
   import { navigateWithSlide } from '../lib/nav-transition'
@@ -18,10 +19,7 @@
   import DayPanel from '../lib/components/DayPanel.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
-  const today = new Date()
-  const todayKey = toISODate(today)
-
-  let anchor = $state(today)
+  let anchor = $state(todayDate())
   const week = $derived(buildWeekGrid(anchor))
   const weekKeys = $derived(week.map(toISODate))
   const rangeLabel = $derived(formatWeekRange(week))
@@ -78,6 +76,7 @@
   }
 
   function goThisWeek() {
+    const today = todayDate()
     const targetKey = toISODate(startOfWeek(today))
     const nextWeek = buildWeekGrid(today)
     void core.loadThrough(
@@ -178,7 +177,7 @@
           {date}
           dateKey={weekKeys[i]}
           items={cal.board[weekKeys[i]] ?? []}
-          isToday={weekKeys[i] === todayKey}
+          isToday={weekKeys[i] === todayKey()}
           pending={core.pending}
           labelFor={sel.labelFor}
           onToggle={core.toggle}
@@ -198,7 +197,7 @@
           {date}
           dateKey={weekKeys[i]}
           items={cal.board[weekKeys[i]] ?? []}
-          isToday={weekKeys[i] === todayKey}
+          isToday={weekKeys[i] === todayKey()}
           open={weekKeys[i] === selectedKey}
           pending={core.pending}
           labelFor={sel.labelFor}

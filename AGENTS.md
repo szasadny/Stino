@@ -209,6 +209,8 @@ A quiet morning in a pine forest: soft light, mist, stone, evergreen. Calm, spac
 
 **General:** config via env, never commit secrets; no dead code, commented-out blocks, or half-finished features in main; no magic values — constants live in `config.rs` (backend) / `constants.ts` (frontend).
 
+**Comments:** sparse and short. Comment only the non-obvious *why* (a constraint, a gotcha, a deliberate trade-off) in one line where possible. Never narrate what the code plainly does, restate a name, reference a bug/ticket/QA id, or describe the change history ("now", "fixed", "previously") — git holds that.
+
 ## Testing & lint
 
 Run before considering a change done; treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change.

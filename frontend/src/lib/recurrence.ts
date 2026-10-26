@@ -435,54 +435,68 @@ const WEEKDAY_NAMES: Record<string, string> = {
 
 const WEEKDAY_ALT = Object.keys(WEEKDAY_NAMES).join('|')
 const ORDINAL_ALT = 'first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last'
+// "mon, wed and fri" / "tuesdays & thursdays"
+const WEEKDAY_LIST = `(?:${WEEKDAY_ALT})s?(?:(?:\\s*,\\s*(?:and\\s+)?|\\s*&\\s*|\\s+and\\s+)(?:${WEEKDAY_ALT})s?)*`
+const WORKDAY_WORD = '(?:work(?:ing)?\\s?day|business\\s+day)'
+// Each fragment captures one optional count group ("3" / "other"; absent ⇒ 1).
+const EVERY_DAY = '(?:every\\s+(?:(\\d+|other)\\s+days?|day)|daily)'
+const EVERY_WEEK = '(?:every\\s+(?:(\\d+|other)\\s+weeks?|week)|weekly)'
+const EVERY_MONTH = '(?:every\\s+(?:(\\d+|other)\\s+months?|month)|monthly)'
+const OF_EVERY_MONTH = `(?:of\\s+(?:each|the)\\s+month|(?:of\\s+)?${EVERY_MONTH})`
+
+type PhraseValue = (m: RegExpExecArray, start: string | null) => RecurrenceValue | null
 
 // Ordered most-specific first; the first matching pattern wins.
-const PHRASE_RULES: { re: RegExp; value: (m: RegExpExecArray) => RecurrenceValue | null }[] = [
-  // "(the) first Monday of every/each month"
+const PHRASE_RULES: { re: RegExp; value: PhraseValue }[] = [
+  // "(the) first Monday of every (other) month"
   {
     re: new RegExp(
-      `\\b(?:the\\s+)?(${ORDINAL_ALT})\\s+(${WEEKDAY_ALT})\\s+of\\s+(?:every|each|the)\\s+month\\b`,
+      `\\b(?:the\\s+)?(${ORDINAL_ALT})\\s+(${WEEKDAY_ALT})\\s+${OF_EVERY_MONTH}\\b`,
       'i',
     ),
-    value: (m) => monthlyWeekday(m[1], m[2]),
+    value: (m) => monthlyWeekday(m[1], m[2], m[3]),
   },
-  // "every month/monthly on the first Monday"
+  // "every (N) month(s)/monthly on the first Monday"
   {
     re: new RegExp(
-      `\\b(?:every\\s+month|monthly)\\s+on\\s+the\\s+(${ORDINAL_ALT})\\s+(${WEEKDAY_ALT})\\b`,
+      `\\b${EVERY_MONTH}\\s+on\\s+the\\s+(${ORDINAL_ALT})\\s+(${WEEKDAY_ALT})\\b`,
       'i',
     ),
-    value: (m) => monthlyWeekday(m[1], m[2]),
+    value: (m) => monthlyWeekday(m[2], m[3], m[1]),
   },
-  // "(the) first/last workday of every/each month" (work day / business day too)
+  // "(the) first/last workday of every month" (work day / business day too)
   {
-    re: /\b(?:the\s+)?(first|last)\s+(?:work(?:ing)?\s?day|business\s+day)\s+of\s+(?:every|each|the)\s+month\b/i,
-    value: (m) => monthlyWorkday(m[1].toLowerCase() === 'last' ? -1 : 1),
+    re: new RegExp(`\\b(?:the\\s+)?(first|last)\\s+${WORKDAY_WORD}\\s+${OF_EVERY_MONTH}\\b`, 'i'),
+    value: (m) => monthlyWorkday(m[1], m[2]),
   },
-  // "every month/monthly on the first/last workday"
+  // "every (N) month(s)/monthly on the first/last workday"
   {
-    re: /\b(?:every\s+month|monthly)\s+on\s+the\s+(first|last)\s+(?:work(?:ing)?\s?day|business\s+day)\b/i,
-    value: (m) => monthlyWorkday(m[1].toLowerCase() === 'last' ? -1 : 1),
+    re: new RegExp(`\\b${EVERY_MONTH}\\s+on\\s+the\\s+(first|last)\\s+${WORKDAY_WORD}\\b`, 'i'),
+    value: (m) => monthlyWorkday(m[2], m[1]),
   },
-  // "(the) first/last day of every/each month"
+  // "(the) first/last day of every month"
   {
-    re: /\b(?:the\s+)?(first|last)\s+day\s+of\s+(?:every|each|the)\s+month\b/i,
-    value: (m) => monthlyMonthday(m[1].toLowerCase() === 'last' ? -1 : 1),
+    re: new RegExp(`\\b(?:the\\s+)?(first|last)\\s+day\\s+${OF_EVERY_MONTH}\\b`, 'i'),
+    value: (m) => monthlyMonthday(firstOrLast(m[1]), m[2]),
   },
-  // "every month/monthly on the first/last day"
+  // "every (N) month(s)/monthly on the first/last day"
   {
-    re: /\b(?:every\s+month|monthly)\s+on\s+the\s+(first|last)\s+day\b/i,
-    value: (m) => monthlyMonthday(m[1].toLowerCase() === 'last' ? -1 : 1),
+    re: new RegExp(`\\b${EVERY_MONTH}\\s+on\\s+the\\s+(first|last)\\s+day\\b`, 'i'),
+    value: (m) => monthlyMonthday(firstOrLast(m[2]), m[1]),
   },
-  // "(the) 15th of every/each month"
+  // "the 15th of every month" / "the 31st every month"; a bare number needs "the" or a
+  // suffix so a count like "buy 2 every month" isn't read as a date
   {
-    re: /\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(?:every|each|the)\s+month\b/i,
-    value: (m) => monthlyMonthday(Number(m[1])),
+    re: new RegExp(
+      `\\b(?:the\\s+(\\d{1,2})(?:st|nd|rd|th)?|(\\d{1,2})(?:st|nd|rd|th))\\s+${OF_EVERY_MONTH}\\b`,
+      'i',
+    ),
+    value: (m) => monthlyMonthday(Number(m[1] ?? m[2]), m[3]),
   },
-  // "every month/monthly on the 15th"
+  // "every (N) month(s)/monthly on the 15th"
   {
-    re: /\b(?:every\s+month|monthly)\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\b/i,
-    value: (m) => monthlyMonthday(Number(m[1])),
+    re: new RegExp(`\\b${EVERY_MONTH}\\s+on\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'),
+    value: (m) => monthlyMonthday(Number(m[2]), m[1]),
   },
   // "(the) first/last day of every/each week"
   {
@@ -498,63 +512,111 @@ const PHRASE_RULES: { re: RegExp; value: (m: RegExpExecArray) => RecurrenceValue
     re: /\bevery\s+(?:week\s?day|work(?:ing)?\s?day|business\s+day)\b/i,
     value: () => ({ ...EMPTY_RECURRENCE, freq: 'weekly', weekdays: [...WORKDAYS] }),
   },
-  // "every Monday"
+  // "every (other) Monday" / "every mon and wed"
   {
-    re: new RegExp(`\\bevery\\s+(${WEEKDAY_ALT})\\b`, 'i'),
-    value: (m) => {
-      const code = WEEKDAY_NAMES[m[1].toLowerCase()]
-      return code ? { ...EMPTY_RECURRENCE, freq: 'weekly', weekdays: [code] } : null
-    },
+    re: new RegExp(`\\bevery\\s+(?:(\\d+|other)\\s+)?(${WEEKDAY_LIST})\\b`, 'i'),
+    value: (m) => repeatWeekly(m[1], m[2]),
   },
-  // "every day" / "daily"
-  { re: /\b(?:every\s+day|daily)\b/i, value: () => ({ ...EMPTY_RECURRENCE, freq: 'daily' }) },
+  // "every (N) day(s)" / "daily"
+  {
+    re: new RegExp(`\\b${EVERY_DAY}\\b`, 'i'),
+    value: (m) => repeatEvery('day', m[1], {}),
+  },
   // "every year" / "yearly" / "annually"
   {
     re: /\b(?:every\s+year|yearly|annually)\b/i,
     value: () => ({ ...EMPTY_RECURRENCE, freq: 'yearly' }),
   },
-  // "every week" / "weekly"
-  { re: /\b(?:every\s+week|weekly)\b/i, value: () => ({ ...EMPTY_RECURRENCE, freq: 'weekly' }) },
+  // "every (N) week(s)/weekly (on mon and wed)"
+  {
+    re: new RegExp(`\\b${EVERY_WEEK}\\b(?:\\s+on\\s+(${WEEKDAY_LIST})\\b)?`, 'i'),
+    value: (m) => repeatWeekly(m[1], m[2]),
+  },
+  // A bare "every (N) month(s)" repeats on the start date's day of the month.
+  {
+    re: new RegExp(`\\b${EVERY_MONTH}\\b`, 'i'),
+    value: (m, start) => monthlyMonthday(monthlyDefaultsFor(start).monthday, m[1]),
+  },
 ]
 
-function monthlyWeekday(ordinal: string, weekday: string): RecurrenceValue | null {
+/** A typed count ("3" / "other") → interval; absent ⇒ 1, null when not a positive count. */
+function intervalOf(count: string | undefined): number | null {
+  if (!count) return 1
+  const n = count.toLowerCase() === 'other' ? 2 : Number(count)
+  return n >= 1 ? n : null
+}
+
+/** Interval 1 is the plain frequency; a larger one is the picker's Custom every-N-units. */
+function repeatEvery(
+  unit: CustomUnit,
+  count: string | undefined,
+  fields: Partial<RecurrenceValue>,
+): RecurrenceValue | null {
+  const interval = intervalOf(count)
+  if (interval === null) return null
+  const freq = interval > 1 ? 'custom' : UNIT_FREQ[unit]
+  return { ...EMPTY_RECURRENCE, ...fields, freq, unit, interval }
+}
+
+const UNIT_FREQ: Record<CustomUnit, RecurrenceFreq> = {
+  day: 'daily',
+  week: 'weekly',
+  month: 'monthly',
+}
+
+function repeatWeekly(count: string | undefined, list: string | undefined): RecurrenceValue | null {
+  const weekdays: string[] = []
+  for (const word of list?.toLowerCase().match(/[a-z]+/g) ?? []) {
+    if (word === 'and') continue
+    const code = WEEKDAY_NAMES[word] ?? WEEKDAY_NAMES[word.replace(/s$/, '')]
+    if (!code) return null
+    weekdays.push(code)
+  }
+  return repeatEvery('week', count, { weekdays })
+}
+
+function firstOrLast(word: string): OrdinalPosition {
+  return word.toLowerCase() === 'last' ? -1 : 1
+}
+
+function monthlyWeekday(
+  ordinal: string,
+  weekday: string,
+  count: string | undefined,
+): RecurrenceValue | null {
   const position = ORDINAL_WORDS[ordinal.toLowerCase()]
   const code = WEEKDAY_NAMES[weekday.toLowerCase()]
   if (position === undefined || !code) return null
-  return {
-    ...EMPTY_RECURRENCE,
-    freq: 'monthly',
-    monthlyMode: 'weekday',
-    position,
-    monthWeekday: code,
-  }
+  return repeatEvery('month', count, { monthlyMode: 'weekday', position, monthWeekday: code })
 }
 
-function monthlyMonthday(day: number): RecurrenceValue | null {
+function monthlyMonthday(day: number, count: string | undefined): RecurrenceValue | null {
   if (day !== -1 && (day < 1 || day > 31)) return null
-  return { ...EMPTY_RECURRENCE, freq: 'monthly', monthlyMode: 'monthday', monthday: day }
+  return repeatEvery('month', count, { monthlyMode: 'monthday', monthday: day })
 }
 
-function monthlyWorkday(position: OrdinalPosition): RecurrenceValue {
-  return {
-    ...EMPTY_RECURRENCE,
-    freq: 'monthly',
+function monthlyWorkday(ordinal: string, count: string | undefined): RecurrenceValue | null {
+  return repeatEvery('month', count, {
     monthlyMode: 'weekday',
-    position,
+    position: firstOrLast(ordinal),
     monthWeekday: WORKDAY_CODE,
-  }
+  })
 }
 
 /**
  * Find a recurrence phrase in free text. Returns the RRULE and the matched
  * substring (so the caller can strip it from the title) or null when none is
- * found. Patterns are tried most-specific first.
+ * found. Patterns are tried most-specific first. `start` (ISO) anchors a bare
+ * "every month" to its day of the month.
  */
-export function parseRecurrencePhrase(text: string): RecurrenceMatch | null {
+export function parseRecurrencePhrase(
+  text: string,
+  start: string | null = null,
+): RecurrenceMatch | null {
   for (const { re, value } of PHRASE_RULES) {
     const m = re.exec(text)
     if (!m) continue
-    const built = value(m)
+    const built = value(m, start)
     const rule = built && buildRRule(built)
     if (rule) return { rule, matched: m[0] }
   }

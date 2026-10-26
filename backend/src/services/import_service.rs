@@ -68,7 +68,8 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
             continue;
         };
 
-        let notes = field(record, &headers, COL_CONTENT).map(str::to_string);
+        let content = field(record, &headers, COL_CONTENT);
+        let (title, notes) = fit_title(title, content);
         let (due_date, due_time) = parse_due(
             field(record, &headers, COL_DUE),
             is_true(field(record, &headers, COL_ALL_DAY)),
@@ -84,7 +85,7 @@ pub async fn import_ticktick(pool: &SqlitePool, csv_bytes: &[u8]) -> AppResult<I
         };
 
         let new_task = NewTask {
-            title: title.to_string(),
+            title,
             notes,
             label_id,
             due_date,
@@ -295,6 +296,24 @@ fn is_completed(status: Option<&str>, completed_time: Option<&str>) -> bool {
     status == Some("1") || completed_time.is_some()
 }
 
+/// The first `max` characters of `value` (by `char`, so multibyte-safe).
+fn clamp_chars(value: &str, max: usize) -> String {
+    value.chars().take(max).collect()
+}
+
+/// Clamp an over-long title to the cap instead of letting the validator skip the
+/// row, keeping the full original at the top of the notes so nothing is lost.
+fn fit_title(title: &str, content: Option<&str>) -> (String, Option<String>) {
+    if title.chars().count() <= config::MAX_TITLE_LEN {
+        return (title.to_string(), content.map(str::to_string));
+    }
+    let notes = match content {
+        Some(content) => format!("{title}\n\n{content}"),
+        None => title.to_string(),
+    };
+    (clamp_chars(title, config::MAX_TITLE_LEN), Some(notes))
+}
+
 /// Find or create the label for `name`, caching the id. New labels take the next
 /// palette color deterministically (by append position), so colors are stable
 /// for a given starting database. Runs on the import's transaction connection so
@@ -305,11 +324,7 @@ async fn resolve_label(
     created: &mut ImportCreated,
     name: &str,
 ) -> AppResult<i64> {
-    let name: String = name
-        .trim()
-        .chars()
-        .take(config::MAX_LABEL_NAME_LEN)
-        .collect();
+    let name = clamp_chars(name.trim(), config::MAX_LABEL_NAME_LEN);
     let key = name.to_lowercase();
     if let Some(id) = label_ids.get(&key) {
         return Ok(*id);

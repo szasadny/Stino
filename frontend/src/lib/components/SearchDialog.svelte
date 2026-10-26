@@ -268,12 +268,14 @@
       {:else}
         <ul class="space-y-2">
           {#each tasks as task (`${task.id}:${task.occurrence_date ?? ''}`)}
+            {@const series = task.recurrence_rule != null}
             <li>
+              <!-- Occurrences of a recurring task are completed from the calendar. -->
               <TaskRow
-                {task}
+                task={series ? { ...task, completed: false } : task}
                 label={labelFor(task)}
                 dateLabel={dateLabelFor(task)}
-                onToggle={() => toggle(task)}
+                onToggle={series ? undefined : () => toggle(task)}
                 onEdit={() => (editing = task)}
               />
             </li>

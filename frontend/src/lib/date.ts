@@ -3,6 +3,8 @@
 // which converts to UTC and can shift the day. `toISODate` reads the local
 // Y/M/D components directly.
 
+import { PLAUSIBLE_YEAR_MAX, PLAUSIBLE_YEAR_MIN } from './constants'
+
 /** Weekday column headers, Monday-first (matches the grid below). */
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
@@ -37,6 +39,14 @@ export function toISODate(d: Date): string {
 export function fromISODate(iso: string): Date {
   const [year, month, day] = iso.split('-').map(Number)
   return new Date(year, month - 1, day)
+}
+
+/** A well-formed, real `YYYY-MM-DD` whose year is within the plausible range. */
+export function isPlausibleISODate(iso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false
+  const [year] = iso.split('-').map(Number)
+  if (year < PLAUSIBLE_YEAR_MIN || year > PLAUSIBLE_YEAR_MAX) return false
+  return toISODate(fromISODate(iso)) === iso
 }
 
 /** Compact date label for inline hints, e.g. "Fri 26 June". */
@@ -125,6 +135,11 @@ export function buildWeekGrid(anchor: Date): Date[] {
 /** Step `delta` weeks from `anchor` (negative = back); returns a date in that week. */
 export function addWeeks(anchor: Date, delta: number): Date {
   return new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + delta * 7)
+}
+
+/** Step `delta` calendar days from `d` (negative = back), at local midnight. */
+export function addDays(d: Date, delta: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta)
 }
 
 /**

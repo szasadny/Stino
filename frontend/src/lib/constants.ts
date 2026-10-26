@@ -21,6 +21,10 @@ export const MONTH_EXPAND_HOLD_MS = 250
 // Window for swallowing the duplicate click emitted after a touch edit (see phantom-click).
 export const GHOST_CLICK_WINDOW_MS = 350
 
+// Year bounds for a hand-typed date.
+export const PLAUSIBLE_YEAR_MIN = 1900
+export const PLAUSIBLE_YEAR_MAX = 2999
+
 // Search request debounce.
 export const SEARCH_DEBOUNCE_MS = 200
 

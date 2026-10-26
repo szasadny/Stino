@@ -5,7 +5,8 @@
   import type { TaskInput } from '../api'
   import { type ComposerDraft, draftToInput, emptyDraft } from '../composer'
   import { INPUT_CLASS, PRIMARY_BTN_CLASS, TITLE_MAX_LENGTH } from '../constants'
-  import { toISODate } from '../date'
+  import { addDays, toISODate } from '../date'
+  import { todayDate, todayKey } from '../today.svelte'
   import DeleteConfirm from './DeleteConfirm.svelte'
   import RecurringDeleteConfirm from './RecurringDeleteConfirm.svelte'
   import RecurrencePicker from './RecurrencePicker.svelte'
@@ -40,13 +41,9 @@
   const canSubmit = $derived(draft.title.trim().length > 0 && !busy)
   const editingSeries = $derived(initial.rule != null)
 
-  const todayISO = toISODate(new Date())
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowISO = toISODate(tomorrow)
-  const nextWeek = new Date()
-  nextWeek.setDate(nextWeek.getDate() + 7)
-  const nextWeekISO = toISODate(nextWeek)
+  const todayISO = $derived(todayKey())
+  const tomorrowISO = $derived(toISODate(addDays(todayDate(), 1)))
+  const nextWeekISO = $derived(toISODate(addDays(todayDate(), 7)))
 
   function setLabel(id: number | null) {
     draft.labelId = draft.labelId === id ? null : id

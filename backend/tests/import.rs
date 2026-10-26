@@ -276,3 +276,26 @@ async fn an_import_larger_than_axums_default_body_limit_is_accepted() {
     assert_eq!(status, StatusCode::OK, "a >2 MB backup must import");
     assert_eq!(summary["created"]["tasks"], 1);
 }
+
+#[tokio::test]
+async fn an_over_long_multibyte_title_is_clamped_and_kept_whole_in_the_notes() {
+    let title = "é🌲".repeat(150);
+    let csv = format!(
+        r#""Date: 2026-06-25+0000"
+
+"Folder Name","List Name","Title","Tags","Content","Is Check list","Start Date","Due Date","Reminder","Repeat","Priority","Status","Created Time","Completed Time","Order","Timezone","Is All Day","Is Floating"
+"","Work","{title}","","original notes","false","","2026-06-27T07:30:00+0000","","","0","0","2026-06-21T08:00:00+0000","","1","Europe/Amsterdam","false","false"
+"#
+    );
+    let app = test_app().await;
+    let (status, summary) = send(&app, import_req(&csv)).await;
+    assert_eq!(status, StatusCode::OK, "import failed: {summary}");
+    assert_eq!(summary["created"]["tasks"], 1);
+    assert_eq!(summary["skipped"], 0);
+
+    let (_, day) = send(&app, get("/api/tasks?date=2026-06-27")).await;
+    let task = &day.as_array().expect("array")[0];
+    let expected: String = title.chars().take(200).collect();
+    assert_eq!(task["title"], expected);
+    assert_eq!(task["notes"], format!("{title}\n\noriginal notes"));
+}

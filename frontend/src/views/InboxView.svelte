@@ -13,6 +13,7 @@
     removeActiveToken,
   } from '../lib/quickadd'
   import { type ComposerDraft, taskToDraft } from '../lib/composer'
+  import { isPlausibleISODate } from '../lib/date'
   import {
     DND_FLIP_MS,
     DND_TOUCH_HOLD_MS,
@@ -97,6 +98,7 @@
   let selecting = $state(false)
   const selectedIds = new SvelteSet<number>()
   let bulkDate = $state('')
+  const bulkDateValid = $derived(isPlausibleISODate(bulkDate))
   let confirmingBulkDelete = $state(false)
 
   const allSelected = $derived(core.tasks.length > 0 && selectedIds.size === core.tasks.length)
@@ -365,8 +367,10 @@
     })
   }
 
-  function bulkSchedule() {
-    if (!bulkDate) return
+  // Applied only on submit: Chromium fires `change` mid-typing with partial years.
+  function bulkSchedule(event: SubmitEvent) {
+    event.preventDefault()
+    if (!bulkDateValid) return
     void runBatch({ type: 'schedule', due_date: bulkDate }, (ids) => {
       core.tasks = core.tasks.filter((t) => !ids.has(t.id))
     })
@@ -593,19 +597,27 @@
                 <LabelSelect labels={core.labels} value={null} onChange={bulkSetLabel} />
               </div>
             {/if}
-            <div>
+            <form onsubmit={bulkSchedule}>
               <label for="bulk-date" class="mb-1 block text-xs font-medium text-sage"
                 >Schedule</label
               >
-              <input
-                id="bulk-date"
-                bind:value={bulkDate}
-                onchange={bulkSchedule}
-                type="date"
-                disabled={core.pending}
-                class="rounded-lg border border-lichen bg-fog px-2.5 py-1.5 text-sm text-ink outline-none transition hover:border-sage focus:border-pine focus:bg-surface disabled:opacity-40"
-              />
-            </div>
+              <div class="flex items-center gap-1.5">
+                <input
+                  id="bulk-date"
+                  bind:value={bulkDate}
+                  type="date"
+                  disabled={core.pending}
+                  class="{INPUT_CLASS} disabled:opacity-40"
+                />
+                <button
+                  type="submit"
+                  disabled={core.pending || !bulkDateValid}
+                  class="{PRIMARY_BTN_CLASS} px-3 py-2"
+                >
+                  Apply
+                </button>
+              </div>
+            </form>
             <div class="ml-auto flex items-end gap-1.5">
               <button
                 type="button"

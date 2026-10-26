@@ -93,6 +93,10 @@ export function parseQuickAdd(input: string, ref: Date = new Date()): QuickAddDr
   // Strip tags before chrono so a token like `#june` can't be misread as a date.
   const { text, label } = extractLabel(afterRec)
 
+  // Re-read the phrase against the resolved start so a bare "every month" takes its day.
+  const ruleFrom = (start: string) =>
+    (rec && parseRecurrencePhrase(rec.matched, start)?.rule) ?? null
+
   const match = chrono.parse(text, ref, { forwardDate: true })[0]
   if (!match) {
     return {
@@ -100,7 +104,7 @@ export function parseQuickAdd(input: string, ref: Date = new Date()): QuickAddDr
       label,
       due_date: rec ? toISODate(ref) : null,
       due_time: null,
-      recurrence_rule: rec?.rule ?? null,
+      recurrence_rule: ruleFrom(toISODate(ref)),
     }
   }
 
@@ -110,7 +114,7 @@ export function parseQuickAdd(input: string, ref: Date = new Date()): QuickAddDr
     label,
     due_date: toISODate(date),
     due_time: match.start.isCertain('hour') ? toLocalTime(date) : null,
-    recurrence_rule: rec?.rule ?? null,
+    recurrence_rule: ruleFrom(toISODate(date)),
   }
 }
 

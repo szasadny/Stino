@@ -482,8 +482,53 @@ describe('parseRecurrencePhrase', () => {
     expect(m?.matched).toBe('the first Monday of every month')
   })
 
+  it('recognizes every-N and every-other intervals', () => {
+    const cases: [string, string][] = [
+      ['every other tuesday', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU'],
+      ['every 3 days', 'FREQ=DAILY;INTERVAL=3'],
+      ['every other day', 'FREQ=DAILY;INTERVAL=2'],
+      ['every 1 day', 'FREQ=DAILY'],
+      ['every 2 weeks on mon and wed', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE'],
+      ['every other week', 'FREQ=WEEKLY;INTERVAL=2'],
+      ['every week on fri, mon and wed', 'FREQ=WEEKLY;BYDAY=MO,WE,FR'],
+      ['every mon & thursdays', 'FREQ=WEEKLY;BYDAY=MO,TH'],
+      ['the 31st every month', 'FREQ=MONTHLY;BYMONTHDAY=31'],
+      ['every 2 months on the 15th', 'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15'],
+      ['every 3 months on the last day', 'FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=-1'],
+      ['every 2 months on the first monday', 'FREQ=MONTHLY;INTERVAL=2;BYDAY=MO;BYSETPOS=1'],
+      [
+        'the last workday of every other month',
+        'FREQ=MONTHLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1',
+      ],
+      ['the 15th of every 4 months', 'FREQ=MONTHLY;INTERVAL=4;BYMONTHDAY=15'],
+    ]
+    for (const [text, rule] of cases) {
+      expect(parseRecurrencePhrase(text)?.rule).toBe(rule)
+    }
+  })
+
+  it('anchors a bare monthly phrase to the start day', () => {
+    expect(parseRecurrencePhrase('every other month', '2026-06-25')?.rule).toBe(
+      'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=25',
+    )
+    expect(parseRecurrencePhrase('monthly', '2026-06-25')?.rule).toBe('FREQ=MONTHLY;BYMONTHDAY=25')
+  })
+
+  it('strips the whole interval phrase', () => {
+    expect(parseRecurrencePhrase('review every 2 weeks on mon and wed')?.matched).toBe(
+      'every 2 weeks on mon and wed',
+    )
+    expect(parseRecurrencePhrase('pay on the 31st every month')?.matched).toBe(
+      'the 31st every month',
+    )
+  })
+
   it('is null for text without a recurrence phrase', () => {
     expect(parseRecurrencePhrase('buy bread')).toBeNull()
     expect(parseRecurrencePhrase('call mum tomorrow')).toBeNull()
+    expect(parseRecurrencePhrase('3 days of rest')).toBeNull()
+    expect(parseRecurrencePhrase('2 weeks notice')).toBeNull()
+    expect(parseRecurrencePhrase('every 0 days')).toBeNull()
+    expect(parseRecurrencePhrase('buy 2 every month')?.matched).toBe('every month')
   })
 })

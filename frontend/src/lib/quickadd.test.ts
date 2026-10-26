@@ -143,6 +143,41 @@ describe('parseQuickAdd', () => {
       recurrence_rule: 'FREQ=WEEKLY',
     })
   })
+
+  it('extracts interval repeats without chrono reading the interval as a date', () => {
+    const cases: [string, string, string][] = [
+      ['Trash every other tuesday', 'Trash', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU'],
+      ['Clean every 3 days', 'Clean', 'FREQ=DAILY;INTERVAL=3'],
+      ['Review every 2 weeks on mon and wed', 'Review', 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE'],
+      ['Pay on the 31st every month', 'Pay', 'FREQ=MONTHLY;BYMONTHDAY=31'],
+      ['Rent every 2 months on the 15th', 'Rent', 'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=15'],
+    ]
+    for (const [input, title, rule] of cases) {
+      expect(parseQuickAdd(input, REF)).toEqual({
+        title,
+        label: null,
+        due_date: '2026-06-25',
+        due_time: null,
+        recurrence_rule: rule,
+      })
+    }
+  })
+
+  it('anchors a bare "every other month" to the start date', () => {
+    expect(parseQuickAdd('haircut every other month', REF).recurrence_rule).toBe(
+      'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=25',
+    )
+    expect(parseQuickAdd('haircut july 3 every month', REF)).toMatchObject({
+      title: 'haircut',
+      due_date: '2026-07-03',
+      recurrence_rule: 'FREQ=MONTHLY;BYMONTHDAY=3',
+    })
+  })
+
+  it('does not read a count without "every" as a repeat', () => {
+    expect(parseQuickAdd('3 days of rest', REF).recurrence_rule).toBeNull()
+    expect(parseQuickAdd('2 weeks notice', REF).recurrence_rule).toBeNull()
+  })
 })
 
 describe('describeDraft', () => {

@@ -184,34 +184,38 @@
         {@render leading()}
       </div>
     {/if}
-    <button
-      type="button"
-      onclick={onToggle}
-      onpointerdown={guardToggleStart}
-      onmousedown={guardToggleStart}
-      ontouchstart={guardToggleStart}
-      role="checkbox"
-      aria-checked={done}
-      aria-label={done ? 'Mark as not done' : 'Mark as done'}
-      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition sm:mt-0 sm:self-center {done
-        ? 'border-pine bg-pine text-surface'
-        : 'border-sage/60 text-transparent hover:border-pine'} {completing
-        ? 'animate-check-burst'
-        : ''}"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="h-3 w-3 {completing ? 'animate-check-pop' : ''}"
-        aria-hidden="true"
+    {#if onToggle}
+      <button
+        type="button"
+        onclick={onToggle}
+        onpointerdown={guardToggleStart}
+        onmousedown={guardToggleStart}
+        ontouchstart={guardToggleStart}
+        role="checkbox"
+        aria-checked={done}
+        aria-label={done ? 'Mark as not done' : 'Mark as done'}
+        class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition sm:mt-0 sm:self-center {done
+          ? 'border-pine bg-pine text-surface'
+          : 'border-sage/60 text-transparent hover:border-pine'} {completing
+          ? 'animate-check-burst'
+          : ''}"
       >
-        <path d="M5 13l4 4L19 7" />
-      </svg>
-    </button>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-3 w-3 {completing ? 'animate-check-pop' : ''}"
+          aria-hidden="true"
+        >
+          <path d="M5 13l4 4L19 7" />
+        </svg>
+      </button>
+    {:else}
+      <span class="mt-px h-5 w-5 shrink-0 sm:mt-0 sm:self-center" aria-hidden="true"></span>
+    {/if}
 
     {#if onEdit && holdToDrag}
       <div

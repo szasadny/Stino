@@ -14,6 +14,7 @@
   import { createBottomDwell, pointFrom } from '../lib/drag-scroll'
   import { isCompact } from '../lib/viewport.svelte'
   import { onRefresh } from '../lib/refresh.svelte'
+  import { todayDate, todayKey } from '../lib/today.svelte'
   import { swipe } from '../lib/swipe'
   import { navigateWithSlide } from '../lib/nav-transition'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
@@ -27,11 +28,8 @@
   import DayPanel from '../lib/components/DayPanel.svelte'
   import TaskComposerDialog from '../lib/components/TaskComposerDialog.svelte'
 
-  const today = new Date()
-  const todayKey = toISODate(today)
-
-  let viewYear = $state(today.getFullYear())
-  let viewMonth = $state(today.getMonth())
+  let viewYear = $state(todayDate().getFullYear())
+  let viewMonth = $state(todayDate().getMonth())
   const grid = $derived(buildMonthGrid(viewYear, viewMonth))
   const gridKeys = $derived(grid.map(toISODate))
 
@@ -124,6 +122,7 @@
   }
 
   function goToday() {
+    const today = todayDate()
     const delta = (today.getFullYear() - viewYear) * 12 + (today.getMonth() - viewMonth)
     const [from, to] = rangeBoundsFor(buildMonthGrid(today.getFullYear(), today.getMonth()))
     void core.loadThrough(
@@ -229,7 +228,7 @@
             dateKey={gridKeys[i]}
             items={cal.board[gridKeys[i]] ?? []}
             inCurrentMonth={isSameMonth(date, viewMonth)}
-            isToday={gridKeys[i] === todayKey}
+            isToday={gridKeys[i] === todayKey()}
             open={gridKeys[i] === selectedKey}
             dropTarget={cal.dropKey === gridKeys[i]}
             labelFor={sel.labelFor}
@@ -249,7 +248,7 @@
             date={sel.selectedDate}
             dateKey={selectedKey}
             items={cal.board[selectedKey] ?? []}
-            isToday={selectedKey === todayKey}
+            isToday={selectedKey === todayKey()}
             pending={core.pending}
             labelFor={sel.labelFor}
             onToggle={core.toggle}
@@ -271,7 +270,7 @@
           dateKey={gridKeys[i]}
           items={cal.board[gridKeys[i]] ?? []}
           inCurrentMonth={isSameMonth(date, viewMonth)}
-          isToday={gridKeys[i] === todayKey}
+          isToday={gridKeys[i] === todayKey()}
           open={gridKeys[i] === selectedKey}
           pending={core.pending}
           labelFor={sel.labelFor}

@@ -4,6 +4,7 @@
   import { api } from './lib/api'
   import { toISODate } from './lib/date'
   import { bumpRefresh } from './lib/refresh.svelte'
+  import { setToday } from './lib/today.svelte'
   import Cairn from './lib/components/Cairn.svelte'
   import LabelManager from './lib/components/LabelManager.svelte'
   import ImportDialog from './lib/components/ImportDialog.svelte'
@@ -32,19 +33,22 @@
   // later day (a Tailscale tab often stays open across midnight) — every
   // uncompleted task with a past due date moves onto today. The browser supplies
   // "today" (Hard Rule 7); at most one call per local day, retried on the next
-  // visibility change if the backend was unreachable.
+  // visibility change if the backend was unreachable. The shared "today" advances
+  // only after the rollover so views reload with the moved tasks in place.
   let rolledOverOn = ''
   async function rolloverOverdue() {
     const today = toISODate(new Date())
-    if (today === rolledOverOn) return
-    try {
-      const { moved } = await api.tasks.rollover(today)
-      rolledOverOn = today
-      if (moved > 0) bumpRefresh()
-    } catch {
-      // Transient (offline, backend restarting) — the views surface their own
-      // load errors; the next visibility change retries the rollover.
+    let moved = 0
+    if (today !== rolledOverOn) {
+      try {
+        moved = (await api.tasks.rollover(today)).moved
+        rolledOverOn = today
+      } catch {
+        // Transient (offline, backend restarting) — the views surface their own
+        // load errors; the next visibility change retries the rollover.
+      }
     }
+    if (setToday(today) || moved > 0) bumpRefresh()
   }
 
   onMount(() => void rolloverOverdue())
