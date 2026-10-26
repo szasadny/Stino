@@ -48,6 +48,11 @@ export const INPUT_CLASS =
 export const PRIMARY_BTN_CLASS =
   'rounded-lg bg-pine text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40'
 
+// `h-fit`, not `h-auto`: a modal <dialog> is inset-0, so `auto` stretches it to its max height.
+export const SHEET_PANEL_CLASS =
+  'm-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-fit sm:max-h-none'
+export const SHEET_CONTAINER_CLASS = 'h-full sm:h-auto sm:max-h-[85vh]'
+
 // Shared drop-target highlight classes.
 export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 

@@ -526,7 +526,8 @@ fetched range widens to include the selected day. Week keeps its existing collap
   `dragEdgeScroll` (§7).
 - The task editor is **full-screen on a phone in every view**: `TaskComposerDialog`
   (Month/Week/Today/Inbox) mirrors `DaySheet`'s full-screen panel, and `DaySheet` embeds its editor
-  inline; desktop keeps the centered card.
+  inline; desktop keeps the centered card, sized to its content up to `85vh` (body scrolls). Both
+  share `SHEET_PANEL_CLASS` / `SHEET_CONTAINER_CLASS` (`constants.ts`).
 
 ## 9. Build & run
 

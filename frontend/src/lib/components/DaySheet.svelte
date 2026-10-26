@@ -3,6 +3,7 @@
   import type { Label, Task } from '../types'
   import type { TaskInput } from '../api'
   import { taskToDraft } from '../composer'
+  import { SHEET_CONTAINER_CLASS, SHEET_PANEL_CLASS } from '../constants'
   import { formatDayFull, toISODate } from '../date'
   import { dragEdgeScroll } from '../drag-scroll'
   import { errorMessage } from '../errors'
@@ -111,8 +112,8 @@
   {onClose}
   title={date ? formatDayFull(date) : ''}
   {subtitle}
-  panelClass="m-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-auto sm:max-h-[85vh] sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))] sm:rounded-2xl"
-  containerClass="h-full sm:h-auto sm:max-h-[85vh]"
+  panelClass="{SHEET_PANEL_CLASS} sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))]"
+  containerClass={SHEET_CONTAINER_CLASS}
 >
   <!-- dragEdgeScroll: a long day still reorders by touch — holding a task near the
        sheet's top/bottom edge auto-scrolls the list to reach off-screen rows. -->
