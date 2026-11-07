@@ -216,7 +216,7 @@ A quiet morning in a pine forest: soft light, mist, stone, evergreen. Calm, spac
 
 ## Testing & lint
 
-Run before considering a change done; treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change.
+Run before considering a change done; treat any clippy/prettier/svelte-check error as a failing build — fix it in the same change. CI (`.github/workflows/ci.yml`) runs these same steps on every push to `main` and every PR.
 
 1. **Backend lint:** `cd backend && cargo fmt --check && cargo clippy -- -D warnings`
 2. **Backend tests:** `cd backend && cargo test` — integration tests against a temp SQLite DB.
