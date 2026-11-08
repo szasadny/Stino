@@ -92,7 +92,7 @@ One process, one container. Axum serves the built Svelte SPA as static files and
 
 **Dev:** backend `cargo run` (API on :8080); frontend `vite dev` (:5173, proxies `/api`). Config from env: `DATABASE_URL`, `DATA_DIR`, `STATIC_DIR`, `PORT`, optional `ALLOWED_HOSTS`. `.env` holds local values — never commit it. There is deliberately **no `TZ` config** — the backend never computes "today": dates are stored and returned as plain local text, the browser supplies the local timezone, and the importer uses the CSV's own timezone column.
 
-**Prod:** one container (`docker compose up --build`). Multi-stage Dockerfile: build the SPA → build the Rust binary → slim runtime serving both. SQLite on a **mounted volume**; migrations run at startup; exposed only on Tailscale.
+**Prod:** one container (`docker compose up --build`). Multi-stage Dockerfile: build the SPA → build the Rust binary → slim runtime serving both. SQLite on a **mounted volume**; migrations run at startup; exposed only on Tailscale. A `docker-prune` sidecar (docker socket) weekly prunes images unused >7d and build cache >14d so rebuilds don't fill the host disk — never volumes.
 
 Write code that works in dev and in the container: no absolute local paths, no hardcoded `localhost` in the frontend (use relative `/api`), no state that doesn't survive a restart.
 
