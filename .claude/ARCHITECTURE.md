@@ -256,7 +256,7 @@ Behaviours that matter:
 - `lib/constants.ts` — view list; length caps mirroring `config.rs` (`TITLE_MAX_LENGTH`,
   `LABEL_NAME_MAX_LENGTH`, `LABEL_EMOJI_MAX_LENGTH`); `COMPACT_MAX_WIDTH`; drag/gesture timings
   (`DND_FLIP_MS`, `DND_TOUCH_HOLD_MS`, `DND_GRID_TOUCH_HOLD_MS`, `MONTH_EXPAND_ZONE_PX`,
-  `MONTH_EXPAND_HOLD_MS`, `GHOST_CLICK_WINDOW_MS`, `SEARCH_DEBOUNCE_MS`); look-tokens
+  `MONTH_EXPAND_HOLD_MS`, `TAP_SLOP_PX`, `SEARCH_DEBOUNCE_MS`); look-tokens
   (`INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `DROP_TARGET_RING_CLASSES` — the shared drop-zone
   hover highlight; callers prepend only their corner radius); re-exports `LABEL_PALETTE`.
 
@@ -337,12 +337,15 @@ Behaviours that matter:
   here only swaps the period state and commits the already-fetched data, so the new period still
   slides in already populated without a frozen frame. No API support or `prefers-reduced-motion` ⇒
   applies instantly.
-- `phantom-click.ts` — `openWithoutPhantomClick(open)` swallows the ONE stray "compatibility" click a touch tap emits on the
-  `delayTouchStart` path (the library dispatches a synthetic tap→click AND the browser fires the
-  native one), so it can't hit the editor that mounts at the tap point. Arms only on
-  `pointer: coarse` — on a fine pointer there is no phantom and arming would eat a real click.
-  Also swallows that click's `mousedown`, which would focus the control under the finger. One home so
-  `DayAgenda`, `DayListSection` and the grid composer's `edit` can't drift.
+- `tap.ts` — what counts as a tap on a drag item, independent of timing. On the `delayTouchStart`
+  path the library re-dispatches a tap as an untrusted `click` at `touchend`, before the browser's
+  own: `trustedClick(handler)` acts only on the trusted one, so an editor opens on the tap's last
+  event and nothing trails into it (`TaskPill`, `TaskRow` open + toggle). A press held past the
+  hold becomes a drag even without moving: `trackPresses(window, presses)` (`main.ts`) records each
+  press's travel into the shared `presses` tracker, and `tappedItem(detail, presses.stationary)`
+  returns the dropped item when that drop was a press that stayed within `TAP_SLOP_PX` — every
+  task finalize (`calendar-board`, `DayAgenda`, `InboxView`) then opens the editor instead of
+  persisting.
 - `theme.ts` — theme preference (`normalizeThemePref` / `getThemePref` / `setThemePref`):
   System/Light/Dark, persisted in `localStorage`, manual override via `data-theme` on `<html>`.
 
@@ -535,7 +538,12 @@ fetched range widens to include the selected day. Week keeps its existing collap
 
 - svelte-dnd-action won't start a drag from a `<button>` (any element with a `.value`), so a
   hold-to-drag row's tap-to-edit surface is a `div role=button` (`TaskRow`'s `holdToDrag`).
-- `phantom-click.ts` (§7) swallows the stray post-tap click in `DayAgenda`, `DayListSection` and grid-composer `edit`.
+- A tap on a drag item is decided by `tap.ts` (§7): trusted clicks only, and a stationary drop of
+  any length opens the editor. `main.ts` sets the library's keyboard-drag trigger to Space only
+  (`setKeyboardDragTrigger`), so Enter on a drag item opens it. A `task-core` reorder whose ids
+  already follow `sort_order` saves nothing.
+- `InboxView`'s `out:foldAway` is skipped while dragging: the library swaps the dragged row for a
+  shadow item with another key, and an outro there keeps the row from coming back.
 - Scrollable drag surfaces (the phone Week stack, the `DaySheet` body) attach `drag-scroll.ts`'s
   `dragEdgeScroll` (§7).
 - The task editor is **full-screen on a phone in every view**: `TaskComposerDialog`

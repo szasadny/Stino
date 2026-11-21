@@ -3,6 +3,7 @@
   import { dragHandle } from 'svelte-dnd-action'
   import type { Label, Task } from '../types'
   import { labelColorVar } from '../labels'
+  import { trustedClick } from '../tap'
 
   let {
     task,
@@ -49,7 +50,7 @@
     type="button"
     onclick={(e) => {
       e.stopPropagation()
-      onToggle?.(task)
+      if (e.isTrusted) onToggle?.(task)
     }}
     onpointerdown={swallowStart}
     onmousedown={swallowStart}
@@ -81,7 +82,7 @@
     use:dragHandleIf
     role="button"
     tabindex="0"
-    onclick={onOpen}
+    onclick={trustedClick(onOpen)}
     onkeydown={openOnKey}
     aria-label={openLabel}
     class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color

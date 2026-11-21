@@ -70,7 +70,7 @@ One process, one container. Axum serves the built Svelte SPA as static files and
   - A drop list is owned `$state`, mutated only by `consider`/`finalize`, and re-projected from source data only while no gesture is live (guard the `$effect` with a `dragging` flag read via `untrack`).
   - At most ONE live zone holds a given day's items — freeze any duplicate (render it statically, no zone), e.g. a grid cell freezes while `DayPanel` or the phone-month agenda is that day's live zone.
   - Mid-drag, hide a zone with `hidden` (display:none zeroes its rects, so it can't capture the pointer) — never unmount it (the origin zone must stay registered) and never `invisible`/`visibility:hidden` (an invisible zone keeps its rects and phantom-captures the pointer).
-  - Pure drag/gesture logic lives in `lib/` (`move.ts`, `fit.ts`, `drag-scroll.ts`, `swipe.ts`, `panel-pos.ts`), unit-tested.
+  - Pure drag/gesture logic lives in `lib/` (`move.ts`, `fit.ts`, `drag-scroll.ts`, `swipe.ts`, `panel-pos.ts`, `tap.ts`), unit-tested.
 - **Period navigation (month/week) is a directional slide, not an instant swap.** Every navigation (phone swipe via `lib/swipe.ts`, or header arrows) goes through `lib/nav-transition.ts`'s `navigateWithSlide` — a snapshot-based View Transition, so the outgoing grid never mounts twice. Fetch the target range **before** `startViewTransition` (task-core's `loadThrough`); the callback only commits. Details: ARCHITECTURE.md §7–§8.
 - **One source of truth per concern.** If you write the same block in a second place, lift it into the shared module first.
 

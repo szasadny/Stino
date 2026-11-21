@@ -17,7 +17,6 @@
   import {
     DND_FLIP_MS,
     DND_TOUCH_HOLD_MS,
-    GHOST_CLICK_WINDOW_MS,
     INBOX_COMPLETE_EXIT_MS,
     INBOX_COMPLETE_HOLD_MS,
     INBOX_COMPLETE_RETRY_MS,
@@ -31,7 +30,7 @@
   import { onRefresh } from '../lib/refresh.svelte'
   import { isCompact } from '../lib/viewport.svelte'
   import { dragEdgeScroll } from '../lib/drag-scroll'
-  import { openWithoutPhantomClick } from '../lib/phantom-click'
+  import { presses, tappedItem } from '../lib/tap'
   import { createTaskCore } from '../lib/controllers/task-core.svelte'
   import TaskRow from '../lib/components/TaskRow.svelte'
   import DeleteConfirm from '../lib/components/DeleteConfirm.svelte'
@@ -251,14 +250,8 @@
 
   const completingIds = new SvelteSet<number>()
   const completeTimers = new Map<number, ReturnType<typeof setTimeout>>()
-  const lastTickAt = new Map<number, number>()
 
   function completeTask(task: Task) {
-    // Ignore the touch phantom click, or it would undo its own completion.
-    const now = performance.now()
-    if (now - (lastTickAt.get(task.id) ?? -Infinity) < GHOST_CLICK_WINDOW_MS) return
-    lastTickAt.set(task.id, now)
-
     if (completingIds.has(task.id)) {
       // Ticked again during the hold: nothing written yet, just cancel.
       clearTimeout(completeTimers.get(task.id))
@@ -285,7 +278,6 @@
     }
     completeTimers.delete(task.id)
     completingIds.delete(task.id)
-    lastTickAt.delete(task.id)
     const index = core.tasks.findIndex((t) => t.id === task.id)
     const shown = { task, index }
     void core
@@ -314,6 +306,8 @@
   }
 
   function foldAway(node: HTMLElement) {
+    // A drag swaps the row for the library's shadow item; an outro there keeps the row from returning.
+    if (dragging) return { duration: 0 }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const height = node.offsetHeight
     return {
@@ -345,6 +339,11 @@
   function reorderFinalize(event: CustomEvent<DndEvent<Task>>) {
     dragOrder = event.detail.items
     dragging = false // before persisting, so the revert can re-project
+    const tapped = tappedItem(event.detail, presses.stationary)
+    if (tapped) {
+      startEdit(tapped)
+      return
+    }
     void core.reorder(dragOrder.map((t) => t.id))
   }
 
@@ -721,7 +720,7 @@
                 label={labelFor(task)}
                 completing={completingIds.has(task.id)}
                 onToggle={() => completeTask(task)}
-                onEdit={() => openWithoutPhantomClick(() => startEdit(task))}
+                onEdit={() => startEdit(task)}
                 holdToDrag
               />
             </li>

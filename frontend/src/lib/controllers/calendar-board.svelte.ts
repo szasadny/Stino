@@ -5,12 +5,15 @@ import { api } from '../api'
 import { buildBoard, type CellItem } from '../calendar-board'
 import { groupByLabelView } from '../group-view.svelte'
 import { applyMove, dropKind } from '../move'
+import { presses, tappedItem } from '../tap'
+import type { Task } from '../types'
 import type { TaskCore } from './task-core.svelte'
 
 export function createCalendarBoard(
   core: TaskCore,
   keys: () => string[],
   reload: () => Promise<void>,
+  open: (task: Task) => void,
 ) {
   let board = $state<Record<string, CellItem[]>>({})
   let dragging = $state(false)
@@ -36,6 +39,11 @@ export function createCalendarBoard(
     dropKey = null
     board[key] = e.detail.items
     dragging = false // before persisting, so the optimistic update can re-project
+    const tapped = tappedItem(e.detail, presses.stationary)
+    if (tapped) {
+      open(tapped.task)
+      return
+    }
     const plan = dropKind(e, key, core.tasks)
     if (plan.kind === 'none') return
     if (plan.kind === 'reorder') {

@@ -5,6 +5,7 @@
   import type { Label, Task } from '../types'
   import { summarizeRule } from '../recurrence'
   import { labelColorVar } from '../labels'
+  import { trustedClick } from '../tap'
   import LabelChip from './LabelChip.svelte'
 
   let {
@@ -187,7 +188,7 @@
     {#if onToggle}
       <button
         type="button"
-        onclick={onToggle}
+        onclick={trustedClick(onToggle)}
         onpointerdown={guardToggleStart}
         onmousedown={guardToggleStart}
         ontouchstart={guardToggleStart}
@@ -221,7 +222,7 @@
       <div
         role="button"
         tabindex="0"
-        onclick={onEdit}
+        onclick={trustedClick(onEdit)}
         onkeydown={editOnKey}
         aria-label="Edit task"
         class="min-w-0 flex-1 cursor-pointer rounded-lg text-left transition hover:opacity-80"

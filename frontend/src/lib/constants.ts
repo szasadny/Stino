@@ -19,7 +19,8 @@ export const DND_GRID_TOUCH_HOLD_MS = 150
 export const MONTH_EXPAND_ZONE_PX = 64
 export const MONTH_EXPAND_HOLD_MS = 250
 
-export const GHOST_CLICK_WINDOW_MS = 350
+// A press that moves less than this is a tap, however long it is held.
+export const TAP_SLOP_PX = 10
 
 export const PLAUSIBLE_YEAR_MIN = 1900
 export const PLAUSIBLE_YEAR_MAX = 2999

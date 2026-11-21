@@ -34,8 +34,8 @@
   )
 
   const core = createTaskCore()
-  const cal = createCalendarBoard(core, () => weekKeys, loadRange)
   const composer = createGridComposer(core, loadRange)
+  const cal = createCalendarBoard(core, () => weekKeys, loadRange, composer.edit)
 
   const sel = createCalendarSelection(core)
   // Freeze the zoomed cell so DayPanel is the only live drag zone for that day.

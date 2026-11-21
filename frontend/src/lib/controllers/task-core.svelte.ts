@@ -4,7 +4,7 @@ import { api, type TaskInput } from '../api'
 import type { Label, Task } from '../types'
 import { errorMessage } from '../errors'
 import { applyLabelOrder, mergeLabelOrder } from '../labels'
-import { applyUntimedOrder } from '../ordering'
+import { applyUntimedOrder, isUntimedOrder } from '../ordering'
 import {
   replaceOccurrence,
   restoreOccurrence,
@@ -206,6 +206,7 @@ export function createTaskCore() {
     },
 
     reorder(ids: number[]): Promise<boolean> {
+      if (isUntimedOrder(tasks, ids)) return Promise.resolve(true)
       return optimistic(
         () => {
           tasks = applyUntimedOrder(tasks, ids)

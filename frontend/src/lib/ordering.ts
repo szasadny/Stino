@@ -24,6 +24,11 @@ export function sortForView(tasks: Task[]): Task[] {
 }
 
 /** Touches only the tasks named in `ids`, so one day's reorder can't disturb other days in the range. */
+export function isUntimedOrder(tasks: Task[], ids: number[]): boolean {
+  const rank = new Map(tasks.map((t) => [t.id, t.sort_order]))
+  return ids.every((id, i) => i === 0 || (rank.get(ids[i - 1]) ?? NaN) < (rank.get(id) ?? NaN))
+}
+
 export function applyUntimedOrder(tasks: Task[], ids: number[]): Task[] {
   const rank = new Map(ids.map((id, index) => [id, index]))
   const patched = tasks.map((t) =>

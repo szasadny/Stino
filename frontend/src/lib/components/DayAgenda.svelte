@@ -5,7 +5,7 @@
   import type { Label, Task } from '../types'
   import { DND_FLIP_MS, DND_TOUCH_HOLD_MS } from '../constants'
   import { isCompact } from '../viewport.svelte'
-  import { openWithoutPhantomClick } from '../phantom-click'
+  import { presses, tappedItem } from '../tap'
   import { labelLookup } from '../labels'
   import { dayViewGroups, type TaskGroup } from '../grouping'
   import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
@@ -82,6 +82,11 @@
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
     untimed[key] = e.detail.items
     dragging = false // before notifying, so the resulting data change can re-project
+    const tapped = tappedItem(e.detail, presses.stationary)
+    if (tapped) {
+      onEdit?.(tapped)
+      return
+    }
     const liveGroups = groups.map((group) => ({
       label: group.label,
       tasks: untimed[keyOf(group)] ?? [],
@@ -206,7 +211,7 @@
             label={rowLabel(task)}
             slim
             onToggle={() => onToggle(task)}
-            onEdit={onEdit ? () => openWithoutPhantomClick(() => onEdit(task)) : undefined}
+            onEdit={onEdit ? () => onEdit(task) : undefined}
             holdToDrag={reorderable}
           />
         </li>

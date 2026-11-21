@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import type { Label } from '../types'
   import type { TaskInput } from '../api'
   import { type ComposerDraft, draftToInput, emptyDraft } from '../composer'
@@ -55,7 +55,10 @@
   }
 
   function focus(node: HTMLElement) {
-    node.focus()
+    // Editing on a phone shouldn't throw the keyboard over the sheet.
+    if (initial.title && matchMedia('(pointer: coarse)').matches) return
+    // After the flush: opening a dialog in it runs showModal, which moves focus to its first control.
+    void tick().then(() => node.focus())
   }
 
   function submit(event: SubmitEvent) {

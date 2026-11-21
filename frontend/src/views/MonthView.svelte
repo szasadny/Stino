@@ -44,8 +44,8 @@
     selectedKey && !gridKeys.includes(selectedKey) ? [...gridKeys, selectedKey] : gridKeys,
   )
 
-  const cal = createCalendarBoard(core, () => boardKeys, loadRange)
   const composer = createGridComposer(core, loadRange)
+  const cal = createCalendarBoard(core, () => boardKeys, loadRange, composer.edit)
 
   let gridExpanded = $state(false)
   let splitEl = $state<HTMLElement | null>(null)

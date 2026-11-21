@@ -3,7 +3,6 @@
   import type { CellItem } from '../calendar-board'
   import { dndzone, type DndEvent } from 'svelte-dnd-action'
   import { DND_FLIP_MS, DND_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
-  import { openWithoutPhantomClick } from '../phantom-click'
   import { formatDayFull, weekdayLong } from '../date'
   import TaskRow from './TaskRow.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
@@ -139,7 +138,7 @@
               label={labelFor(item.task)}
               slim
               onToggle={() => onToggle(item.task)}
-              onEdit={() => openWithoutPhantomClick(() => onEditTask(item.task))}
+              onEdit={() => onEditTask(item.task)}
               holdToDrag
             />
           </li>

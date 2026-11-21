@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { applyUntimedOrder, completedLast, sortForView, untimedReadingOrder } from './ordering'
+import {
+  applyUntimedOrder,
+  completedLast,
+  isUntimedOrder,
+  sortForView,
+  untimedReadingOrder,
+} from './ordering'
 import type { TaskGroup } from './grouping'
 import type { Label, Task } from './types'
 
@@ -119,5 +125,20 @@ describe('sortForView', () => {
     const snapshot = [...tasks]
     expect(sortForView(tasks).map((t) => t.id)).toEqual([2, 9])
     expect(tasks).toEqual(snapshot) // input order untouched
+  })
+})
+
+describe('isUntimedOrder', () => {
+  const tasks = [task(1, { sort_order: 4 }), task(2, { sort_order: 7 }), task(3, { sort_order: 9 })]
+
+  it('is true when the ids already follow sort_order, so a drop back in place saves nothing', () => {
+    expect(isUntimedOrder(tasks, [1, 2, 3])).toBe(true)
+    expect(isUntimedOrder(tasks, [2])).toBe(true)
+  })
+
+  it('is false for a real reorder, ties, or unknown ids', () => {
+    expect(isUntimedOrder(tasks, [2, 1, 3])).toBe(false)
+    expect(isUntimedOrder([task(1), task(2)], [1, 2])).toBe(false)
+    expect(isUntimedOrder(tasks, [1, 99])).toBe(false)
   })
 })

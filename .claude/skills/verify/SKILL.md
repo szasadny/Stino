@@ -30,6 +30,7 @@ Builds are offline by default (`backend/.cargo/config.toml`); "no cached data" m
 
 - Day cells: `[aria-label*="9 July"]` (`"{Weekday}, {D} {Month}, N tasks"`). Nav tabs are `<button>`s; the header period-nav also has a "Today" button — the bottom tab bar's is `.last`.
 - **Taps: never `.click()` in a touch context** (misses the phantom double-click). Use CDP `Input.dispatchTouchEvent`: touchStart → ~60ms → touchEnd.
+- Wait with `page.wait_for_timeout`, not `time.sleep`: sync Playwright only delivers `request`/`console` events during a Playwright call, so a list filled by `page.on(...)` reads empty after a sleep.
 - **Touch drag:** touchStart → 0.45s hold → one >3px touchMove to arm → stepped moves (~35ms) → ~0.5s settle → touchEnd.
 - **Desktop drag:** CDP `Input.dispatchMouseEvent` (Playwright `mouse`/`drag_to` won't arm svelte-dnd-action): mousePressed on the `div[title="Drag to reorder"]` grip (list views) → one >3px mouseMoved → stepped moves (~35ms) → ~0.5s settle → mouseReleased.
 - **Edge auto-scroll:** hold the pointer inside the scroll container's 72px bottom zone and poll its `scrollTop`; a drop while it scrolls is a benign no-op — verify persistence with a short in-view drag.
