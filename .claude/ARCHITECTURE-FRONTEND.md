@@ -86,7 +86,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | | `TaskMeta` | A row's meta line: date, time, repeat, label |
 | | `CheckToggle` | The completion checkbox, safe inside a drag item |
 | | `ReorderList` | A reorderable list: grip zone on wide, press-and-hold zone on phone |
-| Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji and name in a chip, option or toggle look |
+| Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji (`font-emoji` in a fixed box) and name in a chip, option or toggle look |
 | Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button (`sm`/`md` size, label as tooltip); generic segmented choice |
 | | `GroupViewToggle` | The List / By label control for `group-view.svelte.ts` |
 | | `DeleteConfirm` | Two-step Delete, then Yes / No |

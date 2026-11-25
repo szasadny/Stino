@@ -92,7 +92,7 @@ export const INPUT_CLASS = `${INPUT_LOOK} ${SIZE_MD} px-3`
 export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} ${SIZE_SM} px-2.5`
 export const TEXTAREA_CLASS = `${INPUT_LOOK} px-3 py-2 text-sm`
 export const TITLE_INPUT_CLASS = `${INPUT_LOOK} px-3 py-2.5 text-base font-medium placeholder:font-normal`
-export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center text-lg`
+export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center font-emoji text-lg`
 
 export const PRIMARY_BTN_CLASS = `rounded-lg bg-pine font-medium text-surface transition enabled:hover:bg-pine-deep ${DISABLED_LOOK}`
 export const SECONDARY_BTN_CLASS = `rounded-lg border border-lichen font-medium text-pine-deep transition enabled:hover:border-pine/40 enabled:hover:bg-pine/5 ${DISABLED_LOOK}`

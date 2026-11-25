@@ -134,7 +134,7 @@
             onclick={() => (emoji = suggestion)}
             aria-label={suggestion}
             aria-pressed={emoji === suggestion}
-            class="grid h-9 place-items-center rounded-lg border text-lg transition {emoji ===
+            class="grid h-9 place-items-center rounded-lg border font-emoji text-lg transition {emoji ===
             suggestion
               ? CHIP_ON_CLASS
               : CHIP_OFF_CLASS}"

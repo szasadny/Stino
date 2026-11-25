@@ -33,6 +33,7 @@ export default {
           'system-ui',
           'sans-serif',
         ],
+        emoji: ['Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'sans-serif'],
       },
       fontSize: {
         wordmark: '1.35rem',
