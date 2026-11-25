@@ -1,21 +1,17 @@
-// Fetch BEFORE calling (task-core `loadThrough`); `apply` only commits, so the page never
-// freezes on the network while rendering is paused.
 import { tick } from 'svelte'
+import { prefersReducedMotion } from 'svelte/motion'
 
-export type NavDirection = 'forward' | 'back'
+type NavDirection = 'forward' | 'back'
 
 // Stops an older navigation from clearing a newer direction attribute.
 let navToken = 0
 
+// Fetch before calling (task-core `loadThrough`): rendering stays paused while `apply` runs.
 export async function navigateWithSlide(
   dir: NavDirection | null,
   apply: () => void | Promise<void>,
 ): Promise<void> {
-  if (
-    !dir ||
-    !document.startViewTransition ||
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ) {
+  if (!dir || !document.startViewTransition || prefersReducedMotion.current) {
     await apply()
     return
   }
@@ -26,10 +22,10 @@ export async function navigateWithSlide(
     await tick() // flush the new period into the DOM before the snapshot
   })
   try {
-    await transition.finished
-  } catch {
-    // Skipped by a newer navigation or the browser.
+    await transition.updateCallbackDone
   } finally {
+    // `finished` only rejects with the commit's own error, which `updateCallbackDone` surfaced.
+    await transition.finished.catch(() => undefined)
     if (navToken === token) delete document.documentElement.dataset.navDir
   }
 }

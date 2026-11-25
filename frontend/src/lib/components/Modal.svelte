@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import type { Attachment } from 'svelte/attachments'
+  import { MODAL_SIZES, type ModalSize } from '../constants'
+  import PanelHeader from './PanelHeader.svelte'
 
   let {
     open,
@@ -7,28 +10,32 @@
     onOpen,
     title,
     subtitle,
-    panelClass = 'm-auto w-[min(30rem,calc(100vw-1.5rem))] rounded-2xl',
-    containerClass = '',
+    label,
+    size = 'md',
+    header,
     children,
   }: {
     open: boolean
     onClose: () => void
     onOpen?: () => void
-    title: string
+    title?: string
     subtitle?: string
-    panelClass?: string
-    containerClass?: string
+    label?: string
+    size?: ModalSize
+    header?: Snippet
     children: Snippet
   } = $props()
 
+  const titleId = $props.id()
   let dialogEl = $state<HTMLDialogElement | null>(null)
+  let opener: Element | null = null
+  let destroyed = false
 
   $effect(() => {
     if (!dialogEl) return
     if (open) {
       if (!dialogEl.open) {
-        // Set imperatively so Svelte's attribute typing doesn't fight it.
-        dialogEl.setAttribute('closedby', 'any')
+        opener = document.activeElement
         dialogEl.showModal()
         onOpen?.()
       }
@@ -36,6 +43,18 @@
       dialogEl.close()
     }
   })
+
+  // Teardown runs after the dialog left the DOM, where the browser does not return focus.
+  const closeOnDestroy: Attachment<HTMLDialogElement> = (dialog) => () => {
+    destroyed = true
+    if (!dialog.open) return
+    dialog.close()
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+  }
+
+  function handleClose() {
+    if (!destroyed) onClose()
+  }
 
   // Light-dismiss fallback for browsers lacking `closedby` (notably Safari).
   function handleBackdropClick(event: MouseEvent) {
@@ -53,49 +72,30 @@
 
 <dialog
   bind:this={dialogEl}
-  onclose={onClose}
+  {@attach closeOnDestroy}
+  closedby="any"
+  aria-labelledby={title && !header ? titleId : undefined}
+  aria-label={label}
+  onclose={handleClose}
   onclick={handleBackdropClick}
-  class="border border-lichen bg-surface p-0 text-ink shadow-overlay {panelClass}"
+  class="border border-lichen bg-surface p-0 text-ink shadow-overlay backdrop:bg-scrim backdrop:backdrop-blur-scrim {MODAL_SIZES[
+    size
+  ].panel}"
 >
-  <div class="flex flex-col {containerClass}">
-    <header class="flex items-start justify-between gap-4 border-b border-lichen px-5 py-4">
-      <div>
-        <h2 class="font-display text-xl font-semibold tracking-tight text-pine-deep">{title}</h2>
-        {#if subtitle}
-          <p class="mt-0.5 text-sm text-sage">{subtitle}</p>
-        {/if}
-      </div>
-      <button
-        type="button"
-        onclick={onClose}
-        aria-label="Close"
-        class="-mr-1 -mt-1 rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          class="h-5 w-5"
-          aria-hidden="true"
-        >
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
-    </header>
+  <div class="flex flex-col {MODAL_SIZES[size].container}">
+    {#if header}
+      {@render header()}
+    {:else if title}
+      <PanelHeader {title} {subtitle} {onClose} {titleId} />
+    {/if}
 
     {@render children()}
   </div>
 </dialog>
 
 <style>
-  dialog::backdrop {
-    background: rgb(var(--scrim) / 0.42);
-    backdrop-filter: blur(3px);
-  }
   dialog[open] {
-    animation: sheet-in 160ms ease-out;
+    animation: sheet-in var(--duration-dialog) ease-out;
   }
   @keyframes sheet-in {
     from {

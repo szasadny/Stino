@@ -1,5 +1,6 @@
 mod extract;
 mod health;
+mod host_guard;
 mod import;
 mod labels;
 mod search;
@@ -8,27 +9,24 @@ mod tasks;
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{DefaultBodyLimit, Request};
-use axum::http::{header, StatusCode};
-use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
-use axum::{
-    routing::{get, patch, post},
-    Json, Router,
-};
-use serde::{Deserialize, Deserializer};
-use sqlx::SqlitePool;
+use axum::extract::DefaultBodyLimit;
+use axum::middleware;
+use axum::routing::{get, patch, post};
+use axum::Router;
+use serde::Deserialize;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
 use crate::config;
+use crate::error::AppError;
+use crate::services::Pool;
 
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: SqlitePool,
+#[derive(Deserialize)]
+struct IdList {
+    ids: Vec<i64>,
 }
 
-pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<String>>) -> Router {
+pub fn router(pool: Pool, static_dir: &Path, allowed_hosts: Option<Vec<String>>) -> Router {
     let api = Router::new()
         .route("/health", get(health::health))
         .route("/labels", get(labels::list).post(labels::create))
@@ -52,7 +50,7 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
         )
         // JSON 404 for unknown /api paths instead of the SPA index.
         .fallback(api_not_found)
-        .with_state(AppState { pool });
+        .with_state(pool);
 
     // SPA fallback keeps a 200 for deep links (.not_found_service would force a 404).
     let index = static_dir.join("index.html");
@@ -67,52 +65,13 @@ pub fn router(pool: SqlitePool, static_dir: &Path, allowed_hosts: Option<Vec<Str
         Some(hosts) => {
             let hosts = Arc::new(hosts);
             router.layer(middleware::from_fn(move |req, next| {
-                check_host(hosts.clone(), req, next)
+                host_guard::check_host(hosts.clone(), req, next)
             }))
         }
         None => router,
     }
 }
 
-/// DNS-rebinding guard: reject requests whose Host (port stripped, case-insensitive) isn't allowed.
-async fn check_host(hosts: Arc<Vec<String>>, req: Request, next: Next) -> Response {
-    let allowed = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|value| value.to_str().ok())
-        .map(host_name)
-        .is_some_and(|name| hosts.iter().any(|host| host.eq_ignore_ascii_case(name)));
-    if allowed {
-        next.run(req).await
-    } else {
-        (
-            StatusCode::FORBIDDEN,
-            Json(serde_json::json!({ "error": "forbidden host" })),
-        )
-            .into_response()
-    }
-}
-
-/// Strips a `:port`, keeping an IPv6 literal (`[::1]:8080`) intact.
-fn host_name(header: &str) -> &str {
-    if let Some(rest) = header.strip_prefix('[') {
-        return rest.split_once(']').map_or(rest, |(name, _)| name);
-    }
-    header.split_once(':').map_or(header, |(name, _)| name)
-}
-
-/// Present `null` ⇒ `Some(None)` (clear); with `#[serde(default)]` an omitted field stays `None`.
-pub(super) fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
-where
-    T: Deserialize<'de>,
-    D: Deserializer<'de>,
-{
-    Option::<T>::deserialize(deserializer).map(Some)
-}
-
-async fn api_not_found() -> (StatusCode, Json<serde_json::Value>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(serde_json::json!({ "error": "not found" })),
-    )
+async fn api_not_found() -> AppError {
+    AppError::NotFound
 }

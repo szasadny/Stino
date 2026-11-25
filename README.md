@@ -33,6 +33,17 @@ cd backend  && cargo run                     # JSON API on :8080
 cd frontend && npm install && npm run dev    # SPA on :5173, proxies /api
 ```
 
+Checks and tests (run from the repo root):
+
+```bash
+scripts/test.sh            # full pipeline, same stages as CI
+scripts/test.sh --guards   # fast checks only: lint, types, guards, duplication
+scripts/test.sh --skip frontend,quality   # skip stages: backend, frontend, quality
+
+cd backend  && cargo test --locked                     # backend tests
+cd frontend && npm run lint && npm run check && npm test   # frontend lint, types, tests
+```
+
 ## License
 
 [MIT](./LICENSE)

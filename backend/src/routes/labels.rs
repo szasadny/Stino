@@ -1,74 +1,45 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use serde::Deserialize;
 
 use super::extract::{Json, Path};
-use super::{double_option, AppState};
+use super::{IdList, Pool};
+use crate::domain::{LabelPatch, NewLabel};
 use crate::error::AppResult;
 use crate::services::label_service;
 
-#[derive(Deserialize)]
-pub struct CreateLabel {
-    pub name: String,
-    pub color: String,
-    pub emoji: Option<String>,
+pub(super) async fn list(State(pool): State<Pool>) -> AppResult<impl IntoResponse> {
+    Ok(Json(label_service::list(&pool).await?))
 }
 
-#[derive(Deserialize)]
-pub struct ReorderLabels {
-    pub ids: Vec<i64>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateLabel {
-    pub name: Option<String>,
-    pub color: Option<String>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub emoji: Option<Option<String>>,
-}
-
-pub async fn list(State(state): State<AppState>) -> AppResult<impl IntoResponse> {
-    Ok(Json(label_service::list(&state.pool).await?))
-}
-
-pub async fn create(
-    State(state): State<AppState>,
-    Json(body): Json<CreateLabel>,
+pub(super) async fn create(
+    State(pool): State<Pool>,
+    Json(input): Json<NewLabel>,
 ) -> AppResult<impl IntoResponse> {
-    let label =
-        label_service::create(&state.pool, &body.name, &body.color, body.emoji.as_deref()).await?;
+    let label = label_service::create(&pool, input).await?;
     Ok((StatusCode::CREATED, Json(label)))
 }
 
-pub async fn update(
-    State(state): State<AppState>,
+pub(super) async fn update(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
-    Json(body): Json<UpdateLabel>,
+    Json(patch): Json<LabelPatch>,
 ) -> AppResult<impl IntoResponse> {
-    let label = label_service::update(
-        &state.pool,
-        id,
-        body.name.as_deref(),
-        body.color.as_deref(),
-        body.emoji.as_ref().map(Option::as_deref),
-    )
-    .await?;
-    Ok(Json(label))
+    Ok(Json(label_service::update(&pool, id, patch).await?))
 }
 
-pub async fn delete(
-    State(state): State<AppState>,
+pub(super) async fn delete(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
 ) -> AppResult<impl IntoResponse> {
-    label_service::delete(&state.pool, id).await?;
+    label_service::delete(&pool, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn reorder(
-    State(state): State<AppState>,
-    Json(body): Json<ReorderLabels>,
+pub(super) async fn reorder(
+    State(pool): State<Pool>,
+    Json(body): Json<IdList>,
 ) -> AppResult<impl IntoResponse> {
-    label_service::reorder(&state.pool, &body.ids).await?;
+    label_service::reorder(&pool, &body.ids).await?;
     Ok(StatusCode::NO_CONTENT)
 }

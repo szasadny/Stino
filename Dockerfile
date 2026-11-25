@@ -3,8 +3,8 @@
 # Build the Svelte SPA.
 FROM node:26-slim AS frontend
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci || npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 

@@ -4,225 +4,138 @@ use axum::response::IntoResponse;
 use serde::Deserialize;
 
 use super::extract::{Json, Path, Query};
-use super::{double_option, AppState};
-use crate::domain::{BatchOp, NewTask, TaskPatch};
-use crate::error::{AppError, AppResult};
-use crate::services::task_service;
+use super::{IdList, Pool};
+use crate::domain::{BatchOp, MoveOutcome, NewTask, TaskPatch, TaskSelector};
+use crate::error::AppResult;
+use crate::services::task;
 
-/// Selectors, most specific first: `from`+`to` range, `date`, else the Inbox.
-/// Unknown params are a 400 so a typo'd selector can't silently return the Inbox.
+// Unknown params are a 400 so a typo'd selector can't silently return the Inbox.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ListParams {
-    /// Only read by deserialization; the Inbox is also the default.
-    #[allow(dead_code)]
-    pub inbox: Option<bool>,
-    pub date: Option<String>,
-    pub from: Option<String>,
-    pub to: Option<String>,
+pub(super) struct ListParams {
+    inbox: Option<bool>,
+    date: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct CreateTask {
-    pub title: String,
-    pub notes: Option<String>,
-    pub label_id: Option<i64>,
-    pub due_date: Option<String>,
-    pub due_time: Option<String>,
-    pub recurrence_rule: Option<String>,
+pub(super) struct CompletionParams {
+    occurrence_date: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct UpdateTask {
-    pub title: Option<String>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub notes: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub label_id: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub due_date: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub due_time: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub recurrence_rule: Option<Option<String>>,
-}
-
-/// Defaults to the task's own due_date.
-#[derive(Deserialize)]
-pub struct CompletionParams {
-    pub occurrence_date: Option<String>,
+pub(super) struct MoveOccurrence {
+    occurrence_date: String,
+    new_date: String,
 }
 
 #[derive(Deserialize)]
-pub struct MoveOccurrence {
-    pub occurrence_date: String,
-    pub new_date: String,
+pub(super) struct SkipOccurrence {
+    occurrence_date: String,
 }
 
 #[derive(Deserialize)]
-pub struct SkipOccurrence {
-    pub occurrence_date: String,
-}
-
-/// The client's local date — the backend never computes "today".
-#[derive(Deserialize)]
-pub struct RolloverTasks {
-    pub today: String,
+pub(super) struct RolloverTasks {
+    today: String,
 }
 
 #[derive(Deserialize)]
-pub struct ReorderTasks {
-    pub ids: Vec<i64>,
+pub(super) struct BatchTasks {
+    ids: Vec<i64>,
+    op: BatchOp,
 }
 
-#[derive(Deserialize)]
-pub struct BatchTasks {
-    pub ids: Vec<i64>,
-    pub op: BatchOpBody,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum BatchOpBody {
-    Label {
-        #[serde(default)]
-        label_id: Option<i64>,
-    },
-    Schedule {
-        due_date: String,
-    },
-    Complete,
-    Delete,
-}
-
-pub async fn list(
-    State(state): State<AppState>,
+pub(super) async fn list(
+    State(pool): State<Pool>,
     Query(params): Query<ListParams>,
 ) -> AppResult<impl IntoResponse> {
-    let tasks = match (params.from, params.to, params.date) {
-        (Some(from), Some(to), _) => task_service::list_in_range(&state.pool, &from, &to).await?,
-        (Some(_), None, _) | (None, Some(_), _) => {
-            return Err(AppError::Validation(
-                "both from and to are required for a range".into(),
-            ))
-        }
-        (None, None, Some(date)) => task_service::list_for_date(&state.pool, &date).await?,
-        (None, None, None) => task_service::list_inbox(&state.pool).await?,
-    };
-    Ok(Json(tasks))
+    let selector = TaskSelector::from_params(params.inbox, params.date, params.from, params.to)?;
+    Ok(Json(task::list(&pool, selector).await?))
 }
 
-pub async fn create(
-    State(state): State<AppState>,
-    Json(body): Json<CreateTask>,
+pub(super) async fn create(
+    State(pool): State<Pool>,
+    Json(input): Json<NewTask>,
 ) -> AppResult<impl IntoResponse> {
-    let task = task_service::create(
-        &state.pool,
-        NewTask {
-            title: body.title,
-            notes: body.notes,
-            label_id: body.label_id,
-            due_date: body.due_date,
-            due_time: body.due_time,
-            recurrence_rule: body.recurrence_rule,
-        },
-    )
-    .await?;
-    Ok((StatusCode::CREATED, Json(task)))
+    let created = task::create(&pool, input).await?;
+    Ok((StatusCode::CREATED, Json(created)))
 }
 
-pub async fn update(
-    State(state): State<AppState>,
+pub(super) async fn update(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
-    Json(body): Json<UpdateTask>,
+    Json(patch): Json<TaskPatch>,
 ) -> AppResult<impl IntoResponse> {
-    let task = task_service::update(
-        &state.pool,
-        id,
-        TaskPatch {
-            title: body.title,
-            notes: body.notes,
-            label_id: body.label_id,
-            due_date: body.due_date,
-            due_time: body.due_time,
-            recurrence_rule: body.recurrence_rule,
-        },
-    )
-    .await?;
-    Ok(Json(task))
+    Ok(Json(task::update(&pool, id, patch).await?))
 }
 
-pub async fn delete(
-    State(state): State<AppState>,
+pub(super) async fn delete(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
 ) -> AppResult<impl IntoResponse> {
-    task_service::delete(&state.pool, id).await?;
+    task::delete(&pool, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn reorder(
-    State(state): State<AppState>,
-    Json(body): Json<ReorderTasks>,
+pub(super) async fn reorder(
+    State(pool): State<Pool>,
+    Json(body): Json<IdList>,
 ) -> AppResult<impl IntoResponse> {
-    task_service::reorder(&state.pool, &body.ids).await?;
+    task::reorder(&pool, &body.ids).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn rollover(
-    State(state): State<AppState>,
+pub(super) async fn rollover(
+    State(pool): State<Pool>,
     Json(body): Json<RolloverTasks>,
 ) -> AppResult<impl IntoResponse> {
-    let summary = task_service::rollover(&state.pool, &body.today).await?;
-    Ok(Json(summary))
+    Ok(Json(task::rollover(&pool, &body.today).await?))
 }
 
-pub async fn batch(
-    State(state): State<AppState>,
+pub(super) async fn batch(
+    State(pool): State<Pool>,
     Json(body): Json<BatchTasks>,
 ) -> AppResult<impl IntoResponse> {
-    let op = match body.op {
-        BatchOpBody::Label { label_id } => BatchOp::SetLabel(label_id),
-        BatchOpBody::Schedule { due_date } => BatchOp::Schedule(due_date),
-        BatchOpBody::Complete => BatchOp::Complete,
-        BatchOpBody::Delete => BatchOp::Delete,
-    };
-    task_service::batch(&state.pool, &body.ids, op).await?;
+    task::batch(&pool, &body.ids, body.op).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn move_occurrence(
-    State(state): State<AppState>,
+pub(super) async fn move_occurrence(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
     Json(body): Json<MoveOccurrence>,
 ) -> AppResult<impl IntoResponse> {
-    let task =
-        task_service::move_occurrence(&state.pool, id, body.occurrence_date, body.new_date).await?;
-    Ok((StatusCode::CREATED, Json(task)))
+    let outcome = task::move_occurrence(&pool, id, &body.occurrence_date, &body.new_date).await?;
+    Ok(match outcome {
+        MoveOutcome::Moved(copy) => (StatusCode::CREATED, Json(copy)),
+        MoveOutcome::Unchanged(series) => (StatusCode::OK, Json(series)),
+    })
 }
 
-pub async fn skip_occurrence(
-    State(state): State<AppState>,
+pub(super) async fn skip_occurrence(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
     Json(body): Json<SkipOccurrence>,
 ) -> AppResult<impl IntoResponse> {
-    task_service::skip_occurrence(&state.pool, id, body.occurrence_date).await?;
+    task::skip_occurrence(&pool, id, &body.occurrence_date).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn complete(
-    State(state): State<AppState>,
+pub(super) async fn complete(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
     Query(params): Query<CompletionParams>,
 ) -> AppResult<impl IntoResponse> {
-    let task = task_service::complete(&state.pool, id, params.occurrence_date).await?;
-    Ok(Json(task))
+    let done = task::set_completed(&pool, id, params.occurrence_date.as_deref(), true).await?;
+    Ok(Json(done))
 }
 
-pub async fn uncomplete(
-    State(state): State<AppState>,
+pub(super) async fn uncomplete(
+    State(pool): State<Pool>,
     Path(id): Path<i64>,
     Query(params): Query<CompletionParams>,
 ) -> AppResult<impl IntoResponse> {
-    let task = task_service::uncomplete(&state.pool, id, params.occurrence_date).await?;
-    Ok(Json(task))
+    let reopened = task::set_completed(&pool, id, params.occurrence_date.as_deref(), false).await?;
+    Ok(Json(reopened))
 }

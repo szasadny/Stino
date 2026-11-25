@@ -1,13 +1,20 @@
-import { NETWORK_ERROR_MESSAGE } from './constants'
+import { API_BASE, HTTP_SERVER_ERROR } from './constants'
 import { apiErrorMessage } from './errors'
-import type { BatchOp, ImportSummary, Label, RolloverSummary, Task } from './types'
+import { NETWORK_ERROR_MESSAGE } from './messages'
+import type {
+  BatchOp,
+  ImportSummary,
+  Label,
+  LabelInput,
+  RolloverSummary,
+  Task,
+  TaskInput,
+} from './types'
 
-const BASE = '/api'
-
-async function http<T>(path: string, init?: RequestInit): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   let res: Response
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...init,
     })
@@ -17,31 +24,20 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     // A 5xx message is server detail, not something the user can act on.
-    const body: unknown = res.status < 500 ? await res.json().catch(() => null) : null
+    const body: unknown = res.status < HTTP_SERVER_ERROR ? await res.json().catch(() => null) : null
     throw new Error(apiErrorMessage(body))
   }
-  // DELETE responses have no JSON body.
-  if (res.status === 204) {
-    return undefined as T
-  }
-  return (await res.json()) as T
+  return res
 }
 
-// `null` clears emoji; omission leaves it unchanged.
-export interface LabelInput {
-  name: string
-  color: string
-  emoji: string | null
+// The JSON body is trusted to match the API contract; there is no runtime schema.
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await request(path, init)
+  return res.json()
 }
 
-// On update, `null` clears a field and omission leaves it unchanged.
-export interface TaskInput {
-  title: string
-  notes?: string | null
-  label_id?: number | null
-  due_date?: string | null
-  due_time?: string | null
-  recurrence_rule?: string | null
+async function send(path: string, init?: RequestInit): Promise<void> {
+  await request(path, init)
 }
 
 // Omitting the date defaults to the task's own due_date.
@@ -58,10 +54,10 @@ export const api = {
       http<Label>('/labels', { method: 'POST', body: JSON.stringify(input) }),
     update: (id: number, input: Partial<LabelInput>) =>
       http<Label>(`/labels/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-    remove: (id: number) => http<void>(`/labels/${id}`, { method: 'DELETE' }),
+    remove: (id: number) => send(`/labels/${id}`, { method: 'DELETE' }),
     // Must list every label.
     reorder: (ids: number[]) =>
-      http<void>('/labels/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+      send('/labels/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
   },
   tasks: {
     inbox: () => http<Task[]>('/tasks?inbox=true'),
@@ -71,19 +67,19 @@ export const api = {
       http<Task>('/tasks', { method: 'POST', body: JSON.stringify(input) }),
     update: (id: number, input: Partial<TaskInput>) =>
       http<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-    remove: (id: number) => http<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    remove: (id: number) => send(`/tasks/${id}`, { method: 'DELETE' }),
     moveOccurrence: (id: number, occurrenceDate: string, newDate: string) =>
       http<Task>(`/tasks/${id}/move_occurrence`, {
         method: 'POST',
         body: JSON.stringify({ occurrence_date: occurrenceDate, new_date: newDate }),
       }),
     skipOccurrence: (id: number, occurrenceDate: string) =>
-      http<void>(`/tasks/${id}/skip_occurrence`, {
+      send(`/tasks/${id}/skip_occurrence`, {
         method: 'POST',
         body: JSON.stringify({ occurrence_date: occurrenceDate }),
       }),
     reorder: (ids: number[]) =>
-      http<void>('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+      send('/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
     // The browser supplies `today`; the backend never computes it.
     rollover: (today: string) =>
       http<RolloverSummary>('/tasks/rollover', {
@@ -91,7 +87,7 @@ export const api = {
         body: JSON.stringify({ today }),
       }),
     batch: (ids: number[], op: BatchOp) =>
-      http<void>('/tasks/batch', { method: 'POST', body: JSON.stringify({ ids, op }) }),
+      send('/tasks/batch', { method: 'POST', body: JSON.stringify({ ids, op }) }),
     complete: (id: number, occurrenceDate?: string | null) =>
       http<Task>(`/tasks/${id}/completions${occurrenceQuery(occurrenceDate)}`, { method: 'POST' }),
     uncomplete: (id: number, occurrenceDate?: string | null) =>

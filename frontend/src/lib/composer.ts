@@ -1,5 +1,4 @@
-import type { TaskInput } from './api'
-import type { Task } from './types'
+import type { Task, TaskInput } from './types'
 
 export interface ComposerDraft {
   title: string
@@ -25,7 +24,7 @@ export function taskToDraft(task: Task): ComposerDraft {
   }
 }
 
-/** Drops time and rule when there's no date — the backend rejects either without one. */
+// Drops time and rule when there's no date — the backend rejects either without one.
 export function draftToInput(draft: ComposerDraft): TaskInput {
   const date = draft.date || null
   const notes = draft.notes.trim()

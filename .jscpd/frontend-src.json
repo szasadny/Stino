@@ -1,0 +1,10 @@
+{
+  "path": ["../frontend/src"],
+  "format": ["typescript", "svelte"],
+  "minLines": 10,
+  "minTokens": 50,
+  "threshold": 0,
+  "failOnEmpty": true,
+  "ignore": ["**/node_modules/**"],
+  "reporters": ["console"]
+}

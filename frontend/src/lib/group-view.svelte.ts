@@ -1,15 +1,8 @@
-const STORAGE_KEY = 'stino-day-grouping'
+import { GROUP_VIEW_STORAGE_KEY } from './constants'
+import { readStored, writeStored } from './storage'
 
-function read(): boolean {
-  try {
-    // Only an explicit '0' (List) opts out of the by-label default.
-    return localStorage.getItem(STORAGE_KEY) !== '0'
-  } catch {
-    return true
-  }
-}
-
-let grouped = $state(read())
+// Only an explicit '0' (List) opts out of the by-label default.
+let grouped = $state(readStored(GROUP_VIEW_STORAGE_KEY) !== '0')
 
 export function groupByLabelView(): boolean {
   return grouped
@@ -17,9 +10,5 @@ export function groupByLabelView(): boolean {
 
 export function setGroupByLabelView(value: boolean): void {
   grouped = value
-  try {
-    localStorage.setItem(STORAGE_KEY, value ? '1' : '0')
-  } catch {
-    // Storage may be unavailable (private mode); the choice still applies this session.
-  }
+  writeStored(GROUP_VIEW_STORAGE_KEY, value ? '1' : '0')
 }

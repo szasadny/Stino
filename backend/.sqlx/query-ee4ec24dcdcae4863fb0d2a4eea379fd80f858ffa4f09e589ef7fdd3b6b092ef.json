@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT task_id AS \"task_id!\", MAX(occurrence_date) AS \"latest!: String\" FROM (\n               SELECT task_id, occurrence_date FROM completion WHERE occurrence_date <= ?\n               UNION ALL\n               SELECT task_id, occurrence_date FROM task_exception WHERE occurrence_date <= ?\n           )\n           GROUP BY task_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "task_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "latest!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "ee4ec24dcdcae4863fb0d2a4eea379fd80f858ffa4f09e589ef7fdd3b6b092ef"
+}

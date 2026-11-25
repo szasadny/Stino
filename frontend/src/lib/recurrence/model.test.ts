@@ -1,0 +1,109 @@
+import { describe, expect, it } from 'vitest'
+import { REF_SUNDAY_ISO } from '../test/factories'
+import {
+  DEFAULT_CUSTOM_INTERVAL,
+  EMPTY_RECURRENCE,
+  isMonthday,
+  isOrdinalPosition,
+  isWeekdayCode,
+  isWorkdaySet,
+  monthlyDefaultsFor,
+  normalizeInterval,
+  orderWeekdays,
+  weekdayCode,
+  withFreq,
+  withUnit,
+} from './model'
+
+describe('monthlyDefaultsFor', () => {
+  it('keeps the empty defaults without a start date', () => {
+    expect(monthlyDefaultsFor(null)).toEqual({
+      monthday: EMPTY_RECURRENCE.monthday,
+      position: EMPTY_RECURRENCE.position,
+      monthWeekday: EMPTY_RECURRENCE.monthWeekday,
+    })
+  })
+
+  it.each([
+    [REF_SUNDAY_ISO, { monthday: 25, position: 4, monthWeekday: 'SU' }],
+    ['2026-06-01', { monthday: 1, position: 1, monthWeekday: 'MO' }],
+    ['2026-07-31', { monthday: 31, position: 5, monthWeekday: 'FR' }],
+  ])('matches the start date %s', (iso, defaults) => {
+    expect(monthlyDefaultsFor(iso)).toEqual(defaults)
+  })
+})
+
+describe('normalizeInterval', () => {
+  it.each([
+    [3, 3],
+    [2.7, 2],
+    [0, 1],
+    [-4, 1],
+    [Number.NaN, 1],
+  ])('turns %d into %i', (input, interval) => {
+    expect(normalizeInterval(input)).toBe(interval)
+  })
+})
+
+describe('weekday sets', () => {
+  it('orders codes Monday-first and drops duplicates', () => {
+    expect(orderWeekdays(['SU', 'WE', 'MO', 'WE'])).toEqual(['MO', 'WE', 'SU'])
+  })
+
+  it('recognizes exactly the ordered Mon–Fri set', () => {
+    expect(isWorkdaySet(['MO', 'TU', 'WE', 'TH', 'FR'])).toBe(true)
+    expect(isWorkdaySet(['MO', 'TU', 'WE', 'TH'])).toBe(false)
+    expect(isWorkdaySet(['MO', 'TU', 'WE', 'TH', 'SA'])).toBe(false)
+  })
+
+  it('names the weekday code of a local date', () => {
+    expect(weekdayCode(new Date(2026, 9, 25))).toBe('SU')
+    expect(weekdayCode(new Date(2026, 5, 1))).toBe('MO')
+  })
+})
+
+describe('guards', () => {
+  it('accepts only RRULE weekday codes', () => {
+    expect(isWeekdayCode('MO')).toBe(true)
+    expect(isWeekdayCode('mo')).toBe(false)
+    expect(isWeekdayCode('1MO')).toBe(false)
+  })
+
+  it('accepts first..fifth and last as positions', () => {
+    expect([1, 5, -1].every(isOrdinalPosition)).toBe(true)
+    expect([0, 6, -2].some(isOrdinalPosition)).toBe(false)
+  })
+
+  it('accepts a day of the month or -1 for the last day', () => {
+    expect([1, 31, -1].every(isMonthday)).toBe(true)
+    expect([0, 32, -2].some(isMonthday)).toBe(false)
+  })
+})
+
+describe('withFreq / withUnit', () => {
+  const custom = { ...EMPTY_RECURRENCE, freq: 'custom' as const, unit: 'week' as const }
+
+  it('defaults a custom interval to every other period', () => {
+    expect(withFreq(EMPTY_RECURRENCE, 'custom', null).interval).toBe(DEFAULT_CUSTOM_INTERVAL)
+  })
+
+  it('seeds the monthly fields from the start date on switching to monthly', () => {
+    const next = withFreq(custom, 'monthly', REF_SUNDAY_ISO)
+    expect(next).toMatchObject({ freq: 'monthly', monthday: 25, position: 4, monthWeekday: 'SU' })
+  })
+
+  it('keeps the monthly fields when switching to another frequency', () => {
+    const monthly = { ...EMPTY_RECURRENCE, freq: 'monthly' as const, monthday: 9 }
+    expect(withFreq(monthly, 'weekly', REF_SUNDAY_ISO)).toMatchObject({
+      freq: 'weekly',
+      monthday: 9,
+    })
+  })
+
+  it('seeds the monthly fields only when the custom unit enters months', () => {
+    const months = withUnit(custom, 'month', REF_SUNDAY_ISO)
+    expect(months).toMatchObject({ unit: 'month', monthday: 25 })
+    expect(withUnit({ ...months, monthday: 3 }, 'month', REF_SUNDAY_ISO).monthday).toBe(3)
+    expect(withUnit(custom, 'day', REF_SUNDAY_ISO)).toEqual({ ...custom, unit: 'day' })
+  })
+})

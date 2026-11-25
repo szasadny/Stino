@@ -16,10 +16,13 @@ export default {
           DEFAULT: 'rgb(var(--cell) / <alpha-value>)',
           out: 'rgb(var(--cell-out) / <alpha-value>)',
         },
-        mist: 'rgb(var(--mist) / <alpha-value>)',
         ink: 'rgb(var(--ink) / <alpha-value>)',
         sage: 'rgb(var(--sage) / <alpha-value>)',
         lichen: 'rgb(var(--lichen) / <alpha-value>)',
+        scrim: 'rgb(var(--scrim) / var(--scrim-alpha))',
+      },
+      backdropBlur: {
+        scrim: 'var(--scrim-blur)',
       },
       fontFamily: {
         sans: ['Inter Variable', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -31,10 +34,22 @@ export default {
           'sans-serif',
         ],
       },
+      fontSize: {
+        wordmark: '1.35rem',
+        '2xs': '11px',
+        '3xs': '10px',
+      },
+      zIndex: {
+        sticky: '10',
+        chrome: '20',
+        popover: '20',
+        floating: '30',
+      },
       boxShadow: {
-        soft: '0 1px 2px rgb(30 58 52 / 0.05), 0 2px 8px rgb(30 58 52 / 0.06)',
-        lift: '0 2px 6px rgb(30 58 52 / 0.07), 0 10px 24px rgb(30 58 52 / 0.10)',
-        overlay: '0 4px 14px rgb(20 40 34 / 0.14), 0 16px 40px rgb(20 40 34 / 0.22)',
+        soft: '0 1px 2px rgb(var(--shadow) / 0.05), 0 2px 8px rgb(var(--shadow) / 0.06)',
+        lift: '0 2px 6px rgb(var(--shadow) / 0.07), 0 10px 24px rgb(var(--shadow) / 0.10)',
+        overlay:
+          '0 4px 14px rgb(var(--shadow-deep) / 0.14), 0 16px 40px rgb(var(--shadow-deep) / 0.22)',
       },
     },
   },

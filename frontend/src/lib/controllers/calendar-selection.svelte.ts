@@ -1,28 +1,51 @@
+import type { Attachment } from 'svelte/attachments'
 import { toISODate } from '../date'
-import { groupByDate } from '../grouping'
-import { labelLookup } from '../labels'
 import type { TaskCore } from './task-core.svelte'
 
+export type CalendarSelection = ReturnType<typeof createCalendarSelection>
+
 export function createCalendarSelection(core: TaskCore) {
-  const labelFor = $derived(labelLookup(core.labels))
-  const tasksByDate = $derived(groupByDate(core.tasks))
   let selectedDate = $state<Date | null>(null)
+  const selectedKey = $derived(selectedDate ? toISODate(selectedDate) : null)
   const selectedTasks = $derived(
-    selectedDate ? (tasksByDate.get(toISODate(selectedDate)) ?? []) : [],
+    selectedKey ? core.tasks.filter((t) => t.occurrence_date === selectedKey) : [],
   )
 
+  // The open day's cell registers itself; once it unmounts the last rect stays, so the zoom stays put.
+  let anchor: HTMLElement | null = null
+  let anchorRect = $state.raw<DOMRect | null>(null)
+
+  const anchorTo: Attachment<HTMLElement> = (cell) => {
+    anchor = cell
+    anchorRect = cell.getBoundingClientRect()
+    return () => {
+      if (anchor === cell) anchor = null
+    }
+  }
+
   return {
-    get labelFor() {
-      return labelFor
-    },
     get selectedDate() {
       return selectedDate
     },
-    set selectedDate(value: Date | null) {
-      selectedDate = value
+    get selectedKey() {
+      return selectedKey
     },
     get selectedTasks() {
       return selectedTasks
+    },
+    get anchorRect() {
+      return anchorRect
+    },
+    select(date: Date): void {
+      selectedDate = date
+    },
+    clear(): void {
+      selectedDate = null
+      anchorRect = null
+    },
+    anchorTo,
+    remeasure(): void {
+      if (anchor) anchorRect = anchor.getBoundingClientRect()
     },
   }
 }

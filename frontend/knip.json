@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "svelte": true,
+  "vite": true,
+  "vitest": true,
+  "tailwind": true,
+  "postcss": true
+}

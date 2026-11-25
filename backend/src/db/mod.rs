@@ -1,19 +1,47 @@
-//! All SQL lives here; business rules stay in `services/`.
+pub(crate) mod label;
+pub(crate) mod task;
 
-use sqlx::SqlitePool;
+use std::str::FromStr;
 
-pub mod label;
-pub mod task;
+use anyhow::Context;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
-pub async fn ping(pool: &SqlitePool) -> bool {
-    sqlx::query("SELECT 1").execute(pool).await.is_ok()
+use crate::config::{self, Config};
+
+pub(crate) type Pool = sqlx::SqlitePool;
+pub(crate) type Conn = sqlx::SqliteConnection;
+pub(crate) use sqlx::SqliteExecutor as Executor;
+
+pub(crate) async fn connect(cfg: &Config) -> anyhow::Result<Pool> {
+    // SQLite can create the database file, but not the directory holding it.
+    std::fs::create_dir_all(&cfg.data_dir)
+        .with_context(|| format!("creating data dir {}", cfg.data_dir.display()))?;
+
+    let options = match &cfg.database_url {
+        Some(url) => SqliteConnectOptions::from_str(url)
+            .with_context(|| format!("parsing DATABASE_URL {url}"))?,
+        None => SqliteConnectOptions::new().filename(cfg.db_path()),
+    }
+    .create_if_missing(true)
+    .foreign_keys(true)
+    // WAL + NORMAL avoids an fsync per import row while staying crash-durable.
+    .journal_mode(SqliteJournalMode::Wal)
+    .synchronous(SqliteSynchronous::Normal)
+    .busy_timeout(config::DB_BUSY_TIMEOUT);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(config::DB_MAX_CONNECTIONS)
+        .connect_with(options)
+        .await
+        .context("connecting to SQLite")?;
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("running migrations")?;
+    Ok(pool)
 }
 
-/// 0 affected rows ⇒ `RowNotFound`, which drops the open transaction so the whole batch rolls back.
-pub(crate) fn assert_affected(rows: u64) -> Result<(), sqlx::Error> {
-    if rows == 0 {
-        Err(sqlx::Error::RowNotFound)
-    } else {
-        Ok(())
-    }
+pub(crate) async fn ping(executor: impl Executor<'_>) -> bool {
+    sqlx::query("SELECT 1").execute(executor).await.is_ok()
 }

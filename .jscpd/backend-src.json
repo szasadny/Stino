@@ -1,0 +1,9 @@
+{
+  "path": ["../backend/src"],
+  "format": ["rust"],
+  "minLines": 10,
+  "minTokens": 50,
+  "threshold": 0,
+  "failOnEmpty": true,
+  "reporters": ["console"]
+}

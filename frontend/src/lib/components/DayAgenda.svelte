@@ -1,128 +1,93 @@
 <script lang="ts">
-  // One flat zone per label group (nested zones break dnd); distinct types block cross-group drops.
-  import { untrack } from 'svelte'
-  import { dndzone, dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action'
-  import type { Label, Task } from '../types'
-  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS } from '../constants'
+  import type { Snippet } from 'svelte'
+  import type { DndEvent } from 'svelte-dnd-action'
+  import type { Task } from '../types'
+  import type { TaskCore } from '../controllers/task-core.svelte'
+  import { createDropList } from '../controllers/drop-list.svelte'
+  import { MUTED_CENTER_CLASS } from '../constants'
   import { isCompact } from '../viewport.svelte'
-  import { presses, tappedItem } from '../tap'
-  import { labelLookup } from '../labels'
-  import { dayViewGroups, type TaskGroup } from '../grouping'
-  import { groupByLabelView, setGroupByLabelView } from '../group-view.svelte'
-  import { completedLast, untimedReadingOrder } from '../ordering'
+  import { moveId } from '../labels'
+  import { presses } from '../dnd/presses.action'
+  import { tappedItem } from '../dnd/tap'
+  import { dayViewGroups, hasLabelGroups, type TaskGroup } from '../tasks/projection'
+  import { groupByLabelView } from '../group-view.svelte'
+  import { untimedReadingOrder } from '../tasks/day-order'
+  import { isUntimed, occurrenceKey } from '../tasks/predicates'
+  import { completedLast } from '../tasks/sort'
+  import GroupViewToggle from './GroupViewToggle.svelte'
   import LabelChip from './LabelChip.svelte'
+  import ReorderList from './ReorderList.svelte'
   import TaskRow from './TaskRow.svelte'
+  import Chevron from './icons/Chevron.svelte'
 
   let {
+    core,
     tasks,
-    labels,
-    pending = false,
-    onToggle,
     onEdit,
-    onReorder,
-    onReorderLabels,
   }: {
+    core: TaskCore
     tasks: Task[]
-    labels: Label[]
-    pending?: boolean
-    onToggle: (task: Task) => void
-    onEdit?: (task: Task) => void
-    onReorder?: (ids: number[]) => void
-    onReorderLabels?: (ids: number[]) => void
+    onEdit: (task: Task) => void
   } = $props()
 
-  const grouped = $derived(groupByLabelView())
-  const canGroup = $derived.by(() => {
-    const known = new Set(labels.map((l) => l.id))
-    return tasks.some((t) => t.label_id != null && known.has(t.label_id))
-  })
-  const effectiveGrouped = $derived(grouped && canGroup)
-  const groups = $derived(dayViewGroups(tasks, labels, effectiveGrouped))
-  const reorderable = $derived(onReorder != null)
+  const canGroup = $derived(hasLabelGroups(tasks, core.labels))
+  const grouped = $derived(groupByLabelView() && canGroup)
+  const groups = $derived(dayViewGroups(tasks, core.labels, grouped))
   const compact = $derived(isCompact())
 
-  const labelFor = $derived(labelLookup(labels))
-  const rowLabel = (task: Task) => (!effectiveGrouped ? labelFor(task) : undefined)
+  const rowLabel = (task: Task) => (!grouped ? core.labelFor(task) : undefined)
 
   const keyOf = (group: TaskGroup) => (group.label ? String(group.label.id) : 'none')
   const timedOf = (group: TaskGroup, completed: boolean) =>
-    group.tasks.filter((t) => t.due_time != null && t.completed === completed)
+    group.tasks.filter((t) => !isUntimed(t) && t.completed === completed)
 
   type LabelSection = { id: number; group: TaskGroup }
-  const labelSections = $derived(
-    groups.filter((g) => g.label != null).map((g) => ({ id: g.label!.id, group: g })),
+  const labelSections = $derived<LabelSection[]>(
+    groups.flatMap((g) => (g.label ? [{ id: g.label.id, group: g }] : [])),
   )
   const noLabelGroup = $derived(groups.find((g) => g.label == null) ?? null)
-  const reorderableLabels = $derived(onReorderLabels != null && labelSections.length > 1)
 
   function moveSection(index: number, delta: -1 | 1) {
-    const ids = labelSections.map((s) => s.id)
-    const target = index + delta
-    if (target < 0 || target >= ids.length) return
-    ;[ids[index], ids[target]] = [ids[target], ids[index]]
-    onReorderLabels?.(ids)
+    const ids = moveId(
+      labelSections.map((s) => s.id),
+      index,
+      delta,
+    )
+    if (ids) void core.reorderLabels(ids)
   }
 
-  // Rebuild owned lists only when no drag is live, or consider/finalize would be clobbered.
-  let dragging = $state(false)
-  let untimed = $state<Record<string, Task[]>>({})
-  $effect(() => {
+  const untimed = createDropList(() => {
     const next: Record<string, Task[]> = {}
-    for (const group of groups)
-      next[keyOf(group)] = completedLast(group.tasks.filter((t) => t.due_time == null))
-    if (untrack(() => dragging)) return
-    untimed = next
+    for (const group of groups) next[keyOf(group)] = completedLast(group.tasks.filter(isUntimed))
+    return next
   })
 
-  function consider(key: string, e: CustomEvent<DndEvent<Task>>) {
-    dragging = true
-    untimed[key] = e.detail.items
-  }
-
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
-    untimed[key] = e.detail.items
-    dragging = false // before notifying, so the resulting data change can re-project
+    untimed.finalize(key, e.detail.items)
     const tapped = tappedItem(e.detail, presses.stationary)
     if (tapped) {
-      onEdit?.(tapped)
+      onEdit(tapped)
       return
     }
     const liveGroups = groups.map((group) => ({
       label: group.label,
-      tasks: untimed[keyOf(group)] ?? [],
+      tasks: untimed.lists[keyOf(group)] ?? [],
     }))
-    onReorder?.(untimedReadingOrder(liveGroups))
+    untimed.settle(core.reorder(untimedReadingOrder(liveGroups)))
   }
 </script>
 
-{#snippet grip(title: string)}
-  <div
-    use:dragHandle
-    {title}
-    class="grid h-5 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
-  >
-    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-      <circle cx="9" cy="6" r="1.4" />
-      <circle cx="9" cy="12" r="1.4" />
-      <circle cx="9" cy="18" r="1.4" />
-      <circle cx="15" cy="6" r="1.4" />
-      <circle cx="15" cy="12" r="1.4" />
-      <circle cx="15" cy="18" r="1.4" />
-    </svg>
-  </div>
-{/snippet}
-
-{#snippet timedList(tasks: Task[], classes: string)}
-  {#if tasks.length > 0}
+{#snippet timedList(list: Task[], classes: string)}
+  {#if list.length > 0}
     <ul class="space-y-2 {classes}">
-      {#each tasks as task (`${task.id}:${task.occurrence_date ?? ''}`)}
+      {#each list as task (occurrenceKey(task))}
         <li>
           <TaskRow
             {task}
             label={rowLabel(task)}
             slim={compact}
-            onToggle={() => onToggle(task)}
-            onEdit={onEdit ? () => onEdit(task) : undefined}
+            onToggle={() => core.toggle(task)}
+            onEdit={() => onEdit(task)}
           />
         </li>
       {/each}
@@ -130,58 +95,33 @@
   {/if}
 {/snippet}
 
+{#snippet moveButton(name: string, index: number, delta: -1 | 1)}
+  {@const dir = delta < 0 ? 'up' : 'down'}
+  <button
+    type="button"
+    onclick={() => moveSection(index, delta)}
+    disabled={index + delta < 0 || index + delta >= labelSections.length}
+    aria-label="Move {name} {dir}"
+    class="grid h-6 w-6 place-items-center rounded text-sage transition hover:bg-pine/5 hover:text-pine-deep disabled:cursor-not-allowed disabled:opacity-30"
+  >
+    <Chevron {dir} class="h-4 w-4" />
+  </button>
+{/snippet}
+
 {#snippet sectionBody(group: TaskGroup, sectionIndex: number | null)}
   {@const key = keyOf(group)}
   {@const timed = timedOf(group, false)}
-  {#if effectiveGrouped}
+  {#if grouped}
     <div class="mb-2 flex items-center gap-1.5 px-0.5">
       {#if group.label}
-        <LabelChip name={group.label.name} color={group.label.color} emoji={group.label.emoji} />
+        <LabelChip label={group.label} />
       {:else}
         <span class="text-xs font-medium uppercase tracking-wide text-sage">No label</span>
       {/if}
-      {#if sectionIndex != null && reorderableLabels}
+      {#if sectionIndex != null && labelSections.length > 1}
         <div class="ml-auto flex items-center gap-0.5">
-          <button
-            type="button"
-            onclick={() => moveSection(sectionIndex, -1)}
-            disabled={sectionIndex === 0}
-            aria-label="Move {group.label?.name ?? ''} up"
-            class="grid h-6 w-6 place-items-center rounded text-sage transition hover:bg-pine/5 hover:text-pine-deep disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="h-4 w-4"
-              aria-hidden="true"
-            >
-              <path d="M18 15l-6-6-6 6" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onclick={() => moveSection(sectionIndex, 1)}
-            disabled={sectionIndex === labelSections.length - 1}
-            aria-label="Move {group.label?.name ?? ''} down"
-            class="grid h-6 w-6 place-items-center rounded text-sage transition hover:bg-pine/5 hover:text-pine-deep disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="h-4 w-4"
-              aria-hidden="true"
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
+          {@render moveButton(group.label?.name ?? '', sectionIndex, -1)}
+          {@render moveButton(group.label?.name ?? '', sectionIndex, 1)}
         </div>
       {/if}
     </div>
@@ -189,103 +129,42 @@
 
   {@render timedList(timed, '')}
 
-  {#if compact}
-    <ul
-      class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
-      use:dndzone={{
-        items: untimed[key] ?? [],
-        type: `untimed-${key}`,
-        flipDurationMs: DND_FLIP_MS,
-        dropTargetStyle: {},
-        dragDisabled: !reorderable || pending,
-        delayTouchStart: DND_TOUCH_HOLD_MS,
-        zoneItemTabIndex: -1,
-      }}
-      onconsider={(e) => consider(key, e)}
-      onfinalize={(e) => finalize(key, e)}
-    >
-      {#each untimed[key] ?? [] as task (task.id)}
-        <li>
-          <TaskRow
-            {task}
-            label={rowLabel(task)}
-            slim
-            onToggle={() => onToggle(task)}
-            onEdit={onEdit ? () => onEdit(task) : undefined}
-            holdToDrag={reorderable}
-          />
-        </li>
-      {/each}
-    </ul>
-  {:else}
-    <ul
-      class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
-      use:dragHandleZone={{
-        items: untimed[key] ?? [],
-        type: `untimed-${key}`,
-        flipDurationMs: DND_FLIP_MS,
-        dropTargetStyle: {},
-        dragDisabled: !reorderable || pending,
-      }}
-      onconsider={(e) => consider(key, e)}
-      onfinalize={(e) => finalize(key, e)}
-    >
-      {#each untimed[key] ?? [] as task (task.id)}
-        <li>
-          <TaskRow
-            {task}
-            label={rowLabel(task)}
-            onToggle={() => onToggle(task)}
-            onEdit={onEdit ? () => onEdit(task) : undefined}
-          >
-            {#snippet leading()}
-              {#if reorderable}
-                {@render grip('Drag to reorder')}
-              {/if}
-            {/snippet}
-          </TaskRow>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+  <!-- One flat zone per label group (nested zones break dnd); distinct types block cross-group drops. -->
+  <ReorderList
+    items={untimed.lists[key] ?? []}
+    type="untimed-{key}"
+    disabled={core.pending}
+    class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
+    onConsider={(e) => untimed.consider(key, e.detail.items)}
+    onFinalize={(e) => finalize(key, e)}
+  >
+    {#snippet item(task: Task, handle: Snippet | null)}
+      <li>
+        <TaskRow
+          {task}
+          label={rowLabel(task)}
+          slim={handle == null}
+          holdToDrag={handle == null}
+          leading={handle ?? undefined}
+          onToggle={() => core.toggle(task)}
+          onEdit={() => onEdit(task)}
+        />
+      </li>
+    {/snippet}
+  </ReorderList>
 
   {@render timedList(
     timedOf(group, true),
-    (untimed[key] ?? []).length > 0 || timed.length > 0 ? 'mt-2' : '',
+    (untimed.lists[key] ?? []).length > 0 || timed.length > 0 ? 'mt-2' : '',
   )}
 {/snippet}
 
 {#if groups.length === 0}
-  <p class="py-6 text-center text-sm text-sage">No tasks on this day.</p>
+  <p class="{MUTED_CENTER_CLASS} py-6">No tasks on this day.</p>
 {:else}
   {#if canGroup}
     <div class="mb-3 flex justify-end">
-      <div
-        class="inline-flex rounded-lg border border-lichen bg-fog p-0.5 text-xs font-medium"
-        role="group"
-        aria-label="Sort tasks"
-      >
-        <button
-          type="button"
-          onclick={() => setGroupByLabelView(false)}
-          aria-pressed={!grouped}
-          class="rounded-md px-2.5 py-1 transition {!grouped
-            ? 'bg-surface text-pine-deep shadow-soft'
-            : 'text-sage hover:text-pine-deep'}"
-        >
-          List
-        </button>
-        <button
-          type="button"
-          onclick={() => setGroupByLabelView(true)}
-          aria-pressed={grouped}
-          class="rounded-md px-2.5 py-1 transition {grouped
-            ? 'bg-surface text-pine-deep shadow-soft'
-            : 'text-sage hover:text-pine-deep'}"
-        >
-          By label
-        </button>
-      </div>
+      <GroupViewToggle label="Sort tasks" size="sm" />
     </div>
   {/if}
 
