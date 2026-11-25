@@ -87,7 +87,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | | `CheckToggle` | The completion checkbox, safe inside a drag item |
 | | `ReorderList` | A reorderable list: grip zone on wide, press-and-hold zone on phone |
 | Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji and name in a chip, option or toggle look |
-| Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button; generic segmented choice |
+| Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button (`sm`/`md` size, label as tooltip); generic segmented choice |
 | | `GroupViewToggle` | The List / By label control for `group-view.svelte.ts` |
 | | `DeleteConfirm` | Two-step Delete, then Yes / No |
 | Feedback | `ErrorAlert`, `EmptyState` | Error banner; dashed empty message |
@@ -147,7 +147,7 @@ Single files in `lib/`:
 | `storage.ts` | `readStored`, `writeStored`: `localStorage` that never throws |
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |
-| `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
+| `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
 | `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput` |
 | `errors.ts` | `errorMessage` (thrown value → UI string), `apiErrorMessage` (the API's `{"error"}` text) |
 | `theme.ts` | `getThemePref`, `setThemePref` |
@@ -195,6 +195,6 @@ Single files in `lib/`:
 | Font sizes and fonts | Tailwind's scale plus `text-wordmark`, `text-2xs`, `text-3xs`; `font-sans` (Inter), `font-display` (Hanken Grotesk), loaded in `main.ts` |
 | z-index | `z-sticky`, `z-chrome`, `z-popover`, `z-floating` |
 | Motion | Keyframes, `--duration-*` and `--ease-soft` in `app.css`, with a `prefers-reduced-motion` block; the period slide on `vt-calendar` |
-| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar`; `.label-tint` (rows, pills) and `.label-dot` (chips) in `app.css` |
-| Look-token class strings | `constants.ts`: `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES` |
+| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar` (or `labelTint` for a tinted surface); `.label-tint` (rows, pills) and `.label-dot` (chips) in `app.css` |
+| Look-token class strings | `constants.ts`: `BTN_SM_CLASS` / `BTN_MD_CLASS` (one control height, shared by fields), `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TEXTAREA_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `SECONDARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `ICON_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `DISPLAY_TITLE_CLASS`, `EYEBROW_CLASS`, `TASK_CARD_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES` |
 | Browser chrome colour | The `theme-color` metas in `frontend/index.html`, equal to `--fog` per theme |

@@ -7,7 +7,7 @@
   import { activateOnKey } from '../../lib/dnd/tap'
   import { calendarZone } from '../../lib/dnd/zone-options'
   import { pluralize } from '../../lib/format'
-  import { labelColorVar } from '../../lib/labels'
+  import { labelTint } from '../../lib/labels'
   import type { CellItem } from '../../lib/tasks/projection'
   import { todayKey } from '../../lib/today.svelte'
   import DateBadge from '../../lib/components/DateBadge.svelte'
@@ -28,14 +28,12 @@
 </script>
 
 {#snippet line(item: CellItem, index: number)}
-  {@const label = core.labelFor(item.task)}
+  {@const tint = labelTint(core.labelFor(item.task)?.color, 'bg-pine/10')}
   <li
-    class="shrink-0 truncate rounded px-1 py-px text-3xs leading-tight {label
-      ? 'label-tint'
-      : 'bg-pine/10'}
+    class="shrink-0 truncate rounded px-1 py-px text-3xs leading-tight {tint.class}
       {item.task.completed ? 'text-sage line-through' : 'text-ink'}
       {fit.hides(index, item) ? 'invisible' : ''}"
-    style={labelColorVar(label?.color)}
+    style={tint.style}
   >
     {item.task.title}
   </li>

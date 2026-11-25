@@ -1,6 +1,6 @@
 <script lang="ts">
   // A completed occurrence is history, so "This occurrence" is disabled for it.
-  import { DESTRUCTIVE_BTN_CLASS } from '../../constants'
+  import { BTN_SM_CLASS, DESTRUCTIVE_BTN_CLASS, GHOST_BTN_CLASS } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
   import Modal from '../Modal.svelte'
 
@@ -24,7 +24,7 @@
   type="button"
   onclick={() => (open = true)}
   disabled={composer.pending}
-  class="{DESTRUCTIVE_BTN_CLASS} px-3 py-1.5 text-sm"
+  class="{DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
 >
   Delete
 </button>
@@ -67,7 +67,7 @@
     <button
       type="button"
       onclick={() => (open = false)}
-      class="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-sage transition hover:text-pine-deep"
+      class="{GHOST_BTN_CLASS} w-full px-4 py-2.5 text-sm"
     >
       Cancel
     </button>

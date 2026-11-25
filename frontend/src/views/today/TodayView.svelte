@@ -2,7 +2,7 @@
   import { api } from '../../lib/api'
   import { formatDayFull } from '../../lib/date'
   import { pluralize } from '../../lib/format'
-  import { PRIMARY_BTN_CLASS } from '../../lib/constants'
+  import { BTN_SM_CLASS, PRIMARY_BTN_CLASS } from '../../lib/constants'
   import { LOAD_TODAY_FAILED, LOADING } from '../../lib/messages'
   import { todayDate, todayKey } from '../../lib/today.svelte'
   import { createTaskCore } from '../../lib/controllers/task-core.svelte'
@@ -32,7 +32,7 @@
     <button
       type="button"
       onclick={() => composer.create({ date: todayKey() })}
-      class="{PRIMARY_BTN_CLASS} flex shrink-0 items-center gap-1.5 px-3 py-2"
+      class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS} flex shrink-0 items-center gap-1.5"
     >
       <Plus class="h-4 w-4" />
       Add task

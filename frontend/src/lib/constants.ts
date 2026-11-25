@@ -80,23 +80,32 @@ export const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'month', label: 'Month' },
 ]
 
-const INPUT_LOOK =
-  'rounded-lg border border-lichen bg-fog text-ink outline-none transition placeholder:text-sage hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20'
-export const INPUT_CLASS = `${INPUT_LOOK} px-3 py-2 text-sm`
-export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} px-2.5 py-1.5 text-sm`
+const DISABLED_LOOK = 'disabled:cursor-not-allowed disabled:opacity-40'
+// One height per size, so a field and a button line up in a row.
+const SIZE_SM = 'h-9 text-sm'
+const SIZE_MD = 'h-10 text-sm'
+export const BTN_SM_CLASS = `${SIZE_SM} px-3`
+export const BTN_MD_CLASS = `${SIZE_MD} px-4`
+
+const INPUT_LOOK = `rounded-lg border border-lichen bg-fog text-ink outline-none transition placeholder:text-sage enabled:hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20 ${DISABLED_LOOK}`
+export const INPUT_CLASS = `${INPUT_LOOK} ${SIZE_MD} px-3`
+export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} ${SIZE_SM} px-2.5`
+export const TEXTAREA_CLASS = `${INPUT_LOOK} px-3 py-2 text-sm`
 export const TITLE_INPUT_CLASS = `${INPUT_LOOK} px-3 py-2.5 text-base font-medium placeholder:font-normal`
 export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center text-lg`
 
-export const PRIMARY_BTN_CLASS =
-  'rounded-lg bg-pine text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40'
-export const DESTRUCTIVE_BTN_CLASS =
-  'rounded-lg font-medium text-bark transition hover:bg-bark/10 disabled:cursor-not-allowed disabled:opacity-40'
-export const GHOST_BTN_CLASS =
-  'rounded-lg text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep'
-export const CLEAR_BTN_CLASS =
-  'rounded-lg px-2 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark'
+export const PRIMARY_BTN_CLASS = `rounded-lg bg-pine font-medium text-surface transition enabled:hover:bg-pine-deep ${DISABLED_LOOK}`
+export const SECONDARY_BTN_CLASS = `rounded-lg border border-lichen font-medium text-pine-deep transition enabled:hover:border-pine/40 enabled:hover:bg-pine/5 ${DISABLED_LOOK}`
+export const DESTRUCTIVE_BTN_CLASS = `rounded-lg font-medium text-bark transition enabled:hover:bg-bark/10 ${DISABLED_LOOK}`
+export const GHOST_BTN_CLASS = `rounded-lg font-medium text-sage transition enabled:hover:bg-pine/5 enabled:hover:text-pine-deep ${DISABLED_LOOK}`
+export const CLEAR_BTN_CLASS = `rounded-lg px-2 text-xs font-medium text-sage transition enabled:hover:bg-bark/10 enabled:hover:text-bark ${DISABLED_LOOK}`
+export const ICON_BTN_CLASS = `rounded-lg text-sage transition enabled:hover:bg-pine/5 enabled:hover:text-pine-deep ${DISABLED_LOOK}`
 export const CHIP_ON_CLASS = 'border-pine bg-pine/10 text-pine'
 export const CHIP_OFF_CLASS = 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'
+export const DISPLAY_TITLE_CLASS = 'font-display font-semibold tracking-tight text-pine-deep'
+export const EYEBROW_CLASS = 'font-medium uppercase tracking-wide text-sage'
+export const TASK_CARD_CLASS =
+  'flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition'
 export const FIELD_LABEL_CLASS = 'block text-xs font-medium text-sage'
 export const MUTED_CENTER_CLASS = 'text-center text-sm text-sage'
 export const POPOVER_CLASS =

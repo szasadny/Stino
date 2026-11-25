@@ -52,7 +52,7 @@
         type="button"
         onclick={select}
         aria-label={ariaLabel}
-        class="-mx-1 flex shrink-0 items-baseline gap-1.5 rounded-md px-1 text-left transition hover:bg-pine/10"
+        class="-mx-1 flex shrink-0 items-baseline gap-1.5 rounded-md px-1 text-left transition hover:bg-pine/5 active:bg-pine/10"
       >
         <span
           class="text-2xs font-medium uppercase tracking-wide {isToday ? 'text-pine' : 'text-sage'}"

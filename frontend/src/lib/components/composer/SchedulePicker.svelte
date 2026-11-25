@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { CLEAR_BTN_CLASS, COMPACT_INPUT_CLASS, FIELD_LABEL_CLASS } from '../../constants'
+  import {
+    CHIP_OFF_CLASS,
+    CLEAR_BTN_CLASS,
+    COMPACT_INPUT_CLASS,
+    FIELD_LABEL_CLASS,
+  } from '../../constants'
   import { quickDates } from '../../date'
   import { todayDate } from '../../today.svelte'
 
@@ -40,14 +45,14 @@
       disabled={!date}
       aria-label="Due time"
       title={date ? '' : 'Pick a date first'}
-      class="{COMPACT_INPUT_CLASS} disabled:cursor-not-allowed disabled:opacity-40"
+      class={COMPACT_INPUT_CLASS}
     />
     {#each chips as chip (chip.label)}
       <button
         type="button"
         onclick={() => setDate(chip.iso)}
         title={chip.title}
-        class="rounded-lg border border-lichen px-2.5 py-1.5 text-xs font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep"
+        class="h-9 rounded-lg border px-2.5 text-xs font-medium transition {CHIP_OFF_CLASS}"
       >
         {chip.label}
       </button>

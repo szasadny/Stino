@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { INPUT_CLASS, PRIMARY_BTN_CLASS, TITLE_MAX_LENGTH } from '../../lib/constants'
+  import {
+    BTN_MD_CLASS,
+    INPUT_CLASS,
+    PRIMARY_BTN_CLASS,
+    SECONDARY_BTN_CLASS,
+    TITLE_MAX_LENGTH,
+  } from '../../lib/constants'
   import { isCompact } from '../../lib/viewport.svelte'
   import Icon from '../../lib/components/icons/Icon.svelte'
   import CapturePreview from './CapturePreview.svelte'
@@ -60,7 +66,7 @@
       onclick={onDetails}
       disabled={busy}
       title="Add with full details"
-      class="flex shrink-0 items-center gap-1.5 rounded-lg border border-lichen px-3 py-2 text-sm font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep disabled:opacity-40"
+      class="{SECONDARY_BTN_CLASS} {BTN_MD_CLASS} flex shrink-0 items-center gap-1.5"
     >
       <Icon class="h-4 w-4" strokeWidth={1.8}>
         <path d="M4 6h16M4 12h16M4 18h10" />
@@ -70,7 +76,7 @@
     <button
       type="submit"
       disabled={!capture.text.trim() || busy}
-      class="{PRIMARY_BTN_CLASS} shrink-0 px-4 py-2"
+      class="{PRIMARY_BTN_CLASS} {BTN_MD_CLASS} shrink-0"
     >
       Add
     </button>

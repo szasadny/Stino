@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { BTN_SM_CLASS, SECONDARY_BTN_CLASS } from '../../lib/constants'
   import GroupViewToggle from '../../lib/components/GroupViewToggle.svelte'
   import Upload from './Upload.svelte'
   import Modal from '../../lib/components/Modal.svelte'
@@ -32,7 +33,7 @@
       <button
         type="button"
         onclick={onImport}
-        class="mt-3 inline-flex items-center gap-2 rounded-lg border border-lichen bg-fog px-4 py-2 text-sm font-medium text-pine-deep transition hover:bg-pine/5"
+        class="{SECONDARY_BTN_CLASS} {BTN_SM_CLASS} mt-3 inline-flex items-center gap-2"
       >
         <Upload class="h-4 w-4 text-pine" />
         Import from TickTick…

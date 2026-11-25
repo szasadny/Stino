@@ -4,7 +4,7 @@
   import type { Task } from '../types'
   import type { TaskCore } from '../controllers/task-core.svelte'
   import { createDropList } from '../controllers/drop-list.svelte'
-  import { MUTED_CENTER_CLASS } from '../constants'
+  import { EYEBROW_CLASS, MUTED_CENTER_CLASS } from '../constants'
   import { isCompact } from '../viewport.svelte'
   import { moveId } from '../labels'
   import { presses } from '../dnd/presses.action'
@@ -15,6 +15,7 @@
   import { isUntimed, occurrenceKey } from '../tasks/predicates'
   import { completedLast } from '../tasks/sort'
   import GroupViewToggle from './GroupViewToggle.svelte'
+  import IconButton from './IconButton.svelte'
   import LabelChip from './LabelChip.svelte'
   import ReorderList from './ReorderList.svelte'
   import TaskRow from './TaskRow.svelte'
@@ -97,15 +98,14 @@
 
 {#snippet moveButton(name: string, index: number, delta: -1 | 1)}
   {@const dir = delta < 0 ? 'up' : 'down'}
-  <button
-    type="button"
+  <IconButton
+    label="Move {name} {dir}"
+    size="sm"
     onclick={() => moveSection(index, delta)}
     disabled={index + delta < 0 || index + delta >= labelSections.length}
-    aria-label="Move {name} {dir}"
-    class="grid h-6 w-6 place-items-center rounded text-sage transition hover:bg-pine/5 hover:text-pine-deep disabled:cursor-not-allowed disabled:opacity-30"
   >
     <Chevron {dir} class="h-4 w-4" />
-  </button>
+  </IconButton>
 {/snippet}
 
 {#snippet sectionBody(group: TaskGroup, sectionIndex: number | null)}
@@ -116,7 +116,7 @@
       {#if group.label}
         <LabelChip label={group.label} />
       {:else}
-        <span class="text-xs font-medium uppercase tracking-wide text-sage">No label</span>
+        <span class="text-xs {EYEBROW_CLASS}">No label</span>
       {/if}
       {#if sectionIndex != null && labelSections.length > 1}
         <div class="ml-auto flex items-center gap-0.5">

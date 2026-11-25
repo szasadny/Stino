@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import { MUTED_CENTER_CLASS } from '../constants'
+  import { DISPLAY_TITLE_CLASS, MUTED_CENTER_CLASS } from '../constants'
   import { dragEdgeScroll } from '../dnd/drag-scroll.action'
   import { LOADING } from '../messages'
   import EmptyState from './EmptyState.svelte'
@@ -40,7 +40,7 @@
 <section class="relative mx-auto flex h-full w-full max-w-2xl flex-col px-4">
   <header class="flex shrink-0 items-start justify-between gap-3 pt-6 sm:pt-8">
     <div>
-      <h1 class="font-display text-2xl font-semibold tracking-tight text-pine-deep">{title}</h1>
+      <h1 class="{DISPLAY_TITLE_CLASS} text-2xl">{title}</h1>
       <p class="mt-1 text-sm text-sage">{subtitle}</p>
     </div>
     {@render actions?.()}

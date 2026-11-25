@@ -1,9 +1,11 @@
 <script lang="ts">
   import {
+    BTN_SM_CLASS,
+    COMPACT_INPUT_CLASS,
     FIELD_LABEL_CLASS,
     GHOST_BTN_CLASS,
-    INPUT_CLASS,
     PRIMARY_BTN_CLASS,
+    SECONDARY_BTN_CLASS,
   } from '../../lib/constants'
   import type { TaskCore } from '../../lib/controllers/task-core.svelte'
   import { isPlausibleISODate } from '../../lib/date'
@@ -30,14 +32,14 @@
   <div class="flex items-center justify-between gap-3">
     <span class="text-sm font-medium text-ink">{select.ids.length} selected</span>
     <div class="flex items-center gap-1">
-      <button type="button" onclick={select.toggleAll} class="{GHOST_BTN_CLASS} px-2.5 py-1.5">
-        {select.allSelected ? 'Clear all' : 'Select all'}
-      </button>
       <button
         type="button"
-        onclick={select.exit}
-        class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-sage transition hover:text-pine-deep"
+        onclick={select.toggleAll}
+        class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs"
       >
+        {select.allSelected ? 'Clear all' : 'Select all'}
+      </button>
+      <button type="button" onclick={select.exit} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
         Done
       </button>
     </div>
@@ -64,12 +66,12 @@
             bind:value={date}
             type="date"
             disabled={core.pending}
-            class="{INPUT_CLASS} disabled:opacity-40"
+            class={COMPACT_INPUT_CLASS}
           />
           <button
             type="submit"
             disabled={core.pending || !dateValid}
-            class="{PRIMARY_BTN_CLASS} px-3 py-2"
+            class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
           >
             Apply
           </button>
@@ -80,7 +82,7 @@
           type="button"
           onclick={select.complete}
           disabled={core.pending}
-          class="rounded-lg border border-lichen px-3 py-1.5 text-sm font-medium text-pine transition hover:bg-pine/5 disabled:opacity-40"
+          class="{SECONDARY_BTN_CLASS} {BTN_SM_CLASS}"
         >
           Complete
         </button>

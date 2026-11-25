@@ -6,6 +6,7 @@
   import Close from '../../lib/components/icons/Close.svelte'
   import SearchIcon from '../../lib/components/icons/Search.svelte'
   import Modal from '../../lib/components/Modal.svelte'
+  import { DISPLAY_TITLE_CLASS } from '../../lib/constants'
   import { EDIT_TASK_TITLE } from '../../lib/messages'
   import { createSearch } from './search.svelte'
   import SearchResults from './SearchResults.svelte'
@@ -24,9 +25,7 @@
         <IconButton label="Back to results" onclick={composer.close} class="-ml-1 shrink-0">
           <ArrowLeft />
         </IconButton>
-        <h2
-          class="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-tight text-pine-deep"
-        >
+        <h2 class="min-w-0 flex-1 truncate {DISPLAY_TITLE_CLASS} text-base">
           {EDIT_TASK_TITLE}
         </h2>
         <IconButton label="Close search" onclick={onClose} class="-mr-1 shrink-0">

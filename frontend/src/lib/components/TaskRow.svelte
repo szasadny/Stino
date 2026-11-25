@@ -2,7 +2,8 @@
   // `holdToDrag` edits via a role-button surface: svelte-dnd-action won't drag a native button.
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
-  import { labelColorVar } from '../labels'
+  import { TASK_CARD_CLASS } from '../constants'
+  import { labelTint } from '../labels'
   import { activateOnKey, trustedClick } from '../dnd/tap'
   import { editTaskLabel } from '../messages'
   import CheckToggle from './CheckToggle.svelte'
@@ -33,7 +34,7 @@
   } = $props()
 
   const done = $derived(task.completed || completing)
-  const tint = $derived(labelColorVar(label?.color))
+  const tint = $derived(labelTint(label?.color, 'bg-surface'))
 </script>
 
 {#snippet content()}
@@ -66,12 +67,10 @@
 {/snippet}
 
 <div
-  class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
+  class="{TASK_CARD_CLASS} {completing
     ? 'border-pine/40 bg-pine/5'
-    : tint
-      ? 'label-tint border-lichen hover:border-pine/30'
-      : 'border-lichen bg-surface hover:border-pine/30'}"
-  style={completing ? '' : tint}
+    : `${tint.class} border-lichen hover:border-pine/40`}"
+  style={completing ? '' : tint.style}
 >
   {#if leading}
     <div class="flex shrink-0 items-center self-stretch">

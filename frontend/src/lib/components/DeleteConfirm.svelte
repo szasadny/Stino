@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { DESTRUCTIVE_BTN_CLASS } from '../constants'
+  import { BTN_SM_CLASS, DESTRUCTIVE_BTN_CLASS, GHOST_BTN_CLASS } from '../constants'
 
   let {
     onConfirm,
@@ -10,7 +10,7 @@
 
   let confirming = $state(false)
 
-  const size = $derived(compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm')
+  const size = $derived(compact ? 'px-2 py-1 text-xs' : BTN_SM_CLASS)
 
   // Disarm once settled: a success usually unmounts this, a failure must not stay one click away.
   async function confirm() {
@@ -28,11 +28,7 @@
     <button type="button" onclick={confirm} disabled={busy} class="{DESTRUCTIVE_BTN_CLASS} {size}">
       Yes
     </button>
-    <button
-      type="button"
-      onclick={() => (confirming = false)}
-      class="rounded-lg font-medium text-sage transition hover:text-pine-deep {size}"
-    >
+    <button type="button" onclick={() => (confirming = false)} class="{GHOST_BTN_CLASS} {size}">
       No
     </button>
   </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import ErrorAlert from '../../lib/components/ErrorAlert.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { PRIMARY_BTN_CLASS } from '../../lib/constants'
+  import { BTN_SM_CLASS, GHOST_BTN_CLASS, PRIMARY_BTN_CLASS } from '../../lib/constants'
   import { pluralize } from '../../lib/format'
   import { createImport, describeImport } from './import.svelte'
 
@@ -37,14 +37,10 @@
       </div>
       <p class="mt-3 text-xs text-sage">Open a view to see your imported tasks.</p>
       <div class="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          onclick={reset}
-          class="rounded-lg px-3 py-2 text-sm font-medium text-sage transition hover:text-pine-deep"
-        >
+        <button type="button" onclick={reset} class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}">
           Import another
         </button>
-        <button type="button" onclick={onClose} class="{PRIMARY_BTN_CLASS} px-4 py-2">
+        <button type="button" onclick={onClose} class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}">
           Done
         </button>
       </div>
@@ -66,7 +62,7 @@
           type="button"
           onclick={() => void importer.run()}
           disabled={!importer.file || importer.pending}
-          class="{PRIMARY_BTN_CLASS} px-4 py-2"
+          class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
         >
           {importer.pending ? 'Importing…' : 'Import'}
         </button>

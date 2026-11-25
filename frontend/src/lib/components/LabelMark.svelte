@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { labelColorVar } from '../labels'
   import type { Label } from '../types'
 
   const LOOKS = {
@@ -15,7 +16,8 @@
   const classes = $derived(LOOKS[look])
 </script>
 
-<span class="label-dot {classes.dot} shrink-0 rounded-full" style="--label: {label.color}"></span>
+<span class="label-dot {classes.dot} shrink-0 rounded-full" style={labelColorVar(label.color)}
+></span>
 {#if label.emoji}
   <span class="{classes.emoji} leading-none" aria-hidden="true">{label.emoji}</span>
 {/if}

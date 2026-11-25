@@ -2,7 +2,7 @@
   import { dragHandle } from 'svelte-dnd-action'
   import type { Task } from '../types'
   import { getCalendarContext } from '../controllers/calendar-context'
-  import { labelColorVar } from '../labels'
+  import { labelTint } from '../labels'
   import { activateOnKey, trustedClick } from '../dnd/tap'
   import CheckToggle from './CheckToggle.svelte'
 
@@ -10,8 +10,7 @@
 
   const { core, composer } = getCalendarContext()
   const onOpen = () => composer.edit(task)
-  const color = $derived(core.labelFor(task)?.color ?? null)
-  const tintStyle = $derived(labelColorVar(color))
+  const tint = $derived(labelTint(core.labelFor(task)?.color, 'bg-pine/10'))
 
   const openLabel = $derived(
     `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${
@@ -31,12 +30,10 @@
   onclick={trustedClick(onOpen)}
   onkeydown={activateOnKey(onOpen)}
   aria-label={openLabel}
-  class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color
-    ? 'label-tint'
-    : 'bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
-    ? 'cursor-grab active:cursor-grabbing'
-    : 'cursor-pointer'}"
-  style={tintStyle}
+  class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {tint.class} {task.completed
+    ? 'opacity-60'
+    : ''} {draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}"
+  style={tint.style}
 >
   <CheckToggle
     checked={task.completed}

@@ -87,7 +87,7 @@
     </ul>
   {:else}
     <div class="mb-3 flex justify-end">
-      <button type="button" onclick={select.enter} class="{GHOST_BTN_CLASS} px-2.5 py-1.5">
+      <button type="button" onclick={select.enter} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
         Batch edit
       </button>
     </div>
@@ -100,7 +100,11 @@
     >
       {#snippet item(task: Task, handle: Snippet | null)}
         {#snippet actions()}
-          <button type="button" onclick={() => edit(task)} class="{GHOST_BTN_CLASS} px-2 py-1">
+          <button
+            type="button"
+            onclick={() => edit(task)}
+            class="{GHOST_BTN_CLASS} px-2 py-1 text-xs"
+          >
             Edit
           </button>
           <DeleteConfirm onConfirm={() => core.remove(task.id)} busy={core.pending} compact />

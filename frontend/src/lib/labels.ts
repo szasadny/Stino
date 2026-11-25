@@ -12,6 +12,15 @@ export function labelColorVar(color: string | null | undefined): string {
   return color ? `--label:${color}` : ''
 }
 
+export function labelTint(
+  color: string | null | undefined,
+  fallbackClass: string,
+): { class: string; style: string } {
+  return color
+    ? { class: 'label-tint', style: labelColorVar(color) }
+    : { class: fallbackClass, style: '' }
+}
+
 // Builds an index per call, so derive it from reactive `labels`; a deleted label reads as none.
 export function labelLookup(labels: Label[]): (task: Task) => Label | undefined {
   const index = new Map(labels.map((l) => [l.id, l]))

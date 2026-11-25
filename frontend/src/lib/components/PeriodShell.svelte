@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { DISPLAY_TITLE_CLASS, GHOST_BTN_CLASS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import type { PeriodNav } from '../controllers/period-nav.svelte'
   import { swipe } from '../dnd/swipe.action'
@@ -35,9 +36,7 @@
 >
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
-      <h1
-        class="font-display text-xl font-semibold tracking-tight {noWrap} text-pine-deep sm:text-2xl"
-      >
+      <h1 class="{DISPLAY_TITLE_CLASS} text-xl {noWrap} sm:text-2xl">
         {title}
       </h1>
       {#if core.loading}
@@ -51,7 +50,7 @@
       <button
         type="button"
         onclick={nav.goToday}
-        class="rounded-lg px-3 py-1.5 {noWrap} text-sm font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        class="{GHOST_BTN_CLASS} px-3 py-1.5 {noWrap} text-sm"
       >
         {todayLabel}
       </button>

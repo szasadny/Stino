@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { DISPLAY_TITLE_CLASS } from '../constants'
   import IconButton from './IconButton.svelte'
   import Close from './icons/Close.svelte'
 
@@ -23,12 +24,7 @@
     : 'gap-4 px-5 py-4'}"
 >
   <div>
-    <h2
-      id={titleId}
-      class="font-display font-semibold tracking-tight text-pine-deep {size === 'sm'
-        ? 'text-base'
-        : 'text-xl'}"
-    >
+    <h2 id={titleId} class="{DISPLAY_TITLE_CLASS} {size === 'sm' ? 'text-base' : 'text-xl'}">
       {title}
     </h2>
     {#if subtitle}

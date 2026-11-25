@@ -2,8 +2,10 @@
   import { tick, untrack } from 'svelte'
   import { draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
   import {
-    INPUT_CLASS,
+    BTN_SM_CLASS,
+    GHOST_BTN_CLASS,
     PRIMARY_BTN_CLASS,
+    TEXTAREA_CLASS,
     TITLE_INPUT_CLASS,
     TITLE_MAX_LENGTH,
   } from '../../constants'
@@ -50,7 +52,7 @@
       rows="2"
       placeholder="Notes"
       aria-label="Notes"
-      class="w-full resize-none {INPUT_CLASS}"
+      class="w-full resize-none {TEXTAREA_CLASS}"
     ></textarea>
   </div>
 
@@ -77,14 +79,10 @@
         <span></span>
       {/if}
       <div class="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onclick={composer.close}
-          class="rounded-lg px-3 py-1.5 text-sm font-medium text-sage transition hover:text-pine-deep"
-        >
+        <button type="button" onclick={composer.close} class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}">
           Cancel
         </button>
-        <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} px-4 py-1.5">
+        <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}">
           {composer.submitLabel}
         </button>
       </div>
