@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BTN_SM_CLASS, SECONDARY_BTN_CLASS } from '../../lib/constants'
+  import { BTN_SM_CLASS, MODAL_BODY_CLASS, SECONDARY_BTN_CLASS } from '../../lib/constants'
   import GroupViewToggle from '../../lib/components/GroupViewToggle.svelte'
   import Upload from './Upload.svelte'
   import Modal from '../../lib/components/Modal.svelte'
@@ -10,7 +10,7 @@
 </script>
 
 <Modal {open} {onClose} title="Settings" subtitle="Appearance, tasks, and data.">
-  <div class="space-y-6 px-5 py-5">
+  <div class="space-y-6 {MODAL_BODY_CLASS}">
     <section>
       <h3 class="text-sm font-medium text-ink">Appearance</h3>
       <p class="mt-0.5 text-xs text-sage">Follows your system unless you pick Light or Dark.</p>

@@ -1,7 +1,11 @@
 <script lang="ts">
-  import ErrorAlert from '../../lib/components/ErrorAlert.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { BTN_SM_CLASS, GHOST_BTN_CLASS, PRIMARY_BTN_CLASS } from '../../lib/constants'
+  import {
+    BTN_SM_CLASS,
+    GHOST_BTN_CLASS,
+    MODAL_BODY_CLASS,
+    PRIMARY_BTN_CLASS,
+  } from '../../lib/constants'
   import { pluralize } from '../../lib/format'
   import { createImport, describeImport } from './import.svelte'
 
@@ -22,10 +26,9 @@
   onOpen={reset}
   title="Import from TickTick"
   subtitle="Bring in a CSV backup. It only adds tasks and never deletes any."
+  error={importer.error}
 >
-  <ErrorAlert error={importer.error} class="mx-5 mt-4" />
-
-  <div class="px-5 py-5">
+  <div class={MODAL_BODY_CLASS}>
     {#if importer.summary}
       <div class="rounded-xl border border-moss/40 bg-moss/10 px-4 py-3">
         <p class="text-sm font-medium text-pine-deep">{describeImport(importer.summary)}</p>

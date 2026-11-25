@@ -48,7 +48,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- | --- |
 | `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `ensureLabel` creates a label outside the lock; `persistToggle` | Every view; `search.svelte.ts` |
 | `lock.svelte.ts` | `createLock()`: one `pending` flag and `error`; `run`, `optimistic` (apply, persist, revert on failure), `save` (keeps the lock through the follow-up) | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
-| `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence | Every view, `DaySheet`, `search.svelte.ts` |
+| `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
 | `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday`; binds the core's load to the period's range | `MonthView`, `WeekView` |
 | `calendar-board.svelte.ts` | `createCalendarBoard(core, keys, open)`: per-day drop lists, `consider` / `finalize`, the drop plan and tap-to-open | `MonthView`, `WeekView` |
@@ -73,8 +73,8 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- | --- |
 | Shells | `ListViewShell` | Today and Inbox frame: title, actions, error, loading and empty states, optional edge scroll |
 | | `PeriodShell` | Month and Week frame: title, previous / today / next, swipe, error |
-| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES` |
-| | `PanelHeader` | Title, subtitle and close button of `Modal` and `DayPanel` |
+| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `onHeaderClose` overrides the X |
+| | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
 | | `DayListSection` | A day heading over its task rows: the phone month agenda and the phone week stack |
 | | `DayPanel` | The desktop floating, non-modal day zoom beside its cell |
@@ -196,5 +196,5 @@ Single files in `lib/`:
 | z-index | `z-sticky`, `z-chrome`, `z-popover`, `z-floating` |
 | Motion | Keyframes, `--duration-*` and `--ease-soft` in `app.css`, with a `prefers-reduced-motion` block; the period slide on `vt-calendar` |
 | Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar` (or `labelTint` for a tinted surface); `.label-tint` (rows, pills) and `.label-dot` (chips) in `app.css` |
-| Look-token class strings | `constants.ts`: `BTN_SM_CLASS` / `BTN_MD_CLASS` (one control height, shared by fields), `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TEXTAREA_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `SECONDARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `ICON_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `DISPLAY_TITLE_CLASS`, `EYEBROW_CLASS`, `TASK_CARD_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES` |
+| Look-token class strings | `constants.ts`: `BTN_SM_CLASS` / `BTN_MD_CLASS` (one control height, shared by fields), `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TEXTAREA_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `SECONDARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `ICON_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `DISPLAY_TITLE_CLASS`, `EYEBROW_CLASS`, `TASK_CARD_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES`, `MODAL_BODY_CLASS` (every dialog body's padding) |
 | Browser chrome colour | The `theme-color` metas in `frontend/index.html`, equal to `--fog` per theme |

@@ -13,6 +13,7 @@
     store,
     handle,
     editing,
+    returnFocus,
     onEdit,
     onDone,
   }: {
@@ -20,32 +21,26 @@
     store: LabelStore
     handle: Snippet | null
     editing: boolean
+    returnFocus: boolean
     onEdit: () => void
     onDone: () => void
   } = $props()
 
-  // Only this row's own Save or Cancel hands focus back; opening another row must not steal it.
-  let returning = false
+  // Only ending this row's own rename hands focus back; opening another row must not steal it.
   const refocus: Attachment<HTMLButtonElement> = (button) => {
-    if (returning) button.focus()
-    returning = false
-  }
-
-  function done() {
-    returning = true
-    onDone()
+    if (returnFocus) button.focus()
   }
 
   async function save(input: LabelInput): Promise<boolean> {
     const saved = await store.update(label.id, input)
-    if (saved) done()
+    if (saved) onDone()
     return saved
   }
 </script>
 
 <li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
   {#if editing}
-    <LabelForm {label} busy={store.pending} onSubmit={save} onCancel={done} />
+    <LabelForm {label} busy={store.pending} onSubmit={save} onCancel={onDone} />
   {:else}
     <div class="flex items-center justify-between gap-3">
       <div class="flex min-w-0 items-center gap-2">

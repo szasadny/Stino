@@ -116,18 +116,18 @@ export const OPEN_CELL_CLASS = 'ring-2 ring-inset ring-pine/50'
 // `h-fit`, not `h-auto`: a modal <dialog> is inset-0, so `auto` stretches it to its max height.
 const SHEET_PANEL =
   'm-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-fit sm:max-h-none'
-const SHEET_CONTAINER = 'h-full sm:h-auto sm:max-h-[85vh]'
+const SHEET_CONTAINER = 'h-full sm:h-auto sm:max-h-[85dvh]'
 
 export const MODAL_SIZES = {
   sm: { panel: 'm-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl', container: '' },
   md: { panel: 'm-auto w-[min(30rem,calc(100vw-1.5rem))] rounded-2xl', container: '' },
   lg: {
-    panel: 'm-auto max-h-[85vh] w-[min(34rem,calc(100vw-1.5rem))] rounded-2xl',
-    container: 'max-h-[85vh]',
+    panel: 'm-auto max-h-[85dvh] w-[min(34rem,calc(100vw-1.5rem))] rounded-2xl',
+    container: 'max-h-[85dvh]',
   },
   xl: {
-    panel: 'mx-auto mt-[8vh] max-h-[84vh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl',
-    container: 'max-h-[84vh]',
+    panel: 'mx-auto mt-[8dvh] max-h-[84dvh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl',
+    container: 'max-h-[84dvh]',
   },
   sheet: {
     panel: `${SHEET_PANEL} sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))]`,
@@ -139,6 +139,8 @@ export const MODAL_SIZES = {
   },
 } as const
 export type ModalSize = keyof typeof MODAL_SIZES
+// Same inset as PanelHeader, so a dialog's body lines up with its title.
+export const MODAL_BODY_CLASS = 'px-5 py-4'
 
 export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 

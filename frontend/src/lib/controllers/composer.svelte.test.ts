@@ -53,8 +53,31 @@ describe('createComposer', () => {
     composer.create()
     await composer.submit({ title: 'A' })
     expect(composer.open).toBe(true)
-    expect(core.error).toBe('down')
+    expect([core.error, composer.error]).toEqual(['down', 'down'])
     expect(afterSave).not.toHaveBeenCalled()
+  })
+
+  it('clears a stale error when a create or an edit opens', async () => {
+    const core = createTaskCore()
+    const composer = createComposer(core)
+    vi.mocked(api.tasks.create).mockRejectedValue(new Error('down'))
+    composer.create()
+    await composer.submit({ title: 'A' })
+    composer.close()
+    composer.create()
+    expect(core.error).toBeNull()
+
+    await composer.submit({ title: 'A' })
+    composer.edit(on(MON, { id: 3 }))
+    expect(core.error).toBeNull()
+  })
+
+  it('dismisses only an open form', () => {
+    const composer = createComposer(createTaskCore())
+    expect(composer.dismiss()).toBe(false)
+    composer.create()
+    expect(composer.dismiss()).toBe(true)
+    expect(composer.open).toBe(false)
   })
 
   it('offers "this occurrence" only for an unfinished recurring occurrence', () => {

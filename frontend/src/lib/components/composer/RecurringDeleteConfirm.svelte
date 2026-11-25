@@ -1,6 +1,11 @@
 <script lang="ts">
   // A completed occurrence is history, so "This occurrence" is disabled for it.
-  import { BTN_SM_CLASS, DESTRUCTIVE_BTN_CLASS, GHOST_BTN_CLASS } from '../../constants'
+  import {
+    BTN_SM_CLASS,
+    DESTRUCTIVE_BTN_CLASS,
+    GHOST_BTN_CLASS,
+    MODAL_BODY_CLASS,
+  } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
   import Modal from '../Modal.svelte'
 
@@ -36,7 +41,7 @@
   subtitle="This task repeats."
   size="sm"
 >
-  <div class="space-y-2 px-5 py-4">
+  <div class="space-y-2 {MODAL_BODY_CLASS}">
     <button
       type="button"
       onclick={() => choose(composer.onDeleteOccurrence)}

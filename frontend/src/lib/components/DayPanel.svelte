@@ -63,7 +63,7 @@
   {@attach measurePanel}
   onanimationend={settle}
   {@attach (panel) => on(panel, 'animationcancel', settle)}
-  class="fixed z-floating max-h-[75vh] w-[19rem] flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay
+  class="fixed z-floating max-h-[75dvh] w-[19rem] flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay
     {opening ? 'animate-rise-in' : ''}
     {board.dragging ? 'hidden' : 'flex'}
     {pos ? '' : 'pointer-events-none opacity-0'}"

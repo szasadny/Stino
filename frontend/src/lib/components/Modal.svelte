@@ -2,26 +2,33 @@
   import type { Snippet } from 'svelte'
   import type { Attachment } from 'svelte/attachments'
   import { MODAL_SIZES, type ModalSize } from '../constants'
+  import ErrorAlert from './ErrorAlert.svelte'
   import PanelHeader from './PanelHeader.svelte'
 
   let {
     open,
     onClose,
     onOpen,
+    onEscape,
+    onHeaderClose,
     title,
     subtitle,
     label,
     size = 'md',
+    error,
     header,
     children,
   }: {
     open: boolean
     onClose: () => void
     onOpen?: () => void
+    onEscape?: () => boolean
+    onHeaderClose?: () => void
     title?: string
     subtitle?: string
     label?: string
     size?: ModalSize
+    error?: string | null
     header?: Snippet
     children: Snippet
   } = $props()
@@ -30,6 +37,7 @@
   let dialogEl = $state<HTMLDialogElement | null>(null)
   let opener: Element | null = null
   let destroyed = false
+  let pressedOutside = false
 
   $effect(() => {
     if (!dialogEl) return
@@ -56,17 +64,36 @@
     if (!destroyed) onClose()
   }
 
+  // A cancelled keydown issues no close request; `cancel` would also fire on an outside click.
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || event.isComposing || !onEscape) return
+    if (!(event.target instanceof Element) || event.target.closest('dialog') !== dialogEl) return
+    if (!onEscape()) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   // Light-dismiss fallback for browsers lacking `closedby` (notably Safari).
-  function handleBackdropClick(event: MouseEvent) {
-    if (!dialogEl || 'closedBy' in HTMLDialogElement.prototype) return
-    if (event.target !== dialogEl) return
+  function outsideContent(event: PointerEvent): boolean {
+    if (!dialogEl || 'closedBy' in HTMLDialogElement.prototype) return false
+    if (event.target !== event.currentTarget) return false
     const rect = dialogEl.getBoundingClientRect()
-    const insideContent =
-      rect.top <= event.clientY &&
-      event.clientY <= rect.top + rect.height &&
-      rect.left <= event.clientX &&
-      event.clientX <= rect.left + rect.width
-    if (!insideContent) onClose()
+    return (
+      event.clientX < rect.left ||
+      event.clientX > rect.right ||
+      event.clientY < rect.top ||
+      event.clientY > rect.bottom
+    )
+  }
+
+  function handlePointerDown(event: PointerEvent) {
+    pressedOutside = outsideContent(event)
+  }
+
+  // Press and release both outside, so a text selection dragged onto the backdrop keeps it open.
+  function handlePointerUp(event: PointerEvent) {
+    if (pressedOutside && outsideContent(event)) dialogEl?.close()
+    pressedOutside = false
   }
 </script>
 
@@ -77,7 +104,9 @@
   aria-labelledby={title && !header ? titleId : undefined}
   aria-label={label}
   onclose={handleClose}
-  onclick={handleBackdropClick}
+  onkeydown={handleKeydown}
+  onpointerdown={handlePointerDown}
+  onpointerup={handlePointerUp}
   class="border border-lichen bg-surface p-0 text-ink shadow-overlay backdrop:bg-scrim backdrop:backdrop-blur-scrim {MODAL_SIZES[
     size
   ].panel}"
@@ -86,14 +115,23 @@
     {#if header}
       {@render header()}
     {:else if title}
-      <PanelHeader {title} {subtitle} {onClose} {titleId} />
+      <PanelHeader {title} {subtitle} onClose={onHeaderClose ?? onClose} {titleId} />
     {/if}
+
+    <ErrorAlert error={error ?? null} class="mx-5 mt-4 shrink-0" />
 
     {@render children()}
   </div>
 </dialog>
 
 <style>
+  dialog:modal {
+    overscroll-behavior: contain;
+  }
+  dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
   dialog[open] {
     animation: sheet-in var(--duration-dialog) ease-out;
   }
