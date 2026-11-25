@@ -1,17 +1,11 @@
-use axum::{extract::State, Json};
-use serde::Serialize;
+use axum::extract::State;
 
-use super::AppState;
-use crate::db;
+use super::extract::Json;
+use super::Pool;
+use crate::domain::Health;
+use crate::services::health_service;
 
-#[derive(Serialize)]
-pub struct Health {
-    pub status: &'static str,
-    pub db: bool,
-}
-
-/// Container health probe; not called by the SPA.
-pub async fn health(State(state): State<AppState>) -> Json<Health> {
-    let db = db::ping(&state.pool).await;
-    Json(Health { status: "ok", db })
+// Container health probe; not called by the SPA.
+pub(super) async fn health(State(pool): State<Pool>) -> Json<Health> {
+    Json(health_service::check(&pool).await)
 }

@@ -1,172 +1,96 @@
 <script lang="ts">
-  import type { Label, Task } from '../types'
-  import type { CellItem } from '../calendar-board'
-  import { dndzone, type DndEvent } from 'svelte-dnd-action'
-  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
-  import { formatDayFull, weekdayLong } from '../date'
-  import TaskRow from './TaskRow.svelte'
+  import { dndzone } from 'svelte-dnd-action'
+  import { DND_TOUCH_HOLD_MS, DROP_TARGET_RING_CLASSES } from '../constants'
+  import { getCalendarContext } from '../controllers/calendar-context'
+  import { formatDayFull, toISODate, weekdayLong } from '../date'
+  import { calendarZone } from '../dnd/zone-options'
+  import { addTaskOnLabel, NOTHING_SCHEDULED } from '../messages'
+  import { todayKey } from '../today.svelte'
+  import DateBadge from './DateBadge.svelte'
+  import IconButton from './IconButton.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
+  import TaskRow from './TaskRow.svelte'
+  import Chevron from './icons/Chevron.svelte'
+  import Close from './icons/Close.svelte'
 
-  let {
-    date,
-    dateKey,
-    items,
-    isToday,
-    pending = false,
-    labelFor,
-    onToggle,
-    onEditTask,
-    onSelect,
-    onAdd,
-    onClose,
-    onConsider,
-    onFinalize,
-    emptyLabel,
-  }: {
-    date: Date
-    dateKey: string
-    items: CellItem[]
-    isToday: boolean
-    pending?: boolean
-    labelFor: (task: Task) => Label | undefined
-    onToggle: (task: Task) => void
-    onEditTask: (task: Task) => void
-    onSelect?: () => void
-    onAdd?: () => void
-    onClose?: () => void
-    onConsider?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
-    onFinalize?: (key: string, e: CustomEvent<DndEvent<CellItem>>) => void
-    emptyLabel?: string
-  } = $props()
+  let { date, variant }: { date: Date; variant: 'month' | 'week' } = $props()
 
-  const draggable = $derived(onConsider != null && onFinalize != null)
+  const { core, board, selection, composer } = getCalendarContext()
+  const dateKey = $derived(toISODate(date))
+  const items = $derived(board.board[dateKey] ?? [])
+  const isToday = $derived(dateKey === todayKey())
+  const dayLabel = $derived(formatDayFull(date))
 </script>
 
-{#snippet dayLabel()}
+{#snippet heading()}
   <span class="text-sm font-semibold {isToday ? 'text-pine' : 'text-ink'}">
     {weekdayLong(date)}
   </span>
-  <span
-    class="grid h-6 w-6 place-items-center rounded-full text-xs font-semibold tabular-nums
-      {isToday ? 'bg-pine text-surface' : 'text-ink'}"
-  >
-    {date.getDate()}
-  </span>
+  <DateBadge {date} {isToday} />
 {/snippet}
 
 <section class="group">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
-    {#if onSelect}
+    {#if variant === 'week'}
       <button
         type="button"
-        onclick={onSelect}
-        aria-label="Open {formatDayFull(date)}"
+        onclick={() => selection.select(date)}
+        aria-label="Open {dayLabel}"
         class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-pine/5 active:bg-pine/10"
       >
-        {@render dayLabel()}
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-3.5 w-3.5 text-sage/70"
-          aria-hidden="true"
-        >
-          <path d="M9 6l6 6-6 6" />
-        </svg>
+        {@render heading()}
+        <Chevron dir="right" class="h-3.5 w-3.5 text-sage/70" />
       </button>
     {:else}
       <div class="flex items-center gap-2">
-        {@render dayLabel()}
+        {@render heading()}
       </div>
     {/if}
 
-    {#if onAdd || onClose}
-      <div class="flex shrink-0 items-center gap-1">
-        {#if onAdd}
-          <QuickAddButton {onAdd} label="Add a task on {formatDayFull(date)}" alwaysOnMobile />
-        {/if}
-        {#if onClose}
-          <button
-            type="button"
-            onclick={onClose}
-            aria-label="Hide {formatDayFull(date)}"
-            class="rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              class="h-5 w-5"
-              aria-hidden="true"
-            >
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-
-  {#if draggable}
-    <!-- Outside the zone: its children must match dnd items. -->
-    <div class="relative">
-      <ul
-        class="min-h-[2.75rem] space-y-2"
-        use:dndzone={{
-          items,
-          type: 'calendar',
-          useCursorForDetection: true,
-          flipDurationMs: DND_FLIP_MS,
-          delayTouchStart: DND_TOUCH_HOLD_MS,
-          dragDisabled: pending,
-          dropTargetStyle: {},
-          dropTargetClasses: ['rounded-lg', ...DROP_TARGET_RING_CLASSES],
-          zoneItemTabIndex: -1,
-        }}
-        onconsider={(e) => onConsider?.(dateKey, e)}
-        onfinalize={(e) => onFinalize?.(dateKey, e)}
-      >
-        {#each items as item (item.id)}
-          <li>
-            <TaskRow
-              task={item.task}
-              label={labelFor(item.task)}
-              slim
-              onToggle={() => onToggle(item.task)}
-              onEdit={() => onEditTask(item.task)}
-              holdToDrag
-            />
-          </li>
-        {/each}
-      </ul>
-      {#if items.length === 0 && emptyLabel}
-        <p
-          class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage/70"
-        >
-          {emptyLabel}
-        </p>
+    <div class="flex shrink-0 items-center gap-1">
+      <QuickAddButton
+        onAdd={() => composer.create({ date: dateKey })}
+        label={addTaskOnLabel(dayLabel)}
+        alwaysOnMobile
+      />
+      {#if variant === 'month'}
+        <IconButton label="Hide {dayLabel}" onclick={selection.clear}>
+          <Close />
+        </IconButton>
       {/if}
     </div>
-  {:else if items.length > 0}
-    <ul class="space-y-2">
+  </div>
+
+  <!-- Outside the zone: its children must match dnd items. -->
+  <div class="relative">
+    <ul
+      class="min-h-[2.75rem] space-y-2"
+      use:dndzone={calendarZone(items, {
+        delayTouchStart: DND_TOUCH_HOLD_MS,
+        dragDisabled: core.pending,
+        dropTargetClasses: ['rounded-lg', ...DROP_TARGET_RING_CLASSES],
+        zoneItemTabIndex: -1,
+      })}
+      onconsider={(e) => board.consider(dateKey, e)}
+      onfinalize={(e) => board.finalize(dateKey, e)}
+    >
       {#each items as item (item.id)}
         <li>
           <TaskRow
             task={item.task}
-            label={labelFor(item.task)}
+            label={core.labelFor(item.task)}
             slim
-            onToggle={() => onToggle(item.task)}
-            onEdit={() => onEditTask(item.task)}
+            onToggle={() => core.toggle(item.task)}
+            onEdit={() => composer.edit(item.task)}
+            holdToDrag
           />
         </li>
       {/each}
     </ul>
-  {:else if emptyLabel}
-    <p class="px-0.5 pb-1 text-sm text-sage/70">{emptyLabel}</p>
-  {/if}
+    {#if items.length === 0}
+      <p class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage/70">
+        {NOTHING_SCHEDULED}
+      </p>
+    {/if}
+  </div>
 </section>

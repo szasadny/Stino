@@ -22,6 +22,15 @@
   /* Render-time label legibility only; the stored label hex is never themed. */
   --label-tint: 25%;
   --label-ring: 0;
+  --shadow: 30 58 52;
+  --shadow-deep: 20 40 34;
+  --scrim-alpha: 0.42;
+  --scrim-blur: 3px;
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-base: 0.3s;
+  --duration-pop: 0.35s;
+  --duration-burst: 0.55s;
+  --duration-dialog: 160ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +49,8 @@
     --cell: 18 23 28;
     --cell-out: 27 34 41;
     --label-ring: 0.45;
+    --shadow: 3 6 9;
+    --shadow-deep: 0 0 0;
   }
 }
 
@@ -58,6 +69,8 @@
   --cell: 18 23 28;
   --cell-out: 27 34 41;
   --label-ring: 0.45;
+  --shadow: 3 6 9;
+  --shadow-deep: 0 0 0;
 }
 
 @layer base {
@@ -102,7 +115,7 @@
 }
 
 .animate-rise-in {
-  animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: rise-in var(--duration-base) var(--ease-soft) backwards;
 }
 
 @keyframes check-pop {
@@ -120,7 +133,7 @@
 }
 
 .animate-check-pop {
-  animation: check-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: check-pop var(--duration-pop) var(--ease-soft);
 }
 
 @keyframes check-burst {
@@ -138,7 +151,7 @@
 }
 
 .animate-check-burst {
-  animation: check-burst 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: check-burst var(--duration-burst) var(--ease-soft);
 }
 
 /* Separate bar because text-decoration cannot animate. */
@@ -155,7 +168,7 @@
   background: currentColor;
   transform: scaleX(0);
   transform-origin: left center;
-  animation: strike-draw 0.35s 0.12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: strike-draw var(--duration-pop) 0.12s var(--ease-soft) forwards;
 }
 @keyframes strike-draw {
   to {
@@ -194,8 +207,8 @@
 
 ::view-transition-old(calendar-pane),
 ::view-transition-new(calendar-pane) {
-  animation-duration: 0.3s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-soft);
 }
 
 @keyframes vt-slide-to-left {

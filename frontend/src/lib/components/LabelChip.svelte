@@ -1,17 +1,12 @@
 <script lang="ts">
-  let {
-    name,
-    color,
-    emoji = null,
-  }: { name: string; color: string; emoji?: string | null } = $props()
+  import type { Label } from '../types'
+  import LabelMark from './LabelMark.svelte'
+
+  let { label }: { label: Pick<Label, 'name' | 'color' | 'emoji'> } = $props()
 </script>
 
 <span
   class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-lichen bg-surface px-2.5 py-0.5 text-xs font-medium text-ink"
 >
-  <span class="label-dot h-2 w-2 shrink-0 rounded-full" style="--label: {color}"></span>
-  {#if emoji}
-    <span class="shrink-0 text-sm leading-none" aria-hidden="true">{emoji}</span>
-  {/if}
-  <span class="truncate">{name}</span>
+  <LabelMark {label} look="chip" />
 </span>

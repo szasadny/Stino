@@ -1,25 +1,31 @@
 <script lang="ts">
-  // The first click arms deletion; the second confirms it.
+  import { DESTRUCTIVE_BTN_CLASS } from '../constants'
+
   let {
     onConfirm,
     busy = false,
     compact = false,
-  }: { onConfirm: () => void; busy?: boolean; compact?: boolean } = $props()
+    label = 'Delete',
+  }: { onConfirm: () => unknown; busy?: boolean; compact?: boolean; label?: string } = $props()
 
   let confirming = $state(false)
 
   const size = $derived(compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm')
+
+  // Disarm once settled: a success usually unmounts this, a failure must not stay one click away.
+  async function confirm() {
+    try {
+      await onConfirm()
+    } finally {
+      confirming = false
+    }
+  }
 </script>
 
 {#if confirming}
   <div class="flex items-center gap-1">
-    <span class="text-xs text-sage">Delete?</span>
-    <button
-      type="button"
-      onclick={onConfirm}
-      disabled={busy}
-      class="rounded-lg font-medium text-bark transition hover:bg-bark/10 disabled:cursor-not-allowed disabled:opacity-40 {size}"
-    >
+    <span class="text-xs text-sage">{label}?</span>
+    <button type="button" onclick={confirm} disabled={busy} class="{DESTRUCTIVE_BTN_CLASS} {size}">
       Yes
     </button>
     <button
@@ -35,8 +41,8 @@
     type="button"
     onclick={() => (confirming = true)}
     disabled={busy}
-    class="rounded-lg font-medium text-bark transition hover:bg-bark/10 disabled:cursor-not-allowed disabled:opacity-40 {size}"
+    class="{DESTRUCTIVE_BTN_CLASS} {size}"
   >
-    Delete
+    {label}
   </button>
 {/if}

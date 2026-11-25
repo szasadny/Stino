@@ -1,26 +1,30 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { VIEWS, type ViewId } from './lib/constants'
-  import { api } from './lib/api'
-  import { toISODate } from './lib/date'
-  import { bumpRefresh } from './lib/refresh.svelte'
-  import { setToday } from './lib/today.svelte'
+  import type { Component } from 'svelte'
   import Cairn from './lib/components/Cairn.svelte'
-  import LabelManager from './lib/components/LabelManager.svelte'
-  import ImportDialog from './lib/components/ImportDialog.svelte'
-  import SettingsDialog from './lib/components/SettingsDialog.svelte'
-  import SearchDialog from './lib/components/SearchDialog.svelte'
-  import MonthView from './views/MonthView.svelte'
-  import WeekView from './views/WeekView.svelte'
-  import TodayView from './views/TodayView.svelte'
-  import InboxView from './views/InboxView.svelte'
+  import IconButton from './lib/components/IconButton.svelte'
+  import Gear from './Gear.svelte'
+  import Search from './lib/components/icons/Search.svelte'
+  import Tag from './Tag.svelte'
+  import { watchDayChange } from './lib/day-change.svelte'
+  import { bumpRefresh } from './lib/refresh.svelte'
+  import type { ViewId } from './lib/types'
+  import { isCompact } from './lib/viewport.svelte'
+  import NavTabs from './NavTabs.svelte'
+  import ImportDialog from './overlays/import/ImportDialog.svelte'
+  import LabelManager from './overlays/labels/LabelManager.svelte'
+  import SearchDialog from './overlays/search/SearchDialog.svelte'
+  import SettingsDialog from './overlays/settings/SettingsDialog.svelte'
+  import InboxView from './views/inbox/InboxView.svelte'
+  import MonthView from './views/month/MonthView.svelte'
+  import TodayView from './views/today/TodayView.svelte'
+  import WeekView from './views/week/WeekView.svelte'
 
   const VIEW_COMPONENTS = {
-    month: MonthView,
-    week: WeekView,
-    today: TodayView,
     inbox: InboxView,
-  }
+    today: TodayView,
+    week: WeekView,
+    month: MonthView,
+  } satisfies Record<ViewId, Component>
 
   let current = $state<ViewId>('month')
   let searchOpen = $state(false)
@@ -29,128 +33,39 @@
   let settingsOpen = $state(false)
   const Active = $derived(VIEW_COMPONENTS[current])
 
-  // Also re-run on visibility change: a tab often stays open across midnight. Advance the
-  // shared "today" only after the rollover so views reload with the moved tasks in place.
-  let rolledOverOn = ''
-  async function rolloverOverdue() {
-    const today = toISODate(new Date())
-    let moved = 0
-    if (today !== rolledOverOn) {
-      try {
-        moved = (await api.tasks.rollover(today)).moved
-        rolledOverOn = today
-      } catch {
-        // Transient; views show their own load errors and the next visibility change retries.
-      }
-    }
-    if (setToday(today) || moved > 0) bumpRefresh()
-  }
+  watchDayChange()
 
-  onMount(() => void rolloverOverdue())
-
-  function onVisibilityChange() {
-    if (document.visibilityState === 'visible') void rolloverOverdue()
+  function select(view: ViewId) {
+    current = view
   }
 </script>
 
-<svelte:document onvisibilitychange={onVisibilityChange} />
-
 <div class="flex h-dvh flex-col overflow-hidden">
   <header
-    class="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
+    class="z-chrome flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
   >
     <div class="flex items-center gap-2">
       <Cairn class="h-7 w-7" />
       <span
-        class="font-display text-[1.35rem] font-semibold leading-none tracking-tight text-pine-deep"
+        class="font-display text-wordmark font-semibold leading-none tracking-tight text-pine-deep"
         >Stinō</span
       >
     </div>
 
-    <nav class="ml-2 hidden items-center gap-1 md:flex">
-      {#each VIEWS as view (view.id)}
-        <button
-          type="button"
-          onclick={() => (current = view.id)}
-          class="rounded-full px-3.5 py-1.5 text-sm font-medium transition {current === view.id
-            ? 'bg-pine/12 text-pine-deep ring-1 ring-pine/15'
-            : 'text-sage hover:bg-pine/5 hover:text-pine-deep'}"
-        >
-          {view.label}
-        </button>
-      {/each}
-    </nav>
+    {#if !isCompact()}
+      <NavTabs {current} onSelect={select} placement="header" />
+    {/if}
 
     <div class="ml-auto flex items-center gap-1">
-      <button
-        type="button"
-        onclick={() => (searchOpen = true)}
-        aria-haspopup="dialog"
-        aria-label="Search"
-        class="rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-5 w-5"
-          aria-hidden="true"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-3.5-3.5" />
-        </svg>
-      </button>
-
-      <button
-        type="button"
-        onclick={() => (labelsOpen = true)}
-        aria-haspopup="dialog"
-        aria-label="Labels"
-        class="rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-5 w-5"
-          aria-hidden="true"
-        >
-          <path
-            d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-          />
-          <circle cx="7.5" cy="7.5" r="1.25" fill="currentColor" stroke="none" />
-        </svg>
-      </button>
-
-      <button
-        type="button"
-        onclick={() => (settingsOpen = true)}
-        aria-haspopup="dialog"
-        aria-label="Settings"
-        class="rounded-lg p-1.5 text-sage transition hover:bg-pine/5 hover:text-pine-deep"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-5 w-5"
-          aria-hidden="true"
-        >
-          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-          <path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-          />
-        </svg>
-      </button>
+      <IconButton label="Search" onclick={() => (searchOpen = true)} aria-haspopup="dialog">
+        <Search strokeWidth={1.8} />
+      </IconButton>
+      <IconButton label="Labels" onclick={() => (labelsOpen = true)} aria-haspopup="dialog">
+        <Tag />
+      </IconButton>
+      <IconButton label="Settings" onclick={() => (settingsOpen = true)} aria-haspopup="dialog">
+        <Gear />
+      </IconButton>
     </div>
   </header>
 
@@ -162,34 +77,19 @@
     {/key}
   </main>
 
-  <nav
-    class="z-20 flex shrink-0 border-t border-lichen/80 bg-surface/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
-  >
-    {#each VIEWS as view (view.id)}
-      <button
-        type="button"
-        onclick={() => (current = view.id)}
-        class="relative flex-1 py-2.5 text-center text-xs font-medium transition {current ===
-        view.id
-          ? 'text-pine-deep'
-          : 'text-sage'}"
-      >
-        {#if current === view.id}
-          <span class="absolute inset-x-6 top-0 h-0.5 rounded-full bg-pine"></span>
-        {/if}
-        {view.label}
-      </button>
-    {/each}
-  </nav>
+  {#if isCompact()}
+    <NavTabs {current} onSelect={select} placement="bottom" />
+  {/if}
 
-  <!-- Search / Labels / Import mutate data behind the view, so closing them bumps refresh. -->
-  <SearchDialog
-    open={searchOpen}
-    onClose={() => {
-      searchOpen = false
-      bumpRefresh()
-    }}
-  />
+  <!-- Search and Labels mutate data behind the view, so closing them bumps refresh. -->
+  {#if searchOpen}
+    <SearchDialog
+      onClose={() => {
+        searchOpen = false
+        bumpRefresh()
+      }}
+    />
+  {/if}
   <LabelManager
     open={labelsOpen}
     onClose={() => {
@@ -205,11 +105,5 @@
       importOpen = true
     }}
   />
-  <ImportDialog
-    open={importOpen}
-    onClose={() => {
-      importOpen = false
-      bumpRefresh()
-    }}
-  />
+  <ImportDialog open={importOpen} onClose={() => (importOpen = false)} />
 </div>

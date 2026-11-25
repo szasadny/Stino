@@ -1,7 +1,7 @@
 // Reactive so open views follow a midnight rollover; App's day-change check is the only writer.
-import { fromISODate, toISODate } from './date'
+import { currentDateKey, fromISODate } from './date'
 
-let key = $state(toISODate(new Date()))
+let key = $state(currentDateKey())
 
 export function todayKey(): string {
   return key

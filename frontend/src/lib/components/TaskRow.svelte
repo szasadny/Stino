@@ -1,12 +1,12 @@
 <script lang="ts">
-  // `holdToDrag` uses a role-button surface because svelte-dnd-action will not drag from a
-  // native button; the toggle still swallows pointer-start events.
+  // `holdToDrag` edits via a role-button surface: svelte-dnd-action won't drag a native button.
   import type { Snippet } from 'svelte'
   import type { Label, Task } from '../types'
-  import { summarizeRule } from '../recurrence'
   import { labelColorVar } from '../labels'
-  import { trustedClick } from '../tap'
-  import LabelChip from './LabelChip.svelte'
+  import { activateOnKey, trustedClick } from '../dnd/tap'
+  import { editTaskLabel } from '../messages'
+  import CheckToggle from './CheckToggle.svelte'
+  import TaskMeta from './TaskMeta.svelte'
 
   let {
     task,
@@ -14,9 +14,6 @@
     dateLabel,
     onToggle,
     onEdit,
-    selectable = false,
-    selected = false,
-    onSelect,
     holdToDrag = false,
     completing = false,
     slim = false,
@@ -28,9 +25,6 @@
     dateLabel?: string
     onToggle?: () => void
     onEdit?: () => void
-    selectable?: boolean
-    selected?: boolean
-    onSelect?: () => void
     holdToDrag?: boolean
     completing?: boolean
     slim?: boolean
@@ -40,17 +34,6 @@
 
   const done = $derived(task.completed || completing)
   const tint = $derived(labelColorVar(label?.color))
-
-  function guardToggleStart(e: Event) {
-    if (holdToDrag) e.stopPropagation()
-  }
-
-  function editOnKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onEdit?.()
-    }
-  }
 </script>
 
 {#snippet content()}
@@ -68,186 +51,74 @@
       {/if}
     </div>
   {:else}
-    {@render fullContent()}
+    <!-- Animated strike is separate so it does not double the static decoration. -->
+    <p
+      class="break-words text-sm font-medium transition-colors duration-300 {task.completed
+        ? 'text-sage line-through'
+        : completing
+          ? 'text-sage'
+          : 'text-ink'}"
+    >
+      <span class={completing ? 'strike-draw' : ''}>{task.title}</span>
+    </p>
+    <TaskMeta {task} {label} {dateLabel} />
   {/if}
 {/snippet}
 
-{#snippet fullContent()}
-  <!-- Animated strike is separate so it does not double the static decoration. -->
-  <p
-    class="break-words text-sm font-medium transition-colors duration-300 {task.completed
-      ? 'text-sage line-through'
-      : completing
-        ? 'text-sage'
-        : 'text-ink'}"
-  >
-    <span class={completing ? 'strike-draw' : ''}>{task.title}</span>
-  </p>
-  {#if dateLabel || task.due_time || label || task.recurrence_rule}
-    <div class="mt-1 flex flex-wrap items-center gap-2">
-      {#if dateLabel}
-        <span class="inline-flex items-center gap-1 text-xs font-medium text-sage">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="h-3.5 w-3.5"
-            aria-hidden="true"
-          >
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <path d="M16 2v4M8 2v4M3 10h18" />
-          </svg>
-          {dateLabel}
-        </span>
-      {/if}
-      {#if task.due_time}
-        <span class="text-xs font-medium tabular-nums text-sage">{task.due_time}</span>
-      {/if}
-      {#if task.recurrence_rule}
-        <span
-          class="inline-flex items-center gap-1 text-xs text-sage"
-          title={summarizeRule(task.recurrence_rule)}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="h-3.5 w-3.5"
-            aria-hidden="true"
-          >
-            <path d="M17 2l4 4-4 4" />
-            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-            <path d="M7 22l-4-4 4-4" />
-            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-          </svg>
-          {summarizeRule(task.recurrence_rule)}
-        </span>
-      {/if}
-      {#if label}
-        <LabelChip name={label.name} color={label.color} emoji={label.emoji} />
-      {/if}
+<div
+  class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
+    ? 'border-pine/40 bg-pine/5'
+    : tint
+      ? 'label-tint border-lichen hover:border-pine/30'
+      : 'border-lichen bg-surface hover:border-pine/30'}"
+  style={completing ? '' : tint}
+>
+  {#if leading}
+    <div class="flex shrink-0 items-center self-stretch">
+      {@render leading()}
     </div>
   {/if}
-{/snippet}
+  {#if onToggle}
+    <CheckToggle
+      checked={done}
+      title={task.title}
+      {onToggle}
+      guardDrag={holdToDrag}
+      burst={completing}
+    />
+  {:else}
+    <span class="mt-px h-5 w-5 shrink-0 sm:mt-0 sm:self-center" aria-hidden="true"></span>
+  {/if}
 
-{#if selectable}
-  <button
-    type="button"
-    onclick={onSelect}
-    role="checkbox"
-    aria-checked={selected}
-    class="flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left shadow-soft transition {selected
-      ? 'border-pine bg-pine/5'
-      : tint
-        ? 'label-tint border-lichen hover:border-pine/40'
-        : 'border-lichen bg-surface hover:border-pine/40'}"
-    style={selected ? '' : tint}
-  >
-    <span
-      class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-md border transition sm:mt-0 sm:self-center {selected
-        ? 'border-pine bg-pine text-surface'
-        : 'border-sage/60 text-transparent'}"
+  {#if onEdit && holdToDrag}
+    <div
+      role="button"
+      tabindex="0"
+      onclick={trustedClick(onEdit)}
+      onkeydown={activateOnKey(onEdit)}
+      aria-label={editTaskLabel(task.title)}
+      class="min-w-0 flex-1 cursor-pointer rounded-lg text-left transition hover:opacity-80"
     >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        class="h-3 w-3"
-        aria-hidden="true"
-      >
-        <path d="M5 13l4 4L19 7" />
-      </svg>
-    </span>
+      {@render content()}
+    </div>
+  {:else if onEdit}
+    <button
+      type="button"
+      onclick={onEdit}
+      aria-label={editTaskLabel(task.title)}
+      class="min-w-0 flex-1 rounded-lg text-left transition hover:opacity-80"
+    >
+      {@render content()}
+    </button>
+  {:else}
     <div class="min-w-0 flex-1">
       {@render content()}
     </div>
-  </button>
-{:else}
-  <div
-    class="flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition {completing
-      ? 'border-pine/40 bg-pine/5'
-      : tint
-        ? 'label-tint border-lichen hover:border-pine/30'
-        : 'border-lichen bg-surface hover:border-pine/30'}"
-    style={completing ? '' : tint}
-  >
-    {#if leading}
-      <div class="flex shrink-0 items-center self-stretch">
-        {@render leading()}
-      </div>
-    {/if}
-    {#if onToggle}
-      <button
-        type="button"
-        onclick={trustedClick(onToggle)}
-        onpointerdown={guardToggleStart}
-        onmousedown={guardToggleStart}
-        ontouchstart={guardToggleStart}
-        role="checkbox"
-        aria-checked={done}
-        aria-label={done ? 'Mark as not done' : 'Mark as done'}
-        class="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full border transition sm:mt-0 sm:self-center {done
-          ? 'border-pine bg-pine text-surface'
-          : 'border-sage/60 text-transparent hover:border-pine'} {completing
-          ? 'animate-check-burst'
-          : ''}"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-3 w-3 {completing ? 'animate-check-pop' : ''}"
-          aria-hidden="true"
-        >
-          <path d="M5 13l4 4L19 7" />
-        </svg>
-      </button>
-    {:else}
-      <span class="mt-px h-5 w-5 shrink-0 sm:mt-0 sm:self-center" aria-hidden="true"></span>
-    {/if}
+  {/if}
 
-    {#if onEdit && holdToDrag}
-      <div
-        role="button"
-        tabindex="0"
-        onclick={trustedClick(onEdit)}
-        onkeydown={editOnKey}
-        aria-label="Edit task"
-        class="min-w-0 flex-1 cursor-pointer rounded-lg text-left transition hover:opacity-80"
-      >
-        {@render content()}
-      </div>
-    {:else if onEdit}
-      <button
-        type="button"
-        onclick={onEdit}
-        aria-label="Edit task"
-        class="min-w-0 flex-1 rounded-lg text-left transition hover:opacity-80"
-      >
-        {@render content()}
-      </button>
-    {:else}
-      <div class="min-w-0 flex-1">
-        {@render content()}
-      </div>
-    {/if}
-
-    {#if trailing}
-      <div class="flex shrink-0 items-center gap-1">
-        {@render trailing()}
-      </div>
-    {/if}
-  </div>
-{/if}
+  {#if trailing}
+    <div class="flex shrink-0 items-center gap-1">
+      {@render trailing()}
+    </div>
+  {/if}
+</div>

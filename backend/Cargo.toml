@@ -25,3 +25,8 @@ csv = "1"
 # response bodies, without binding a TCP port.
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+too_many_lines = "deny"

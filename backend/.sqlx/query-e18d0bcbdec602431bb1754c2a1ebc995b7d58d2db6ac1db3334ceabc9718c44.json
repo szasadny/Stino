@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT task_id AS \"task_id!\", occurrence_date AS \"occurrence_date!\"\n           FROM completion\n           WHERE task_id IN (SELECT id FROM task WHERE recurrence_rule IS NOT NULL)\n             AND occurrence_date BETWEEN ? AND ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "task_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "occurrence_date!",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "e18d0bcbdec602431bb1754c2a1ebc995b7d58d2db6ac1db3334ceabc9718c44"
+}

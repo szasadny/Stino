@@ -1,38 +1,42 @@
-import { LABEL_PALETTE } from './palette.js'
+import { LABEL_PALETTE, type PaletteHex } from './palette'
 import type { Label, Task } from './types'
 
-/** Mirrors the backend importer; keyed off sort_order (not length) so both agree after a delete. */
-export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): string {
+// Mirrors the backend importer; keyed off sort_order (not length) so both agree after a delete.
+export function nextPaletteColor(labels: Pick<Label, 'sort_order'>[]): PaletteHex {
   const next = labels.reduce((max, l) => Math.max(max, l.sort_order), -1) + 1
-  return LABEL_PALETTE[next % LABEL_PALETTE.length].hex
+  return (LABEL_PALETTE[next % LABEL_PALETTE.length] ?? LABEL_PALETTE[0]).hex
 }
 
-/** Feeds the `.label-tint`/`.label-dot` classes in app.css. */
+// Feeds the `.label-tint`/`.label-dot` classes in app.css.
 export function labelColorVar(color: string | null | undefined): string {
   return color ? `--label:${color}` : ''
 }
 
-/** Undefined for a deleted label too. Builds an index per call — derive it from reactive `labels`. */
+// Builds an index per call, so derive it from reactive `labels`; a deleted label reads as none.
 export function labelLookup(labels: Label[]): (task: Task) => Label | undefined {
   const index = new Map(labels.map((l) => [l.id, l]))
   return (task) => (task.label_id == null ? undefined : index.get(task.label_id))
 }
 
-/**
- * A day view reorders only its visible labels, but `sort_order` is global: hidden labels
- * stay pinned and the visible ones fill the slots they occupied, in their new order.
- */
+export function findLabelByName(labels: Label[], name: string): Label | undefined {
+  const wanted = name.trim().toLowerCase()
+  return labels.find((l) => l.name.toLowerCase() === wanted)
+}
+
+// `sort_order` is global, so hidden labels keep their slots and the visible ones refill theirs.
 export function mergeLabelOrder(allLabels: Label[], visibleOrder: number[]): number[] {
   const visible = new Set(visibleOrder)
   const queue = [...visibleOrder]
-  return allLabels.map((l) => (visible.has(l.id) ? (queue.shift() as number) : l.id))
+  return allLabels.map((l) => (visible.has(l.id) ? (queue.shift() ?? l.id) : l.id))
 }
 
-/** Optimistic mirror of `api.labels.reorder`; labels missing from `ids` go last. */
-export function applyLabelOrder(labels: Label[], ids: number[]): Label[] {
-  const byId = new Map(labels.map((l) => [l.id, l]))
-  const ordered = ids.map((id) => byId.get(id)).filter((l): l is Label => l != null)
-  const placed = new Set(ordered.map((l) => l.id))
-  const rest = labels.filter((l) => !placed.has(l.id))
-  return [...ordered, ...rest].map((l, i) => ({ ...l, sort_order: i }))
+// Swaps the id at `index` with its neighbour; null when that would leave the list.
+export function moveId(ids: number[], index: number, delta: -1 | 1): number[] | null {
+  const moving = ids[index]
+  const displaced = ids[index + delta]
+  if (moving === undefined || displaced === undefined) return null
+  const next = [...ids]
+  next[index] = displaced
+  next[index + delta] = moving
+  return next
 }

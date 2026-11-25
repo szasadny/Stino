@@ -1,11 +1,9 @@
-use sqlx::SqlitePool;
-
+use super::Pool;
 use crate::db;
 use crate::domain::Task;
 use crate::error::AppResult;
 
-/// A blank query returns no rows rather than an error.
-pub async fn search(pool: &SqlitePool, q: &str) -> AppResult<Vec<Task>> {
+pub(crate) async fn search(pool: &Pool, q: &str) -> AppResult<Vec<Task>> {
     let term = q.trim();
     if term.is_empty() {
         return Ok(Vec::new());
@@ -14,7 +12,7 @@ pub async fn search(pool: &SqlitePool, q: &str) -> AppResult<Vec<Task>> {
     Ok(db::task::search(pool, &pattern).await?)
 }
 
-/// Backslash first, so the escapes added afterwards aren't re-escaped.
+// Backslash first, so the escapes added afterwards aren't re-escaped.
 fn escape_like(term: &str) -> String {
     term.replace('\\', "\\\\")
         .replace('%', "\\%")

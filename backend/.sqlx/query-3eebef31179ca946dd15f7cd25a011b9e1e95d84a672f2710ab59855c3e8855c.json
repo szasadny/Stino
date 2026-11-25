@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n               SELECT 1 FROM task_exception WHERE task_id = ? AND occurrence_date = ?\n           ) AS \"exists!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists!: bool",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3eebef31179ca946dd15f7cd25a011b9e1e95d84a672f2710ab59855c3e8855c"
+}

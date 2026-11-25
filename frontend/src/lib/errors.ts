@@ -1,10 +1,10 @@
-import { REQUEST_FAILED_MESSAGE } from './constants'
+import { REQUEST_FAILED_MESSAGE } from './messages'
 
 export function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback
 }
 
-/** Reads the backend's `{"error": msg}` body. */
+// Reads the backend's `{"error": msg}` body.
 export function apiErrorMessage(body: unknown): string {
   if (typeof body === 'object' && body !== null && 'error' in body) {
     const { error } = body

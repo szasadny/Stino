@@ -1,193 +1,210 @@
-// One `pending` lock so writes never interleave (drags bind `dragDisabled: core.pending`);
-// every mutation is optimistic and reverts to its snapshot on failure.
-import { api, type TaskInput } from '../api'
-import type { Label, Task } from '../types'
+import { untrack } from 'svelte'
+import { api } from '../api'
+import { LABEL_NAME_MAX_LENGTH } from '../constants'
 import { errorMessage } from '../errors'
-import { applyLabelOrder, mergeLabelOrder } from '../labels'
-import { applyUntimedOrder, isUntimedOrder } from '../ordering'
+import { findLabelByName, labelLookup, mergeLabelOrder, nextPaletteColor } from '../labels'
 import {
+  CREATE_LABEL_FAILED,
+  DELETE_OCCURRENCE_FAILED,
+  DELETE_TASK_FAILED,
+  LOAD_FAILED,
+  MOVE_OCCURRENCE_FAILED,
+  MOVE_TASK_FAILED,
+  REOPEN_TASK_FAILED,
+  SAVE_LABEL_ORDER_FAILED,
+  SAVE_ORDER_FAILED,
+  UPDATE_TASK_FAILED,
+} from '../messages'
+import { onRefresh } from '../refresh.svelte'
+import { isUntimedOrder } from '../tasks/day-order'
+import {
+  applyLabelOrder,
+  applyMove,
+  applyUntimedOrder,
   replaceOccurrence,
   restoreOccurrence,
-  toggleCompletion,
-  withoutMissedOccurrences,
   withoutOccurrence,
-} from '../task-actions'
+  withoutTasks,
+} from '../tasks/optimistic'
+import { withoutMissedOccurrences } from '../tasks/projection'
 import { todayKey } from '../today.svelte'
+import type { Label, Task } from '../types'
+import { createLock } from './lock.svelte'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
-// A landed write must never read as failed — a retry would duplicate the task.
-const REFRESH_FAILED_MSG = 'Saved, but refreshing the view failed — switch tabs to reload it.'
+type Loaded = { tasks: Task[]; labels?: Label[] }
+type CommitWrap = (commit: () => void) => Promise<void>
+type CoreState = { tasks: Task[]; labels: Label[] }
+type Optimistic = (
+  apply: () => void,
+  persist: () => Promise<unknown>,
+  failMsg: string,
+) => Promise<boolean>
 
+const commitNow: CommitWrap = async (commit) => commit()
+
+export function persistToggle(task: Task): Promise<Task> {
+  return task.completed
+    ? api.tasks.uncomplete(task.id, task.occurrence_date)
+    : api.tasks.complete(task.id, task.occurrence_date)
+}
+
+// One lock serializes every write (drags bind `pending`); mutations revert on failure.
 export function createTaskCore() {
-  let tasks = $state<Task[]>([])
-  let labels = $state<Label[]>([])
+  const lock = createLock()
+  const state = $state<CoreState>({ tasks: [], labels: [] })
   let loading = $state(true)
-  let error = $state<string | null>(null)
-  let pending = $state(false)
+  const labelFor = $derived(labelLookup(state.labels))
   // Only the newest load may write state, so an out-of-order response can't land stale.
   let loadToken = 0
+  let source: { fetchTasks: () => Promise<Task[]>; failMsg: string } | null = null
 
-  // Fetch before the wrapper (e.g. a View Transition) so the network wait never lands in
-  // its paused-rendering window.
-  async function loadThrough(
-    fetcher: () => Promise<{ tasks: Task[]; labels?: Label[] }>,
-    commitWrap: (commit: () => void) => Promise<void>,
-    failMsg = 'Could not load',
+  // `quiet` refreshes the same scope without the loading state, so lists never blank.
+  async function load(
+    fetcher: () => Promise<Loaded>,
+    commitWrap: CommitWrap,
+    failMsg: string,
+    quiet: boolean,
   ): Promise<void> {
     const mine = ++loadToken
-    loading = true
-    error = null
+    if (!quiet) loading = true
+    lock.clearError()
     try {
       const data = await fetcher()
       if (mine !== loadToken) return
       await commitWrap(() => {
-        if (mine !== loadToken) return // a newer load won while the wrapper ran
-        tasks = withoutMissedOccurrences(data.tasks, todayKey())
-        if (data.labels) labels = data.labels
+        if (mine !== loadToken) return
+        state.tasks = withoutMissedOccurrences(data.tasks, todayKey())
+        if (data.labels) state.labels = data.labels
       })
     } catch (err) {
-      if (mine === loadToken) error = errorMessage(err, failMsg)
+      if (mine === loadToken) lock.fail(errorMessage(err, failMsg))
     } finally {
       if (mine === loadToken) loading = false
     }
   }
 
-  function loadWith(
-    fetcher: () => Promise<{ tasks: Task[]; labels?: Label[] }>,
-    failMsg = 'Could not load',
-  ): Promise<void> {
-    return loadThrough(fetcher, async (commit) => commit(), failMsg)
+  function reload(): Promise<void> {
+    const bound = source
+    if (!bound) return Promise.resolve()
+    return load(async () => ({ tasks: await bound.fetchTasks() }), commitNow, bound.failMsg, true)
   }
 
-  async function optimistic(
+  function optimistic(
     apply: () => void,
-    persist: () => Promise<void>,
+    persist: () => Promise<unknown>,
     failMsg: string,
   ): Promise<boolean> {
-    if (pending) return false
-    const snapTasks = tasks
-    const snapLabels = labels
+    const snapTasks = state.tasks
+    const snapLabels = state.labels
     const tokenAtStart = loadToken
-    pending = true
-    error = null
-    apply()
-    try {
-      await persist()
-      return true
-    } catch (err) {
-      // Loads aren't gated by `pending`; never revert over a newer load's server data.
-      if (loadToken === tokenAtStart) {
-        tasks = snapTasks
-        labels = snapLabels
-      }
-      error = errorMessage(err, failMsg)
-      return false
-    } finally {
-      pending = false
-    }
-  }
-
-  async function run(fn: () => Promise<void>, failMsg: string): Promise<boolean> {
-    if (pending) return false
-    pending = true
-    error = null
-    try {
-      await fn()
-      return true
-    } catch (err) {
-      error = errorMessage(err, failMsg)
-      return false
-    } finally {
-      pending = false
-    }
-  }
-
-  async function softReload(reload: () => Promise<void>) {
-    try {
-      await reload()
-    } catch {
-      error = REFRESH_FAILED_MSG
-    }
-  }
-
-  // Hold the lock through the reload: the server assigns ids and expands recurrence.
-  async function save(
-    persist: () => Promise<void>,
-    reload: () => Promise<void>,
-    failMsg: string,
-  ): Promise<boolean> {
-    if (pending) return false
-    pending = true
-    error = null
-    try {
-      try {
-        await persist()
-      } catch (err) {
-        error = errorMessage(err, failMsg)
-        return false
-      }
-      await softReload(reload)
-      return true
-    } finally {
-      pending = false
-    }
-  }
-
-  async function saveOrThrow(
-    persist: () => Promise<void>,
-    reload: () => Promise<void>,
-  ): Promise<void> {
-    if (pending) throw new Error('A change is already in progress — try again in a moment.')
-    pending = true
-    try {
-      await persist()
-      await softReload(reload)
-    } finally {
-      pending = false
-    }
+    return lock.optimistic(apply, persist, failMsg, () => {
+      // Loads aren't gated by the lock; never revert over a newer load's server data.
+      if (loadToken !== tokenAtStart) return
+      state.tasks = snapTasks
+      state.labels = snapLabels
+    })
   }
 
   return {
     get tasks() {
-      return tasks
-    },
-    set tasks(v: Task[]) {
-      tasks = v
+      return state.tasks
     },
     get labels() {
-      return labels
+      return state.labels
     },
-    set labels(v: Label[]) {
-      labels = v
+    get labelFor() {
+      return labelFor
     },
     get loading() {
       return loading
     },
     get error() {
-      return error
-    },
-    set error(v: string | null) {
-      error = v
+      return lock.error
     },
     get pending() {
-      return pending
+      return lock.pending
     },
-    loadWith,
-    loadThrough,
+    clearError: lock.clearError,
+    run: lock.run,
+    save: lock.save,
     optimistic,
-    run,
-    save,
+    reload,
+
+    // Call at component init: loads once mounted, then quietly on every refresh bump.
+    bindLoad(fetchTasks: () => Promise<Task[]>, failMsg: string): void {
+      source = { fetchTasks, failMsg }
+      const loadAll = (quiet: boolean) =>
+        load(
+          async () => {
+            const [loadedTasks, loadedLabels] = await Promise.all([fetchTasks(), api.labels.list()])
+            return { tasks: loadedTasks, labels: loadedLabels }
+          },
+          commitNow,
+          failMsg,
+          quiet,
+        )
+      $effect(() => untrack(() => void loadAll(false)))
+      onRefresh(() => loadAll(true))
+    },
+
+    // Fetch before the wrapper (a View Transition) so the network never lands in its paused window.
+    loadThrough(
+      fetchTasks: () => Promise<Task[]>,
+      commitWrap: CommitWrap,
+      failMsg = source?.failMsg ?? LOAD_FAILED,
+    ): Promise<void> {
+      return load(async () => ({ tasks: await fetchTasks() }), commitWrap, failMsg, false)
+    },
+
+    insert(task: Task): void {
+      state.tasks = [...state.tasks, task]
+    },
+
+    patch(task: Task): void {
+      state.tasks = replaceOccurrence(state.tasks, task)
+    },
+
+    dropIds(ids: Iterable<number>): void {
+      state.tasks = withoutTasks(state.tasks, ids)
+    },
+    ...createWrites(state, lock, optimistic, reload),
+  }
+}
+
+function createWrites(
+  state: CoreState,
+  lock: ReturnType<typeof createLock>,
+  optimistic: Optimistic,
+  reload: () => Promise<void>,
+) {
+  return {
+    async ensureLabel(name: string): Promise<Label | null> {
+      const clean = name.trim().slice(0, LABEL_NAME_MAX_LENGTH)
+      const found = findLabelByName(state.labels, clean)
+      if (found) return found
+      // Outside the lock: a busy task write must not swallow the user's pick.
+      try {
+        const color = nextPaletteColor(state.labels)
+        const label = await api.labels.create({ name: clean, color, emoji: null })
+        state.labels = [...state.labels, label]
+        return label
+      } catch (err) {
+        lock.fail(errorMessage(err, CREATE_LABEL_FAILED))
+        return null
+      }
+    },
 
     toggle(task: Task): Promise<boolean> {
       return optimistic(
         () => {
-          tasks = replaceOccurrence(tasks, { ...task, completed: !task.completed })
+          state.tasks = replaceOccurrence(state.tasks, { ...task, completed: !task.completed })
         },
         async () => {
-          tasks = replaceOccurrence(tasks, await toggleCompletion(task))
+          state.tasks = replaceOccurrence(state.tasks, await persistToggle(task))
         },
-        'Could not update the task',
+        UPDATE_TASK_FAILED,
       )
     },
 
@@ -196,69 +213,87 @@ export function createTaskCore() {
       const open = { ...task, completed: false }
       return optimistic(
         () => {
-          tasks = restoreOccurrence(tasks, open, index)
+          state.tasks = restoreOccurrence(state.tasks, open, index)
         },
         async () => {
-          tasks = replaceOccurrence(tasks, await toggleCompletion({ ...task, completed: true }))
+          state.tasks = replaceOccurrence(
+            state.tasks,
+            await persistToggle({ ...task, completed: true }),
+          )
         },
-        'Could not reopen the task',
+        REOPEN_TASK_FAILED,
       )
     },
 
     reorder(ids: number[]): Promise<boolean> {
-      if (isUntimedOrder(tasks, ids)) return Promise.resolve(true)
+      if (isUntimedOrder(state.tasks, ids)) return Promise.resolve(true)
       return optimistic(
         () => {
-          tasks = applyUntimedOrder(tasks, ids)
+          state.tasks = applyUntimedOrder(state.tasks, ids)
         },
         () => api.tasks.reorder(ids),
-        'Could not save the new order',
+        SAVE_ORDER_FAILED,
       )
     },
 
     reorderLabels(visibleIds: number[]): Promise<boolean> {
-      const ids = mergeLabelOrder(labels, visibleIds)
+      const ids = mergeLabelOrder(state.labels, visibleIds)
       return optimistic(
         () => {
-          labels = applyLabelOrder(labels, ids)
+          state.labels = applyLabelOrder(state.labels, ids)
         },
         () => api.labels.reorder(ids),
-        'Could not save the label order',
+        SAVE_LABEL_ORDER_FAILED,
       )
     },
 
     remove(id: number): Promise<boolean> {
       return optimistic(
         () => {
-          tasks = tasks.filter((t) => t.id !== id)
+          state.tasks = state.tasks.filter((t) => t.id !== id)
         },
         () => api.tasks.remove(id),
-        'Could not delete the task',
+        DELETE_TASK_FAILED,
       )
     },
 
     removeOccurrence(id: number, occurrenceDate: string): Promise<boolean> {
       return optimistic(
         () => {
-          tasks = withoutOccurrence(tasks, id, occurrenceDate)
+          state.tasks = withoutOccurrence(state.tasks, id, occurrenceDate)
         },
         () => api.tasks.skipOccurrence(id, occurrenceDate),
-        'Could not delete the occurrence',
+        DELETE_OCCURRENCE_FAILED,
       )
     },
 
-    // Throwing CRUD for the day sheet (owns its inline error); shares the lock so its edits
-    // serialize against grid toggles/drags.
-    dayCrud(reload: () => Promise<void>) {
-      const through = (persist: () => Promise<void>) => saveOrThrow(persist, reload)
-      return {
-        create: (input: TaskInput) => through(() => api.tasks.create(input).then(() => {})),
-        update: (id: number, input: TaskInput) =>
-          through(() => api.tasks.update(id, input).then(() => {})),
-        remove: (id: number) => through(() => api.tasks.remove(id).then(() => {})),
-        removeOccurrence: (id: number, occurrenceDate: string) =>
-          through(() => api.tasks.skipOccurrence(id, occurrenceDate)),
-      }
+    moveToDay(id: number, dateKey: string, reorderIds: number[] | null): Promise<boolean> {
+      return optimistic(
+        () => {
+          state.tasks = applyMove(state.tasks, id, dateKey)
+        },
+        async () => {
+          await api.tasks.update(id, { due_date: dateKey })
+          if (!reorderIds) return
+          try {
+            await api.tasks.reorder(reorderIds)
+          } catch (err) {
+            // The date write landed: reload so the revert can't put it back on the old day.
+            void reload()
+            throw err
+          }
+        },
+        MOVE_TASK_FAILED,
+      )
+    },
+
+    // The server splits the occurrence off into a new one-off, so reload for its id.
+    moveOccurrence(id: number, occurrenceDate: string, newDate: string): Promise<boolean> {
+      return lock.save(
+        () => api.tasks.moveOccurrence(id, occurrenceDate, newDate),
+        reload,
+        MOVE_OCCURRENCE_FAILED,
+      )
     },
   }
 }

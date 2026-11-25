@@ -1,25 +1,16 @@
 <script lang="ts">
-  // The checkbox must swallow pointer-start events so ticking never starts a drag.
   import { dragHandle } from 'svelte-dnd-action'
-  import type { Label, Task } from '../types'
+  import type { Task } from '../types'
+  import { getCalendarContext } from '../controllers/calendar-context'
   import { labelColorVar } from '../labels'
-  import { trustedClick } from '../tap'
+  import { activateOnKey, trustedClick } from '../dnd/tap'
+  import CheckToggle from './CheckToggle.svelte'
 
-  let {
-    task,
-    label,
-    draggable = false,
-    onOpen,
-    onToggle,
-  }: {
-    task: Task
-    label: Label | undefined
-    draggable?: boolean
-    onOpen: () => void
-    onToggle?: (task: Task) => void
-  } = $props()
+  let { task, draggable = false }: { task: Task; draggable?: boolean } = $props()
 
-  const color = $derived(label?.color ?? null)
+  const { core, composer } = getCalendarContext()
+  const onOpen = () => composer.edit(task)
+  const color = $derived(core.labelFor(task)?.color ?? null)
   const tintStyle = $derived(labelColorVar(color))
 
   const openLabel = $derived(
@@ -27,83 +18,38 @@
       draggable ? ' — drag to move to another day' : ''
     }`,
   )
-  const toggleLabel = $derived(`Mark "${task.title}" as ${task.completed ? 'not done' : 'done'}`)
 
   function dragHandleIf(node: HTMLElement) {
-    if (draggable) return dragHandle(node)
-  }
-
-  function openOnKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onOpen()
-    }
-  }
-
-  function swallowStart(e: Event) {
-    e.stopPropagation()
+    return draggable ? dragHandle(node) : undefined
   }
 </script>
 
-{#snippet checkbox()}
-  <button
-    type="button"
-    onclick={(e) => {
-      e.stopPropagation()
-      if (e.isTrusted) onToggle?.(task)
-    }}
-    onpointerdown={swallowStart}
-    onmousedown={swallowStart}
-    ontouchstart={swallowStart}
-    role="checkbox"
-    aria-checked={task.completed}
-    aria-label={toggleLabel}
-    class="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border transition {task.completed
-      ? 'border-pine bg-pine text-surface'
-      : 'border-sage/70 bg-surface/70 text-transparent hover:border-pine'}"
-  >
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="3.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="h-2 w-2"
-      aria-hidden="true"
-    >
-      <path d="M5 13l4 4L19 7" />
-    </svg>
-  </button>
-{/snippet}
-
-{#snippet pill()}
-  <div
-    use:dragHandleIf
-    role="button"
-    tabindex="0"
-    onclick={trustedClick(onOpen)}
-    onkeydown={openOnKey}
-    aria-label={openLabel}
-    class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color
-      ? 'label-tint'
-      : 'bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
-      ? 'cursor-grab active:cursor-grabbing'
-      : 'cursor-pointer'}"
-    style={tintStyle}
-  >
-    {#if onToggle}
-      {@render checkbox()}
-    {/if}
-    {#if task.due_time}
-      <span class="shrink-0 text-[10px] font-medium tabular-nums text-sage">{task.due_time}</span>
-    {/if}
-    <span
-      class="truncate text-[11px] leading-tight text-ink {task.completed ? 'line-through' : ''}"
-    >
-      {task.title}
-    </span>
-  </div>
-{/snippet}
-
-{@render pill()}
+<div
+  use:dragHandleIf
+  role="button"
+  tabindex="0"
+  onclick={trustedClick(onOpen)}
+  onkeydown={activateOnKey(onOpen)}
+  aria-label={openLabel}
+  class="flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-left {color
+    ? 'label-tint'
+    : 'bg-pine/10'} {task.completed ? 'opacity-60' : ''} {draggable
+    ? 'cursor-grab active:cursor-grabbing'
+    : 'cursor-pointer'}"
+  style={tintStyle}
+>
+  <CheckToggle
+    checked={task.completed}
+    title={task.title}
+    onToggle={() => core.toggle(task)}
+    size="sm"
+    nested
+    guardDrag
+  />
+  {#if task.due_time}
+    <span class="shrink-0 text-3xs font-medium tabular-nums text-sage">{task.due_time}</span>
+  {/if}
+  <span class="truncate text-2xs leading-tight text-ink {task.completed ? 'line-through' : ''}">
+    {task.title}
+  </span>
+</div>
