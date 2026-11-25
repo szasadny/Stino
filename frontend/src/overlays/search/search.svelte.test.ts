@@ -4,7 +4,7 @@ import { api } from '../../lib/api'
 import { SEARCH_DEBOUNCE_MS } from '../../lib/constants'
 import { ApiError } from '../../lib/errors'
 import { LOAD_LABELS_FAILED, NETWORK_ERROR_MESSAGE, SEARCH_FAILED } from '../../lib/messages'
-import { MON, makeLabel, makeTask, on, recurring } from '../../lib/test/factories'
+import { MON, deferred, makeLabel, makeTask, on, recurring } from '../../lib/test/factories'
 import type { Task } from '../../lib/types'
 import { createSearch, type Search } from './search.svelte'
 
@@ -15,12 +15,6 @@ vi.mock('../../lib/api', () => ({
     tasks: { update: vi.fn(), complete: vi.fn(), uncomplete: vi.fn() },
   },
 }))
-
-function deferred<T>() {
-  let resolve: (value: T) => void = () => {}
-  const promise = new Promise<T>((res) => (resolve = res))
-  return { promise, resolve }
-}
 
 const titles = (tasks: Task[]) => tasks.map((t) => t.title)
 
@@ -130,6 +124,24 @@ describe('createSearch', () => {
     vi.mocked(api.tasks.complete).mockResolvedValue({ ...task, completed: true })
     expect(await search.toggle(task)).toBe(true)
     expect(search.results[0]?.completed).toBe(true)
+  })
+
+  it('lands two quick ticks on the results, one request after the other', async () => {
+    const first = on(MON, { id: 3 })
+    const second = on(MON, { id: 4 })
+    vi.mocked(api.search).mockResolvedValue([first, second])
+    await type('t')
+    const reply = deferred<Task>()
+    vi.mocked(api.tasks.complete)
+      .mockReturnValueOnce(reply.promise)
+      .mockResolvedValueOnce({ ...second, completed: true })
+    const ticks = [search.toggle(first), search.toggle(second)]
+    expect(search.results.map((t) => t.completed)).toEqual([true, true])
+    expect(api.tasks.complete).toHaveBeenCalledOnce()
+    reply.resolve({ ...first, completed: true })
+    expect(await Promise.all(ticks)).toEqual([true, true])
+    expect(api.tasks.complete).toHaveBeenCalledTimes(2)
+    expect(search.results.map((t) => t.completed)).toEqual([true, true])
   })
 
   it('edits a recurring row as its series, without a single-occurrence delete', () => {

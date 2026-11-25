@@ -13,7 +13,6 @@ import {
   REOPEN_TASK_FAILED,
   SAVE_LABEL_ORDER_FAILED,
   SAVE_ORDER_FAILED,
-  UPDATE_TASK_FAILED,
 } from '../messages'
 import { onRefresh } from '../refresh.svelte'
 import { isUntimedOrder } from '../tasks/day-order'
@@ -30,6 +29,7 @@ import { withoutMissedOccurrences } from '../tasks/projection'
 import { todayKey } from '../today.svelte'
 import type { Label, Task } from '../types'
 import { createLock } from './lock.svelte'
+import { createToggles, persistToggle, type TaskList } from './toggles'
 
 export type TaskCore = ReturnType<typeof createTaskCore>
 
@@ -44,12 +44,6 @@ type Optimistic = (
 
 const commitNow: CommitWrap = async (commit) => commit()
 
-export function persistToggle(task: Task): Promise<Task> {
-  return task.completed
-    ? api.tasks.uncomplete(task.id, task.occurrence_date)
-    : api.tasks.complete(task.id, task.occurrence_date)
-}
-
 // One lock serializes every write (drags bind `pending`); mutations revert on failure.
 export function createTaskCore() {
   const lock = createLock()
@@ -59,6 +53,12 @@ export function createTaskCore() {
   // Only the newest load may write state, so an out-of-order response can't land stale.
   let loadToken = 0
   let source: { fetchTasks: () => Promise<Task[]>; failMsg: string } | null = null
+  const toggleIn = createToggles(lock)
+  const list: TaskList = {
+    read: () => state.tasks,
+    write: (tasks) => (state.tasks = tasks),
+    version: () => loadToken,
+  }
 
   // `quiet` refreshes the same scope without the loading state, so lists never blank.
   async function load(
@@ -131,6 +131,8 @@ export function createTaskCore() {
     save: lock.save,
     optimistic,
     reload,
+    toggle: (task: Task) => toggleIn(list, task),
+    toggleIn,
 
     // Call at component init: loads once mounted, then quietly on every refresh bump.
     bindLoad(fetchTasks: () => Promise<Task[]>, failMsg: string): void {
@@ -194,18 +196,6 @@ function createWrites(
         lock.fail(errorMessage(err, CREATE_LABEL_FAILED))
         return null
       }
-    },
-
-    toggle(task: Task): Promise<boolean> {
-      return optimistic(
-        () => {
-          state.tasks = replaceOccurrence(state.tasks, { ...task, completed: !task.completed })
-        },
-        async () => {
-          state.tasks = replaceOccurrence(state.tasks, await persistToggle(task))
-        },
-        UPDATE_TASK_FAILED,
-      )
     },
 
     // Undo for a list that drops done rows (the Inbox).

@@ -46,8 +46,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Owns | Bound by |
 | --- | --- | --- |
-| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `ensureLabel` creates a label outside the lock; `persistToggle` | Every view; `search.svelte.ts` |
-| `lock.svelte.ts` | `createLock()`: one `pending` flag and `error`; `run`, `optimistic` (apply, persist, revert on failure), `save` (keeps the lock through the follow-up) | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
+| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
+| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
+| `toggles.ts` | `createToggles(lock)`: queued ticks; only an occurrence's newest tick writes its row, a failure restores its last server state; `persistToggle` | `task-core.svelte.ts` |
 | `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
 | `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday`; binds the core's load to the period's range | `MonthView`, `WeekView` |
@@ -58,7 +59,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | Concern | Model |
 | --- | --- |
 | Server data | One `createTaskCore()` per view or overlay; components read it, never keep a copy (review) |
-| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
+| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
 | Add/edit | `createComposer`; `afterSave` defaults to the core's `reload`, Inbox passes its own to drop a task that gained a date |
 | Drag lists | `createDropList`, re-projected only while no gesture is live (§4.6) |
 | Period navigation | `createPeriodNav` → `core.loadThrough` fetches the target range first, then commits inside `navigateWithSlide` (`nav-transition.ts`), a View Transition that never mounts the outgoing grid twice |
