@@ -4,6 +4,7 @@
   import DeleteConfirm from '../../lib/components/DeleteConfirm.svelte'
   import LabelChip from '../../lib/components/LabelChip.svelte'
   import { GHOST_BTN_CLASS } from '../../lib/constants'
+  import { deleteLabelTitle, LABEL_DELETE_KEEPS_TASKS } from '../../lib/messages'
   import type { Label, LabelInput } from '../../lib/types'
   import type { LabelStore } from './label-store.svelte'
   import LabelForm from './LabelForm.svelte'
@@ -56,7 +57,13 @@
         >
           Edit
         </button>
-        <DeleteConfirm onConfirm={() => store.remove(label.id)} busy={store.pending} compact />
+        <DeleteConfirm
+          onConfirm={() => store.remove(label.id)}
+          title={deleteLabelTitle(label.name)}
+          detail={LABEL_DELETE_KEEPS_TASKS}
+          busy={store.pending}
+          compact
+        />
       </div>
     </div>
   {/if}

@@ -38,6 +38,12 @@ export const NEW_TASK_TITLE = 'New task'
 export const EDIT_TASK_TITLE = 'Edit task'
 export const SUBMIT_ADD = 'Add'
 export const SUBMIT_SAVE = 'Save'
+export const CANCEL = 'Cancel'
+export const DELETE = 'Delete'
+export const DELETE_TASK_TITLE = 'Delete task?'
+export const DELETE_RECURRING_TITLE = 'Delete recurring task?'
+export const CANNOT_UNDO = 'This can’t be undone.'
+export const LABEL_DELETE_KEEPS_TASKS = 'Its tasks stay, without a label.'
 
 export function addTaskOnLabel(day: string): string {
   return `${ADD_A_TASK} on ${day}`
@@ -49,4 +55,8 @@ export function editTaskLabel(title: string): string {
 
 export function toggleTaskLabel(title: string, done: boolean): string {
   return `Mark "${title}" as ${done ? 'not done' : 'done'}`
+}
+
+export function deleteLabelTitle(name: string): string {
+  return `${DELETE} “${name}”?`
 }

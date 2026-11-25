@@ -20,11 +20,13 @@ describe('createComposer', () => {
     expect([composer.title, composer.submitLabel]).toEqual([NEW_TASK_TITLE, SUBMIT_ADD])
     expect(composer.initial).toEqual({ date: MON, title: 'gym' })
     expect(composer.onDelete).toBeUndefined()
+    expect(composer.editingTitle).toBeUndefined()
 
     composer.edit(on(MON, { id: 3, title: 'Read' }))
     expect([composer.title, composer.submitLabel]).toEqual([EDIT_TASK_TITLE, SUBMIT_SAVE])
     expect(composer.initial.title).toBe('Read')
     expect(composer.onDelete).toBeDefined()
+    expect(composer.editingTitle).toBe('Read')
   })
 
   it('hands each landed write to `afterSave` and closes', async () => {

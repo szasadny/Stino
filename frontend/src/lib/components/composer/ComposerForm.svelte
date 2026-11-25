@@ -10,6 +10,7 @@
     TITLE_MAX_LENGTH,
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
+  import { DELETE_TASK_TITLE } from '../../messages'
   import { isCoarsePointer } from '../../viewport.svelte'
   import DeleteConfirm from '../DeleteConfirm.svelte'
   import LabelPicker from './LabelPicker.svelte'
@@ -74,7 +75,12 @@
       {#if composer.onDelete && composer.onDeleteOccurrence}
         <RecurringDeleteConfirm {composer} />
       {:else if composer.onDelete}
-        <DeleteConfirm onConfirm={composer.onDelete} busy={composer.pending} />
+        <DeleteConfirm
+          onConfirm={composer.onDelete}
+          title={DELETE_TASK_TITLE}
+          detail={composer.editingTitle}
+          busy={composer.pending}
+        />
       {:else}
         <span></span>
       {/if}

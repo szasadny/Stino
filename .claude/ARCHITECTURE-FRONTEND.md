@@ -73,7 +73,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- | --- |
 | Shells | `ListViewShell` | Today and Inbox frame: title, actions, error, loading and empty states, optional edge scroll |
 | | `PeriodShell` | Month and Week frame: title, previous / today / next, swipe, error |
-| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `onHeaderClose` overrides the X |
+| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `onHeaderClose` overrides the X, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
 | | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
 | | `DayListSection` | A day heading over its task rows: the phone month agenda and the phone week stack |
@@ -89,7 +89,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji (`font-emoji` in a fixed box) and name in a chip, option or toggle look |
 | Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button (`sm`/`md` size, label as tooltip); generic segmented choice |
 | | `GroupViewToggle` | The List / By label control for `group-view.svelte.ts` |
-| | `DeleteConfirm` | Two-step Delete, then Yes / No |
+| | `DeleteConfirm` | Delete button that opens a small confirmation (`title`, optional `detail`) with Cancel focused |
 | Feedback | `ErrorAlert`, `EmptyState` | Error banner; dashed empty message |
 | Brand | `Cairn` | The logo mark, filled from theme tokens |
 | `lib/components/composer/` | `ComposerDialog`, `ComposerForm` | The add/edit dialog and its form, embedded inline by `DaySheet` and Search; the other files are internal parts (schedule, label, recurrence pickers, recurring-delete confirm) |
@@ -127,6 +127,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- |
 | `zone-options.ts` | `calendarZone` (options of every calendar zone), `isShadowItem` |
 | `tap.ts` | `trustedClick`, `activateOnKey`, `createPressTracker`, `tappedItem` |
+| `autofocus.action.ts` | `autofocus`: the control `showModal()` focuses first |
 | `presses.action.ts` | `presses` (the app-wide press tracker), `trackPresses` (started in `main.ts`) |
 | `drag-scroll.ts` | `edgeScrollStep`, `pointFrom`, `createBottomDwell` |
 | `drag-scroll.action.ts` | `dragEdgeScroll`, `dragIsLive`, `trackPointer` |

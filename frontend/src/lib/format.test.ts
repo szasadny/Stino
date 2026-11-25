@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayTaskCount, pluralize } from './format'
+import { dayTaskCount, deleteTasksTitle, pluralize } from './format'
 import { NOTHING_SCHEDULED } from './messages'
 
 describe('pluralize', () => {
@@ -19,5 +19,14 @@ describe('dayTaskCount', () => {
     [3, '3 tasks'],
   ])('summarises %i as "%s"', (count, expected) => {
     expect(dayTaskCount(count)).toBe(expected)
+  })
+})
+
+describe('deleteTasksTitle', () => {
+  it.each([
+    [1, 'Delete 1 task?'],
+    [3, 'Delete 3 tasks?'],
+  ])('counts %i selected tasks', (count, title) => {
+    expect(deleteTasksTitle(count)).toBe(title)
   })
 })

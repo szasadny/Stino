@@ -111,6 +111,9 @@ export function createComposer(
     get canDeleteOccurrence(): boolean {
       return editing?.mode !== 'edit' || canSkipOccurrence(editing.task)
     },
+    get editingTitle(): string | undefined {
+      return editing?.mode === 'edit' ? editing.task.title : undefined
+    },
     get editingSeries(): boolean {
       return editing?.mode === 'edit' && isRecurring(editing.task)
     },

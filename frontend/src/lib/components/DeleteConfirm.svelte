@@ -1,44 +1,74 @@
 <script lang="ts">
-  import { BTN_SM_CLASS, DESTRUCTIVE_BTN_CLASS, GHOST_BTN_CLASS } from '../constants'
+  import {
+    BTN_SM_CLASS,
+    DESTRUCTIVE_BTN_CLASS,
+    GHOST_BTN_CLASS,
+    MODAL_BODY_CLASS,
+  } from '../constants'
+  import { autofocus } from '../dnd/autofocus.action'
+  import { CANCEL, DELETE } from '../messages'
+  import Modal from './Modal.svelte'
 
   let {
     onConfirm,
+    title,
+    detail,
     busy = false,
     compact = false,
-    label = 'Delete',
-  }: { onConfirm: () => unknown; busy?: boolean; compact?: boolean; label?: string } = $props()
+    label = DELETE,
+  }: {
+    onConfirm: () => unknown
+    title: string
+    detail?: string
+    busy?: boolean
+    compact?: boolean
+    label?: string
+  } = $props()
 
-  let confirming = $state(false)
+  let open = $state(false)
 
   const size = $derived(compact ? 'px-2 py-1 text-xs' : BTN_SM_CLASS)
 
-  // Disarm once settled: a success usually unmounts this, a failure must not stay one click away.
-  async function confirm() {
-    try {
-      await onConfirm()
-    } finally {
-      confirming = false
-    }
+  // Close first so a failure surfaces in the view or dialog underneath.
+  function confirm() {
+    open = false
+    void onConfirm()
   }
 </script>
 
-{#if confirming}
-  <div class="flex items-center gap-1">
-    <span class="text-xs text-sage">{label}?</span>
-    <button type="button" onclick={confirm} disabled={busy} class="{DESTRUCTIVE_BTN_CLASS} {size}">
-      Yes
-    </button>
-    <button type="button" onclick={() => (confirming = false)} class="{GHOST_BTN_CLASS} {size}">
-      No
-    </button>
-  </div>
-{:else}
-  <button
-    type="button"
-    onclick={() => (confirming = true)}
-    disabled={busy}
-    class="{DESTRUCTIVE_BTN_CLASS} {size}"
-  >
-    {label}
-  </button>
+<button
+  type="button"
+  onclick={() => (open = true)}
+  disabled={busy}
+  class="{DESTRUCTIVE_BTN_CLASS} {size}"
+>
+  {label}
+</button>
+
+{#if open}
+  <Modal open onClose={() => (open = false)} {title} size="sm" dismiss="closerequest">
+    <div class="space-y-4 {MODAL_BODY_CLASS}">
+      {#if detail}
+        <p class="truncate text-sm text-sage">{detail}</p>
+      {/if}
+      <div class="flex justify-end gap-1">
+        <button
+          {@attach autofocus}
+          type="button"
+          onclick={() => (open = false)}
+          class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}"
+        >
+          {CANCEL}
+        </button>
+        <button
+          type="button"
+          onclick={confirm}
+          disabled={busy}
+          class="{DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
+        >
+          {DELETE}
+        </button>
+      </div>
+    </div>
+  </Modal>
 {/if}

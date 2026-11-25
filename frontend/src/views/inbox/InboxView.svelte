@@ -5,7 +5,7 @@
   import { GHOST_BTN_CLASS } from '../../lib/constants'
   import { presses } from '../../lib/dnd/presses.action'
   import { tappedItem } from '../../lib/dnd/tap'
-  import { LOAD_INBOX_FAILED } from '../../lib/messages'
+  import { DELETE_TASK_TITLE, LOAD_INBOX_FAILED } from '../../lib/messages'
   import type { Task } from '../../lib/types'
   import { createComposer, type ComposerChange } from '../../lib/controllers/composer.svelte'
   import { createDropList } from '../../lib/controllers/drop-list.svelte'
@@ -107,7 +107,13 @@
           >
             Edit
           </button>
-          <DeleteConfirm onConfirm={() => core.remove(task.id)} busy={core.pending} compact />
+          <DeleteConfirm
+            onConfirm={() => core.remove(task.id)}
+            title={DELETE_TASK_TITLE}
+            detail={task.title}
+            busy={core.pending}
+            compact
+          />
         {/snippet}
         <li out:foldAway={{ dragging: list.dragging }}>
           <TaskRow

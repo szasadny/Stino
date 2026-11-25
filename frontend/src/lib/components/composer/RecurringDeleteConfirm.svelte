@@ -7,6 +7,8 @@
     MODAL_BODY_CLASS,
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
+  import { autofocus } from '../../dnd/autofocus.action'
+  import { CANCEL, DELETE, DELETE_RECURRING_TITLE } from '../../messages'
   import Modal from '../Modal.svelte'
 
   let { composer }: { composer: Composer } = $props()
@@ -31,15 +33,16 @@
   disabled={composer.pending}
   class="{DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
 >
-  Delete
+  {DELETE}
 </button>
 
 <Modal
   {open}
   onClose={() => (open = false)}
-  title="Delete recurring task"
+  title={DELETE_RECURRING_TITLE}
   subtitle="This task repeats."
   size="sm"
+  dismiss="closerequest"
 >
   <div class="space-y-2 {MODAL_BODY_CLASS}">
     <button
@@ -70,11 +73,12 @@
       >
     </button>
     <button
+      {@attach autofocus}
       type="button"
       onclick={() => (open = false)}
       class="{GHOST_BTN_CLASS} w-full px-4 py-2.5 text-sm"
     >
-      Cancel
+      {CANCEL}
     </button>
   </div>
 </Modal>

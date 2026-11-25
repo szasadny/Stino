@@ -10,6 +10,8 @@
   import type { TaskCore } from '../../lib/controllers/task-core.svelte'
   import { isPlausibleISODate } from '../../lib/date'
   import DeleteConfirm from '../../lib/components/DeleteConfirm.svelte'
+  import { deleteTasksTitle } from '../../lib/format'
+  import { CANNOT_UNDO } from '../../lib/messages'
   import LabelSelect from './LabelSelect.svelte'
   import type { InboxSelect } from './inbox-select.svelte'
 
@@ -89,6 +91,8 @@
         <DeleteConfirm
           label="Delete {select.ids.length}"
           onConfirm={select.remove}
+          title={deleteTasksTitle(select.ids.length)}
+          detail={CANNOT_UNDO}
           busy={core.pending}
         />
       </div>

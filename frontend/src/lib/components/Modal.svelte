@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import type { Attachment } from 'svelte/attachments'
+  import { on } from 'svelte/events'
   import { MODAL_SIZES, type ModalSize } from '../constants'
   import ErrorAlert from './ErrorAlert.svelte'
   import PanelHeader from './PanelHeader.svelte'
@@ -15,6 +16,7 @@
     subtitle,
     label,
     size = 'md',
+    dismiss = 'any',
     error,
     header,
     children,
@@ -28,6 +30,7 @@
     subtitle?: string
     label?: string
     size?: ModalSize
+    dismiss?: 'any' | 'closerequest'
     error?: string | null
     header?: Snippet
     children: Snippet
@@ -75,7 +78,7 @@
 
   // Light-dismiss fallback for browsers lacking `closedby` (notably Safari).
   function outsideContent(event: PointerEvent): boolean {
-    if (!dialogEl || 'closedBy' in HTMLDialogElement.prototype) return false
+    if (!dialogEl || dismiss !== 'any' || 'closedBy' in HTMLDialogElement.prototype) return false
     if (event.target !== event.currentTarget) return false
     const rect = dialogEl.getBoundingClientRect()
     return (
@@ -86,8 +89,20 @@
     )
   }
 
-  function handlePointerDown(event: PointerEvent) {
-    pressedOutside = outsideContent(event)
+  // Presses must not reach a drag item or row the DOM sits in; releases stay free for in-dialog drags.
+  // `on` runs Svelte's delegated handlers inside the dialog before the stop.
+  const containPresses: Attachment<HTMLDialogElement> = (dialog) => {
+    const stop = (event: Event) => event.stopPropagation()
+    const offs = [
+      on(dialog, 'pointerdown', (event) => {
+        pressedOutside = outsideContent(event)
+        stop(event)
+      }),
+      on(dialog, 'mousedown', stop),
+      on(dialog, 'touchstart', stop, { passive: true }),
+      on(dialog, 'click', stop),
+    ]
+    return () => offs.forEach((off) => off())
   }
 
   // Press and release both outside, so a text selection dragged onto the backdrop keeps it open.
@@ -100,12 +115,12 @@
 <dialog
   bind:this={dialogEl}
   {@attach closeOnDestroy}
-  closedby="any"
+  {@attach containPresses}
+  closedby={dismiss}
   aria-labelledby={title && !header ? titleId : undefined}
   aria-label={label}
   onclose={handleClose}
   onkeydown={handleKeydown}
-  onpointerdown={handlePointerDown}
   onpointerup={handlePointerUp}
   class="border border-lichen bg-surface p-0 text-ink shadow-overlay backdrop:bg-scrim backdrop:backdrop-blur-scrim {MODAL_SIZES[
     size
