@@ -2,6 +2,7 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { createTaskCore, type TaskCore } from '../../lib/controllers/task-core.svelte'
+import { ApiError } from '../../lib/errors'
 import { LOAD_FAILED } from '../../lib/messages'
 import { makeLabel, makeTask } from '../../lib/test/factories'
 import type { TaskInput } from '../../lib/types'
@@ -125,7 +126,7 @@ describe('createQuickCapture', () => {
   })
 
   it('adds nothing when the pending label cannot be created', async () => {
-    vi.mocked(api.labels.create).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.labels.create).mockRejectedValueOnce(new ApiError('server'))
     type('lift #gym ')
     await capture.submit()
     expect(api.tasks.create).not.toHaveBeenCalled()
@@ -142,7 +143,7 @@ describe('createQuickCapture', () => {
       rule: null,
     })
 
-    vi.mocked(api.labels.create).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.labels.create).mockRejectedValueOnce(new ApiError('server'))
     type('lift #run ')
     expect(await capture.details()).toBeNull()
   })

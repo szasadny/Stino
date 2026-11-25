@@ -169,7 +169,7 @@ In [DATA-MODEL.md](./DATA-MODEL.md). §5.x references resolve there.
 | Migrations | `backend/migrations/`, `backend/build.rs` | Embedded at compile time; the build script rebuilds when one is added; additive only (Hard Rule 3) |
 | Lint policy (BE) | `backend/Cargo.toml`, `backend/clippy.toml` | clippy `unwrap_used`, `expect_used`, `too_many_lines` (60) deny; unwrap and expect are allowed in tests |
 | Test boundary (BE) | `backend/tests/api/common/app.rs` | Every integration test runs the real router in-process on a fresh one-connection `sqlite::memory:` pool with all migrations; never a file DB or the live DB |
-| HTTP client (FE) | `frontend/src/lib/api.ts` | Relative `/api` (`API_BASE`); a non-2xx throws the API's message (a 5xx a generic one), no response throws `NETWORK_ERROR_MESSAGE` |
+| HTTP client (FE) | `frontend/src/lib/api.ts` | Relative `/api` (`API_BASE`); every failure throws an `ApiError` (`network`, `server` for a 5xx or unreadable body, `rejected` with the API's reason for a 4xx) |
 | Constants and copy (FE) | `frontend/src/lib/constants.ts`, `frontend/src/lib/messages.ts` | One home each; mirrored caps per DATA-MODEL.md §5.6 |
 | Theme | `frontend/src/lib/theme.ts`, `frontend/index.html`, `frontend/src/app.css` | System / Light / Dark in `localStorage`; `data-theme` on `<html>` set before first paint; tokens re-point per theme |
 | Viewport | `frontend/src/lib/viewport.svelte.ts` | `isCompact()` (≤ `COMPACT_MAX_WIDTH`) and `isCoarsePointer()`, the only media queries in script |
@@ -268,7 +268,7 @@ Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.t
 | Both layouts rendered, one hidden with `sm:hidden` | `{#if isCompact()}` … `{:else}` … |
 | A `$state` busy flag and try/catch around an `api` call in a view | `core.optimistic`, `core.save` or `createLock().run` |
 | `invisible` on a zone mid-drag | `hidden` |
-| A literal `'Could not …'` or a literal duration in a component | A constant in `lib/messages.ts` or `lib/constants.ts` |
+| A literal `'Couldn’t …'` or a literal duration in a component | A constant in `lib/messages.ts` or `lib/constants.ts` |
 | `value as Task`, `task!` | Narrow with a type guard or an early return |
 | `// eslint-disable-next-line` | Fix the code |
 

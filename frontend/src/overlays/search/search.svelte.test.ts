@@ -2,7 +2,8 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { SEARCH_DEBOUNCE_MS } from '../../lib/constants'
-import { LOAD_LABELS_FAILED, SEARCH_FAILED } from '../../lib/messages'
+import { ApiError } from '../../lib/errors'
+import { LOAD_LABELS_FAILED, NETWORK_ERROR_MESSAGE, SEARCH_FAILED } from '../../lib/messages'
 import { MON, makeLabel, makeTask, on, recurring } from '../../lib/test/factories'
 import type { Task } from '../../lib/types'
 import { createSearch, type Search } from './search.svelte'
@@ -69,14 +70,42 @@ describe('createSearch', () => {
 
   it('drops a slower response to an older query', async () => {
     const old = deferred<Task[]>()
-    vi.mocked(api.search)
-      .mockReturnValueOnce(old.promise)
-      .mockResolvedValueOnce([makeTask({ id: 2, title: 'Newer' })])
+    const newer = deferred<Task[]>()
+    vi.mocked(api.search).mockReturnValueOnce(old.promise).mockReturnValueOnce(newer.promise)
     await type('a')
     await type('ab')
     old.resolve([makeTask({ id: 1, title: 'Older' })])
     await vi.advanceTimersByTimeAsync(0)
-    expect(titles(search.results)).toEqual(['Newer'])
+    expect([search.loading, titles(search.results)]).toEqual([true, []])
+    newer.resolve([makeTask({ id: 2, title: 'Newer' })])
+    await vi.advanceTimersByTimeAsync(0)
+    expect([search.loading, titles(search.results)]).toEqual([false, ['Newer']])
+  })
+
+  it('keeps the previous results on screen, marked stale, while a newer query runs', async () => {
+    vi.mocked(api.search).mockResolvedValueOnce([makeTask({ id: 1, title: 'Gym' })])
+    await type('g')
+    expect(search.stale).toBe(false)
+
+    const next = deferred<Task[]>()
+    vi.mocked(api.search).mockReturnValueOnce(next.promise)
+    search.input('gy')
+    expect([search.loading, search.stale, titles(search.results)]).toEqual([true, true, ['Gym']])
+    await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS)
+    expect(search.stale).toBe(true)
+
+    next.resolve([makeTask({ id: 2, title: 'Gym bag' })])
+    await vi.advanceTimersByTimeAsync(0)
+    expect([search.loading, search.stale, titles(search.results)]).toEqual([
+      false,
+      false,
+      ['Gym bag'],
+    ])
+  })
+
+  it('is loading but not stale while the first query has nothing to show yet', () => {
+    search.input('g')
+    expect([search.loading, search.stale]).toEqual([true, false])
   })
 
   it('clears the results for an empty query and reports a failed search', async () => {
@@ -85,9 +114,13 @@ describe('createSearch', () => {
     await type('  ')
     expect([search.results, search.searched, search.loading]).toEqual([[], false, false])
 
-    vi.mocked(api.search).mockRejectedValue('down')
+    vi.mocked(api.search).mockRejectedValue(new ApiError('server'))
     await type('y')
     expect(search.error).toBe(SEARCH_FAILED)
+
+    vi.mocked(api.search).mockRejectedValue(new ApiError('network'))
+    await type('yz')
+    expect(search.error).toBe(NETWORK_ERROR_MESSAGE)
   })
 
   it('toggles a result through the core lock', async () => {
@@ -120,7 +153,7 @@ describe('createSearch', () => {
 
 describe('createSearch label load', () => {
   it('surfaces a failed label load instead of swallowing it', async () => {
-    vi.mocked(api.labels.list).mockRejectedValue('down')
+    vi.mocked(api.labels.list).mockRejectedValue(new ApiError('server'))
     let search: Search | undefined
     const cleanup = $effect.root(() => {
       search = createSearch()

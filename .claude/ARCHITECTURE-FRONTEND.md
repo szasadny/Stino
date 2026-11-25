@@ -140,17 +140,17 @@ Single files in `lib/`:
 
 | File | Exports |
 | --- | --- |
-| `api.ts` | `api`: one typed function per endpoint, the only `fetch` |
+| `api.ts` | `api`: one typed function per endpoint, the only `fetch`; every failure throws an `ApiError` |
 | `types.ts` | API shapes (`Task`, `Label`, `TaskInput`, `LabelInput`, `BatchOp`, `ImportSummary`, `RolloverSummary`), `ViewId`, `ThemePref` |
 | `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`), look-token classes (§4.7) |
-| `messages.ts` | User-facing copy: load and save failures, network and refresh messages, titles, button text, aria-label builders |
+| `messages.ts` | User-facing copy: load and save failures and `failureWithReason`, network and refresh messages, titles, button text, aria-label builders |
 | `format.ts` | `pluralize`, `dayTaskCount` |
 | `storage.ts` | `readStored`, `writeStored`: `localStorage` that never throws |
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |
 | `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
 | `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput` |
-| `errors.ts` | `errorMessage` (thrown value → UI string), `apiErrorMessage` (the API's `{"error"}` text) |
+| `errors.ts` | `ApiError` (`kind` network, server or rejected; a 4xx carries the API's `{"error"}` text as `reason`), `rejectionReason`; `errorMessage`: network → `NETWORK_ERROR_MESSAGE`, rejected with a reason → action message plus reason (`failureWithReason`), else the action message |
 | `theme.ts` | `getThemePref`, `setThemePref` |
 | `nav-transition.ts` | `navigateWithSlide(dir, apply)` |
 | `palette.ts` | `LABEL_PALETTE`, `PaletteHex` |

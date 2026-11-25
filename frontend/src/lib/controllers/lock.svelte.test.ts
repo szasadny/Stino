@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { REFRESH_FAILED_MESSAGE } from '../messages'
+import { ApiError } from '../errors'
+import { NETWORK_ERROR_MESSAGE, REFRESH_FAILED_MESSAGE, SAVE_LABEL_FAILED } from '../messages'
 import { createLock } from './lock.svelte'
 
 function deferred() {
@@ -26,17 +27,22 @@ describe('createLock', () => {
     expect(lock.pending).toBe(false)
   })
 
-  it('reports a failure with the thrown message and releases the lock', async () => {
+  it('reports a rejected write with its reason and releases the lock', async () => {
     const lock = createLock()
-    expect(await lock.run(() => Promise.reject(new Error('boom')), 'fail')).toBe(false)
-    expect(lock.error).toBe('boom')
+    const rejected = new ApiError('rejected', 'a label with that name already exists')
+    expect(await lock.run(() => Promise.reject(rejected), SAVE_LABEL_FAILED)).toBe(false)
+    expect(lock.error).toBe('Couldn’t save the label: a label with that name already exists.')
     expect(lock.pending).toBe(false)
   })
 
-  it('falls back to the given message for a non-Error throw', async () => {
+  it.each([
+    ['a network failure', new ApiError('network'), NETWORK_ERROR_MESSAGE],
+    ['a server error', new ApiError('server'), SAVE_LABEL_FAILED],
+    ['a non-API throw', new Error('boom'), SAVE_LABEL_FAILED],
+  ])('reports %s', async (_, err, expected) => {
     const lock = createLock()
-    await lock.run(() => Promise.reject('nope'), 'Could not save')
-    expect(lock.error).toBe('Could not save')
+    await lock.run(() => Promise.reject(err), SAVE_LABEL_FAILED)
+    expect(lock.error).toBe(expected)
   })
 
   it('clears a previous error when a new run starts', async () => {
@@ -53,14 +59,14 @@ describe('createLock', () => {
       () => order.push('apply'),
       () => {
         order.push('persist')
-        return Promise.reject(new Error('down'))
+        return Promise.reject(new ApiError('server'))
       },
       'fail',
       () => order.push(`revert:${lock.error ?? 'none'}`),
     )
     expect(ok).toBe(false)
     expect(order).toEqual(['apply', 'persist', 'revert:none'])
-    expect(lock.error).toBe('down')
+    expect(lock.error).toBe('fail')
   })
 
   it('does not apply when the lock is already held', async () => {
@@ -102,9 +108,9 @@ describe('createLock', () => {
   it('skips `after` when the write itself fails', async () => {
     const lock = createLock()
     const after = vi.fn()
-    const ok = await lock.save(() => Promise.reject(new Error('write')), after, 'fail')
+    const ok = await lock.save(() => Promise.reject(new ApiError('server')), after, 'fail')
     expect(ok).toBe(false)
     expect(after).not.toHaveBeenCalled()
-    expect(lock.error).toBe('write')
+    expect(lock.error).toBe('fail')
   })
 })

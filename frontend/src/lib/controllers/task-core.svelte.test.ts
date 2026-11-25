@@ -1,7 +1,8 @@
 import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
-import { CREATE_LABEL_FAILED, LOAD_FAILED } from '../messages'
+import { ApiError } from '../errors'
+import { LOAD_FAILED } from '../messages'
 import { MON, makeLabel, makeTask, on } from '../test/factories'
 import type { Task } from '../types'
 import { createComposer } from './composer.svelte'
@@ -78,9 +79,11 @@ describe('createTaskCore', () => {
     await busy
     expect(core.labels.map((l) => l.id)).toEqual([1, 9])
 
-    vi.mocked(api.labels.create).mockRejectedValueOnce('down')
+    vi.mocked(api.labels.create).mockRejectedValueOnce(
+      new ApiError('rejected', 'a label with that name already exists'),
+    )
     expect(await core.ensureLabel('Run')).toBeNull()
-    expect(core.error).toBe(CREATE_LABEL_FAILED)
+    expect(core.error).toBe('Couldn’t create the label: a label with that name already exists.')
   })
 
   it('inserts, patches and drops rows without a reload', async () => {

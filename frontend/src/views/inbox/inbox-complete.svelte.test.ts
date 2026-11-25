@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { INBOX_COMPLETE_HOLD_MS, INBOX_COMPLETE_RETRY_MS, UNDO_TOAST_MS } from '../../lib/constants'
 import { createTaskCore, type TaskCore } from '../../lib/controllers/task-core.svelte'
-import { UPDATE_TASK_FAILED } from '../../lib/messages'
+import { ApiError } from '../../lib/errors'
+import { NETWORK_ERROR_MESSAGE, UPDATE_TASK_FAILED } from '../../lib/messages'
 import { makeTask } from '../../lib/test/factories'
 import { createInboxComplete, type InboxComplete } from './inbox-complete.svelte'
 
@@ -108,12 +109,12 @@ describe('createInboxComplete', () => {
   })
 
   it('puts the row back and drops the undo when the write fails', async () => {
-    vi.mocked(api.tasks.complete).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.tasks.complete).mockRejectedValueOnce(new ApiError('network'))
     complete.toggle(first)
     await vi.advanceTimersByTimeAsync(INBOX_COMPLETE_HOLD_MS)
     expect(ids()).toEqual([1, 2])
     expect(complete.undone).toBeNull()
-    expect(core.error).toBe('down')
+    expect(core.error).toBe(NETWORK_ERROR_MESSAGE)
   })
 
   it('persists every held tick at once when torn down, and nothing fires later', async () => {

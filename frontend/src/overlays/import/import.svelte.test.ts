@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
-import { IMPORT_FAILED } from '../../lib/messages'
+import { ApiError } from '../../lib/errors'
 import { bumpRefresh } from '../../lib/refresh.svelte'
 import type { ImportSummary } from '../../lib/types'
 import { createImport, describeImport } from './import.svelte'
@@ -61,12 +61,14 @@ describe('createImport', () => {
     expect(bumpRefresh).toHaveBeenCalledOnce()
   })
 
-  it('reports a failed import', async () => {
-    vi.mocked(api.import.ticktick).mockRejectedValue('bad csv')
+  it('reports a failed import with the reason', async () => {
+    vi.mocked(api.import.ticktick).mockRejectedValue(
+      new ApiError('rejected', 'the file is not valid CSV'),
+    )
     const importer = createImport()
     importer.pick(csv())
     expect(await importer.run()).toBe(false)
-    expect(importer.error).toBe(IMPORT_FAILED)
+    expect(importer.error).toBe('Couldn’t import the file: the file is not valid CSV.')
     expect(bumpRefresh).not.toHaveBeenCalled()
   })
 })

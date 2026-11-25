@@ -16,14 +16,14 @@
   }
 </script>
 
-{#if search.loading}
-  <p class="{MUTED_CENTER_CLASS} py-8">Searching…</p>
-{:else if !term}
+{#if !term}
   <EmptyState message="Start typing to search across all your tasks." />
-{:else if search.searched && search.results.length === 0}
-  <EmptyState message={`No tasks match “${term}”.`} />
-{:else}
-  <ul class="space-y-2">
+{:else if search.results.length > 0}
+  <ul
+    aria-busy={search.stale}
+    class="space-y-2 transition-opacity motion-reduce:transition-none"
+    class:opacity-60={search.stale}
+  >
     {#each search.results as task (occurrenceKey(task))}
       {@const series = isRecurring(task)}
       <li>
@@ -38,4 +38,8 @@
       </li>
     {/each}
   </ul>
+{:else if search.loading}
+  <p class="{MUTED_CENTER_CLASS} py-8">Searching…</p>
+{:else if search.searched}
+  <EmptyState message={`No tasks match “${term}”.`} />
 {/if}

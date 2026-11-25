@@ -69,6 +69,9 @@ export function createSearch() {
     get loading() {
       return loading
     },
+    get stale() {
+      return loading && results.length > 0
+    },
     get searched() {
       return searched
     },

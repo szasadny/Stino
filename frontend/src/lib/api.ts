@@ -1,6 +1,5 @@
 import { API_BASE, HTTP_SERVER_ERROR } from './constants'
-import { apiErrorMessage } from './errors'
-import { NETWORK_ERROR_MESSAGE } from './messages'
+import { ApiError, rejectionReason } from './errors'
 import type {
   BatchOp,
   ImportSummary,
@@ -20,12 +19,13 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
     })
   } catch {
     // fetch only rejects when no response arrived (offline, aborted, server down).
-    throw new Error(NETWORK_ERROR_MESSAGE)
+    throw new ApiError('network')
   }
+  // A 5xx body is server detail, not something the user can act on.
+  if (res.status >= HTTP_SERVER_ERROR) throw new ApiError('server')
   if (!res.ok) {
-    // A 5xx message is server detail, not something the user can act on.
-    const body: unknown = res.status < HTTP_SERVER_ERROR ? await res.json().catch(() => null) : null
-    throw new Error(apiErrorMessage(body))
+    const body: unknown = await res.json().catch(() => null)
+    throw new ApiError('rejected', rejectionReason(body))
   }
   return res
 }
@@ -33,7 +33,11 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
 // The JSON body is trusted to match the API contract; there is no runtime schema.
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await request(path, init)
-  return res.json()
+  try {
+    return await res.json()
+  } catch {
+    throw new ApiError('server')
+  }
 }
 
 async function send(path: string, init?: RequestInit): Promise<void> {

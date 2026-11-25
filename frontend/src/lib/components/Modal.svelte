@@ -133,7 +133,7 @@
       <PanelHeader {title} {subtitle} onClose={onHeaderClose ?? onClose} {titleId} />
     {/if}
 
-    <ErrorAlert error={error ?? null} class="mx-5 mt-4 shrink-0" />
+    <ErrorAlert error={open ? (error ?? null) : null} class="mx-5 mt-4 shrink-0" />
 
     {@render children()}
   </div>

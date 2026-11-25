@@ -3,7 +3,7 @@
   import { formatDayFull } from '../../lib/date'
   import { pluralize } from '../../lib/format'
   import { BTN_SM_CLASS, PRIMARY_BTN_CLASS } from '../../lib/constants'
-  import { LOAD_TODAY_FAILED, LOADING } from '../../lib/messages'
+  import { LOAD_TODAY_FAILED } from '../../lib/messages'
   import { todayDate, todayKey } from '../../lib/today.svelte'
   import { createTaskCore } from '../../lib/controllers/task-core.svelte'
   import { createComposer } from '../../lib/controllers/composer.svelte'
@@ -17,7 +17,8 @@
   const composer = createComposer(core)
 
   const count = $derived(core.tasks.filter((t) => !t.completed).length)
-  const subtitle = $derived(core.loading ? LOADING : `${pluralize(count, 'task')} due today`)
+  const unknown = $derived(core.loading || (core.error != null && core.tasks.length === 0))
+  const subtitle = $derived(unknown ? '' : `${pluralize(count, 'task')} due today`)
 </script>
 
 <ListViewShell
