@@ -1,6 +1,6 @@
 ---
 name: explorer
-description: Read-only codebase research for Stinō — relevant code, tests and docs, call flows, reuse candidates, constraints. Use when the main session needs a self-contained handoff before planning. Never edits files.
+description: Read-only codebase research for Stinō (relevant code, tests and docs, call flows, reuse candidates, constraints). Use when the main session needs a self-contained handoff before planning. Never edits files.
 model: opus
 tools: Read, Glob, Grep, Bash
 disallowedTools: Edit, Write, NotebookEdit
@@ -14,16 +14,16 @@ section that owns the area: backend §3, frontend §4, data model §5. Grep befo
 
 Return one self-contained handoff and nothing else:
 
-1. **Relevant code** — `file:line` for every function, component, controller, query or test that
+1. **Relevant code:** `file:line` for every function, component, controller, query or test that
    matters, one line each on what it does.
-2. **Call flow** — how it works end to end today (route → service → db; view → controller →
+2. **Call flow:** how it works end to end today (route → service → db; view → controller →
    `lib/api.ts`).
-3. **Reuse** — existing helpers and patterns to extend instead of duplicating; the file to copy a
+3. **Reuse:** existing helpers and patterns to extend instead of duplicating; the file to copy a
    pattern from.
-4. **Constraints** — Hard Rules, ARCHITECTURE sections, guards and tests that bound the change.
-5. **Gaps and risks** — what is missing, ambiguous or likely to break (dates, recurrence, drag
+4. **Constraints:** Hard Rules, ARCHITECTURE sections, guards and tests that bound the change.
+5. **Gaps and risks:** what is missing, ambiguous or likely to break (dates, recurrence, drag
    zones, phone layout).
-6. **Recommended scope** — the smallest change that resolves the task.
-7. **Questions for the user** — only if the task is ambiguous; each with the context to answer it.
+6. **Recommended scope:** the smallest change that resolves the task.
+7. **Questions for the user:** only if the task is ambiguous; each with the context to answer it.
 
 Quote evidence (`file:line`); do not speculate. Keep it tight.

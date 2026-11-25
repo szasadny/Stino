@@ -167,7 +167,7 @@ async fn batch_schedule_rejects_recurring_tasks() {
     assert_eq!(
         inbox(&app).await.len(),
         1,
-        "the plain task stayed in the Inbox — the rejected batch changed nothing"
+        "the plain task stayed in the Inbox, so the rejected batch changed nothing"
     );
     assert_eq!(
         series_dates(&app, series, MON_JUN_1, MON_JUN_8).await.len(),

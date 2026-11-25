@@ -51,7 +51,7 @@
     </button>
     {#if !canDeleteOccurrence}
       <!-- Outside the faded button so the reason stays legible. -->
-      <p id={noteId} class="px-1 text-xs text-sage">Completed — kept in your history.</p>
+      <p id={noteId} class="px-1 text-xs text-sage">Completed, so it’s kept in your history.</p>
     {/if}
     <button
       type="button"

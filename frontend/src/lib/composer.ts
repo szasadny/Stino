@@ -24,7 +24,7 @@ export function taskToDraft(task: Task): ComposerDraft {
   }
 }
 
-// Drops time and rule when there's no date — the backend rejects either without one.
+// Drops time and rule when there's no date, because the backend rejects either without one.
 export function draftToInput(draft: ComposerDraft): TaskInput {
   const date = draft.date || null
   const notes = draft.notes.trim()

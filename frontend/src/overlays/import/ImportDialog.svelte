@@ -21,7 +21,7 @@
   {onClose}
   onOpen={reset}
   title="Import from TickTick"
-  subtitle="Bring in a CSV backup. Only adds — never deletes."
+  subtitle="Bring in a CSV backup. It only adds tasks and never deletes any."
 >
   <ErrorAlert error={importer.error} class="mx-5 mt-4" />
 

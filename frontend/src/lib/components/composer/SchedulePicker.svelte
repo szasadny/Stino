@@ -59,6 +59,6 @@
     {/if}
   </div>
   {#if !date}
-    <p class="text-xs text-sage">No date — stays in the Inbox.</p>
+    <p class="text-xs text-sage">No date, so it stays in the Inbox.</p>
   {/if}
 </div>

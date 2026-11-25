@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::architecture::HISTORY_WORDS;
-use crate::source::{assert_none, manifest_dir, or_panic, rust_files};
+use crate::source::{assert_none, files_under, manifest_dir, or_panic, rust_files};
 
 const ARCHITECTURE: &str = ".claude/ARCHITECTURE.md";
 const BACKEND: &str = ".claude/ARCHITECTURE-BACKEND.md";
@@ -22,6 +22,49 @@ const ROUTE_SECTION: &str = "### 3.2 ";
 const PLACEHOLDER_CHARS: [char; 4] = ['<', '*', '{', '…'];
 // Each part must appear on one line, in order.
 const DOC_HISTORY_PHRASES: [&[&str]; 2] = [&["earlier "], &["before ", " existed"]];
+const EM_DASH: char = '\u{2014}';
+// No `backend/migrations`: an applied migration's checksum covers its comments.
+const OWN_FILES: &[&str] = &[
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    ".claude/ARCHITECTURE.md",
+    ".claude/ARCHITECTURE-BACKEND.md",
+    ".claude/ARCHITECTURE-FRONTEND.md",
+    ".claude/DATA-MODEL.md",
+    ".claude/agents",
+    ".claude/skills/verify",
+    ".claude/skills/maintaining-agents-md",
+    ".github",
+    ".codex",
+    ".jscpd",
+    "scripts",
+    ".gitignore",
+    ".dockerignore",
+    "Dockerfile",
+    "docker-entrypoint.sh",
+    "docker-compose.yml",
+    "backend/src",
+    "backend/tests",
+    "backend/.cargo",
+    "backend/Cargo.toml",
+    "backend/clippy.toml",
+    "backend/.env.example",
+    "backend/build.rs",
+    "frontend/src",
+    "frontend/index.html",
+    "frontend/eslint.config.js",
+    "frontend/tailwind.config.js",
+    "frontend/postcss.config.js",
+    "frontend/svelte.config.js",
+    "frontend/tsconfig.json",
+    "frontend/knip.json",
+    "frontend/vite.config.ts",
+    "frontend/vitest.config.ts",
+    "frontend/.prettierignore",
+    "frontend/.prettierrc.json",
+    "frontend/package.json",
+];
 
 fn repo_path(rel: &str) -> PathBuf {
     manifest_dir().join("..").join(rel)
@@ -188,4 +231,25 @@ fn docs_stay_within_their_size() {
         }
     }
     assert_none(found, "Trim the doc first (how-it-works, duplicates, history); a cap rises only with the owner's approval:");
+}
+
+#[test]
+fn own_files_hold_no_em_dash() {
+    let mut found = Vec::new();
+    for rel in files_under(&repo_path(""), OWN_FILES) {
+        let path = repo_path(&rel);
+        let bytes = fs::read(&path).unwrap_or_else(or_panic(&path));
+        let Ok(text) = String::from_utf8(bytes) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if line.contains(EM_DASH) {
+                found.push(format!("{rel}:{}", index + 1));
+            }
+        }
+    }
+    assert_none(
+        found,
+        "Rewrite the sentence instead of using an em dash (U+2014):",
+    );
 }

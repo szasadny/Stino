@@ -91,9 +91,7 @@
     </ul>
   {/if}
 
-  {#if variant === 'week' && items.length === 0}
-    <span class="shrink-0 text-2xs leading-tight text-sage/60">—</span>
-  {:else if fit.overflow > 0}
+  {#if fit.overflow > 0}
     <button
       type="button"
       onclick={select}

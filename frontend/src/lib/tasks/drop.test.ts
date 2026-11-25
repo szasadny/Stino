@@ -11,7 +11,7 @@ const landed = (moved: Task, items: Task[]) =>
   dndDetail(items.map(item), TRIGGERS.DROPPED_INTO_ZONE, occurrenceKey(moved))
 
 describe('dropKind', () => {
-  it('ignores a source zone (item left it — not the landing zone)', () => {
+  it('ignores a source zone (the item left it; it is not the landing zone)', () => {
     const moved = on(MON, { id: 9 })
     const detail = dndDetail<CellItem>([], TRIGGERS.DROPPED_INTO_ANOTHER, occurrenceKey(moved))
     expect(dropKind(detail, TUE, [moved])).toEqual({ kind: 'none' })

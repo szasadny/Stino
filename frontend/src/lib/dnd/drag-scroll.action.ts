@@ -3,7 +3,7 @@ import { DRAGGED_ELEMENT_ID } from 'svelte-dnd-action'
 import { EDGE_SCROLL_SLACK_PX } from '../constants'
 import { edgeScrollStep, pointFrom } from './drag-scroll'
 
-// True while svelte-dnd-action's floating clone exists — a live drag or a drop still settling.
+// True while svelte-dnd-action's floating clone exists: a live drag or a drop still settling.
 export function dragIsLive(): boolean {
   return document.getElementById(DRAGGED_ELEMENT_ID) != null
 }

@@ -112,9 +112,9 @@ was trimmed, and anything that needs the owner's decision. Do not print a full d
 
 ## Rules
 
-- **Never add changelogs or task notes** — git tracks history.
-- **Never restructure a doc** — add, correct or remove specific lines; section numbers are
+- **Never add changelogs or task notes:** git tracks history.
+- **Never restructure a doc:** add, correct or remove specific lines; section numbers are
   referenced from code, tests and other docs.
 - **Check every statement in the code** before you write or keep it.
-- **One source of truth** — a rule lives in `AGENTS.md`, a location in the ARCHITECTURE files;
+- **One source of truth:** a rule lives in `AGENTS.md`, a location in the ARCHITECTURE files;
   never state it twice.

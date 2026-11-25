@@ -1,4 +1,4 @@
-# Stinō — Architecture: Frontend
+# Stinō Architecture: Frontend
 
 For: what lives where in `frontend/src/` and what each part is for, without scanning the code.
 Not here: behaviour, history and how-it-works; those live in the code and its tests.
@@ -97,7 +97,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 ### 4.5 Helper map
 
-`lib/tasks/` — pure task logic:
+`lib/tasks/` holds pure task logic:
 
 | File | Exports |
 | --- | --- |
@@ -108,7 +108,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | `drop.ts` | `dropKind`: none, reorder, move, or move one occurrence |
 | `optimistic.ts` | Optimistic mirrors of server writes: `applyUntimedOrder`, `applyMove`, `applyLabelOrder`, `replaceOccurrence`, `withoutTasks`, `withoutOccurrence`, `restoreOccurrence` |
 
-`lib/recurrence/` — picker options ⇄ RRULE and typed phrases; the backend validates and expands:
+`lib/recurrence/` maps picker options ⇄ RRULE and typed phrases; the backend validates and expands:
 
 | File | Exports |
 | --- | --- |
@@ -121,7 +121,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | `phrase-parse.ts` | `parseRecurrencePhrase(text, start)`: the RRULE and the text to strip |
 | `first-occurrence.ts` | `firstOccurrenceOnOrAfter(rule, start)`: snaps a quick-add start to the rule's first date |
 
-`lib/dnd/` — gesture and drag helpers; `*.action.ts` files touch the DOM and have no unit test:
+`lib/dnd/` holds gesture and drag helpers; `*.action.ts` files touch the DOM and have no unit test:
 
 | File | Exports |
 | --- | --- |

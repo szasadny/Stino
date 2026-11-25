@@ -55,7 +55,7 @@
     {#if store.loading}
       <p class="{MUTED_CENTER_CLASS} py-6">{LOADING}</p>
     {:else if store.labels.length === 0}
-      <p class="{MUTED_CENTER_CLASS} py-6">No labels yet — create your first above.</p>
+      <p class="{MUTED_CENTER_CLASS} py-6">No labels yet. Create your first above.</p>
     {:else}
       <ReorderList
         items={drop.lists.labels}

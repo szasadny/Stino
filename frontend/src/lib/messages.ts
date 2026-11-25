@@ -1,9 +1,9 @@
-export const NETWORK_ERROR_MESSAGE = 'Couldn’t reach Stinō — check your connection.'
+export const NETWORK_ERROR_MESSAGE = 'Couldn’t reach Stinō. Check your connection.'
 export const REQUEST_FAILED_MESSAGE = 'Something went wrong. Please try again.'
 
-// A landed write must never read as failed — a retry would duplicate the task.
+// A landed write must never read as failed, because a retry would duplicate the task.
 export const REFRESH_FAILED_MESSAGE =
-  'Saved, but refreshing the view failed — switch tabs to reload it.'
+  'Saved, but refreshing the view failed. Switch tabs to reload it.'
 
 export const LOAD_FAILED = 'Could not load'
 export const LOAD_CALENDAR_FAILED = 'Could not load the calendar'

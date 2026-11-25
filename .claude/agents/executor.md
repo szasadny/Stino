@@ -1,6 +1,6 @@
 ---
 name: executor
-description: Implements one well-scoped plan step for Stinō — files named, approach decided. Use when the main session delegates implementation; the main session reviews the diff.
+description: Implements one well-scoped plan step for Stinō, with the files named and the approach decided. Use when the main session delegates implementation; the main session reviews the diff.
 model: opus
 effort: high
 ---
@@ -30,7 +30,7 @@ Rules:
   3. The suites you touched: `cd backend && cargo test --locked`, `cd frontend && npm test`,
      plus any test the main session named.
 
-  Fix failures you caused; do not touch unrelated failing tests — report them.
+  Fix failures you caused; do not touch unrelated failing tests, but report them.
 - Never commit, push or stage. Never run anything against the live DB (`DATA_DIR`, the gitignored
   `data/` folders) or read `.env`; tests and verification use a temp or scratch DB.
 

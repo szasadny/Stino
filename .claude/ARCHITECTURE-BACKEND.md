@@ -1,4 +1,4 @@
-# Stinō — Architecture: Backend
+# Stinō Architecture: Backend
 
 For: what lives where in `backend/` and what each part is for, without scanning the code.
 Not here: behaviour, history and how-it-works; those live in the code and its tests.
@@ -86,8 +86,8 @@ One handler file per resource plus two shared files; `mod.rs` holds `routes::rou
 
 ### 3.6 Shared helpers (reuse before writing a new one)
 
-- `services/validation.rs` — every field primitive and date/time parse or format.
-- `found` (`services/mod.rs`) — a `bool` from a `db/` write becomes `NotFound`.
+- `services/validation.rs`: every field primitive and date/time parse or format.
+- `found` (`services/mod.rs`): a `bool` from a `db/` write becomes `NotFound`.
 - `load_task`, `ensure_series_member`, `or_warn` (`services/task/mod.rs`); `db::task::move_completion`.
 - `label_service::ensure_exists`, `clamp_name`, `find_or_create_on`; `recurrence::normalize`, `recurrence::expand`.
 - `select_tasks!` (`db/task/mod.rs`), `label_query!` (`db/label.rs`) and the `db::{Pool, Conn, Executor}` aliases.
@@ -104,18 +104,18 @@ A bad date is a 400 `<field> must be a valid YYYY-MM-DD date` naming the field i
 
 | Method | Path | Request | Response / status |
 | --- | --- | --- | --- |
-| GET | `/api/health` | — | 200 `{status: "ok", db: bool}` |
-| GET | `/api/labels` | — | 200 `[Label]` by `sort_order`, then `id` |
+| GET | `/api/health` | none | 200 `{status: "ok", db: bool}` |
+| GET | `/api/labels` | none | 200 `[Label]` by `sort_order`, then `id` |
 | POST | `/api/labels` | `{name, color, emoji?}` | 201 Label; 400 per the field rules below |
 | PATCH | `/api/labels/reorder` | `{ids}`: every label id exactly once | 204, positions become `sort_order`; 400 if not a permutation, nothing changes |
 | PATCH | `/api/labels/{id}` | `{name?, color?, emoji?}`; `emoji: null` clears, omitted keeps | 200 Label; 404 unknown id |
-| DELETE | `/api/labels/{id}` | — | 204, its tasks keep living unlabelled; 404 unknown id |
-| GET | `/api/tasks`, `/api/tasks?inbox=true` | — | 200 open Inbox tasks (`due_date` NULL; completed ones excluded) by `sort_order`, `id`; `?inbox=false` is a 400 |
-| GET | `/api/tasks?date=YYYY-MM-DD` | — | 200 that day's one-offs plus its expanded recurring occurrences, timed first |
+| DELETE | `/api/labels/{id}` | none | 204, its tasks keep living unlabelled; 404 unknown id |
+| GET | `/api/tasks`, `/api/tasks?inbox=true` | none | 200 open Inbox tasks (`due_date` NULL; completed ones excluded) by `sort_order`, `id`; `?inbox=false` is a 400 |
+| GET | `/api/tasks?date=YYYY-MM-DD` | none | 200 that day's one-offs plus its expanded recurring occurrences, timed first |
 | GET | `/api/tasks?from=…&to=…` | inclusive range | 200 one row per one-off and per recurring occurrence, by day then timed first; one bound alone is a 400 |
 | POST | `/api/tasks` | `{title, notes?, label_id?, due_date?, due_time?, recurrence_rule?}` | 201 Task; 400 per the field rules below |
 | PATCH | `/api/tasks/{id}` | any subset of the create fields; `null` clears a nullable field, omitted keeps | 200 Task; 404 unknown id |
-| DELETE | `/api/tasks/{id}` | — | 204, cascades its completions and exceptions; 404 unknown id |
+| DELETE | `/api/tasks/{id}` | none | 204, cascades its completions and exceptions; 404 unknown id |
 | PATCH | `/api/tasks/reorder` | `{ids}` | 204, positions become `sort_order` in one transaction; empty list is a no-op; unknown id 404, nothing changes |
 | POST | `/api/tasks/batch` | `{ids, op}`; `op` is `{type: "label", label_id}`, `{type: "schedule", due_date}`, `{type: "complete"}` or `{type: "delete"}` | 204, one transaction; empty `ids` is a no-op; unknown id 404, nothing changes; unknown label or a recurring task in `schedule` is a 400 |
 | POST | `/api/tasks/rollover` | `{today}`: the client's local date | 200 `{moved}`; a re-run the same day moves nothing |
@@ -123,7 +123,7 @@ A bad date is a 400 `<field> must be a valid YYYY-MM-DD date` naming the field i
 | DELETE | `/api/tasks/{id}/completions?occurrence_date=…` | as above | 200 Task with `completed: false` |
 | POST | `/api/tasks/{id}/move_occurrence` | `{occurrence_date, new_date}` | 201 the new one-off; same-day target 200 the unchanged series task; 400 not recurring, not an occurrence, or already moved or skipped; 404 |
 | POST | `/api/tasks/{id}/skip_occurrence` | `{occurrence_date}` | 204, idempotent; 400 not recurring, not an occurrence, or completed; 404 |
-| GET | `/api/search?q=…` | — | 200 `[Task]` whose title or notes contain `q` (ASCII case-insensitive; `%` `_` `\` literal), a series as its own row, by `due_date` (nulls last) then `title`; blank `q` gives `[]` |
+| GET | `/api/search?q=…` | none | 200 `[Task]` whose title or notes contain `q` (ASCII case-insensitive; `%` `_` `\` literal), a series as its own row, by `due_date` (nulls last) then `title`; blank `q` gives `[]` |
 | POST | `/api/import/ticktick` | the raw CSV file as the body, ≤ 32 MiB | 200 `{created: {tasks, labels, completions}, skipped}`; 400 not CSV or no `Title` header row |
 
 Selector precedence for `GET /api/tasks`: `from`+`to`, then `date`, then Inbox; an unknown query parameter is a 400.

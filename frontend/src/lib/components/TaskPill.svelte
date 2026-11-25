@@ -15,7 +15,7 @@
 
   const openLabel = $derived(
     `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${
-      draggable ? ' — drag to move to another day' : ''
+      draggable ? ', drag to move to another day' : ''
     }`,
   )
 
