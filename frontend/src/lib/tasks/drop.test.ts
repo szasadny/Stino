@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { TRIGGERS } from 'svelte-dnd-action'
-import { MON, TUE, dndDetail, on, recurring } from '../test/factories'
-import type { Task } from '../types'
-import { dropKind } from './drop'
+import { MON, TUE, dndDetail, done, makeLabel, on, recurring, timed } from '../test/factories'
+import type { Label, Task } from '../types'
+import { dropKind, droppedUntimedOrder } from './drop'
 import { occurrenceKey } from './predicates'
 import type { CellItem } from './projection'
+import { completedLast } from './sort'
 
 const item = (t: Task): CellItem => ({ id: occurrenceKey(t), task: t })
 const landed = (moved: Task, items: Task[]) =>
@@ -17,29 +18,6 @@ describe('dropKind', () => {
     expect(dropKind(detail, TUE, [moved])).toEqual({ kind: 'none' })
   })
 
-  it('reorders within the day on a same-day untimed drop (the cell owns untimed order)', () => {
-    const a = on(TUE, { id: 1 })
-    const moved = on(TUE, { id: 9 })
-    expect(dropKind(landed(moved, [moved, a]), TUE, [a, moved])).toEqual({
-      kind: 'reorder',
-      ids: [9, 1],
-    })
-  })
-
-  it('excludes timed pills from a same-day reorder (they sort by time)', () => {
-    const timedPin = on(TUE, { id: 1, due_time: '09:00' })
-    const moved = on(TUE, { id: 9 })
-    expect(dropKind(landed(moved, [moved, timedPin]), TUE, [timedPin, moved])).toEqual({
-      kind: 'reorder',
-      ids: [9],
-    })
-  })
-
-  it('ignores a same-day drop of a timed pill (it is pinned by time)', () => {
-    const moved = on(TUE, { id: 9, due_time: '09:00' })
-    expect(dropKind(landed(moved, [moved]), TUE, [moved])).toEqual({ kind: 'none' })
-  })
-
   it('moves only the dragged instance of a recurring task to another day', () => {
     const moved = recurring(on(MON, { id: 9 }))
     expect(dropKind(landed(moved, [moved]), TUE, [moved])).toEqual({
@@ -48,11 +26,6 @@ describe('dropKind', () => {
       occurrenceDate: MON,
       newDate: TUE,
     })
-  })
-
-  it('ignores a same-day drop of a recurring instance (it is pinned to its day)', () => {
-    const moved = recurring(on(TUE, { id: 9 }))
-    expect(dropKind(landed(moved, [moved]), TUE, [moved])).toEqual({ kind: 'none' })
   })
 
   it('ignores a drop whose moved id is not among the items', () => {
@@ -77,5 +50,75 @@ describe('dropKind', () => {
       movedId: 9,
       reorderIds: null,
     })
+  })
+})
+
+describe('dropKind within one calendar day', () => {
+  const labels: Label[] = [makeLabel({ id: 1, sort_order: 0 }), makeLabel({ id: 2, sort_order: 1 })]
+  const a1 = on(TUE, { id: 10, label_id: 1, sort_order: 0 })
+  const a2 = on(TUE, { id: 11, label_id: 1, sort_order: 1 })
+  const b1 = on(TUE, { id: 20, label_id: 2, sort_order: 2 })
+  const n1 = on(TUE, { id: 30, sort_order: 3 })
+  const t1 = timed('09:00', on(TUE, { id: 40 }))
+  const t2 = timed('10:00', on(TUE, { id: 41 }))
+  const plan = (moved: Task, rows: Task[], labelOrder?: Label[]) =>
+    dropKind(landed(moved, rows), TUE, rows, labelOrder)
+
+  it("saves a reorder within one label as the day's untimed ids in dropped order", () => {
+    expect(plan(a2, [a2, a1, b1, n1], labels)).toEqual({ kind: 'reorder', ids: [11, 10, 20, 30] })
+  })
+
+  it('saves nothing for a drop between the tasks of another label', () => {
+    expect(plan(a1, [a2, b1, a1, n1], labels)).toEqual({ kind: 'none' })
+  })
+
+  it('saves nothing for a task without label dropped among labelled ones', () => {
+    expect(plan(n1, [n1, a1, a2, b1], labels)).toEqual({ kind: 'none' })
+  })
+
+  it('takes any untimed order in List sorting', () => {
+    expect(plan(n1, [n1, a1, a2, b1])).toEqual({ kind: 'reorder', ids: [30, 10, 11, 20] })
+  })
+
+  it('saves nothing for a timed task dropped out of time order', () => {
+    expect(plan(t2, [t2, t1, a1])).toEqual({ kind: 'none' })
+  })
+
+  it('saves nothing for an untimed task dropped above a timed one', () => {
+    expect(plan(a1, [a1, t1])).toEqual({ kind: 'none' })
+  })
+
+  it('leaves the timed tasks out of a valid reorder', () => {
+    expect(plan(a2, [t1, a2, a1])).toEqual({ kind: 'reorder', ids: [11, 10] })
+  })
+
+  it('saves nothing for a completed task dropped above an open one', () => {
+    const finished = done(on(TUE, { id: 50, sort_order: 4 }))
+    expect(plan(finished, [finished, a1])).toEqual({ kind: 'none' })
+  })
+
+  it('reorders an untimed recurring row within its day', () => {
+    const series = recurring(on(TUE, { id: 60, sort_order: 5 }))
+    expect(plan(series, [series, a1])).toEqual({ kind: 'reorder', ids: [60, 10] })
+  })
+
+  it('takes a drop back in place as the current order', () => {
+    expect(plan(a1, [a1, a2, b1, n1], labels)).toEqual({ kind: 'reorder', ids: [10, 11, 20, 30] })
+  })
+})
+
+describe('droppedUntimedOrder (a day view group list)', () => {
+  const a = on(TUE, { id: 1, sort_order: 0 })
+  const b = on(TUE, { id: 2, sort_order: 1 })
+  const finished = done(on(TUE, { id: 3, sort_order: 2 }))
+  const other = on(TUE, { id: 4, sort_order: 3 })
+
+  it("saves an in-group reorder as the day's untimed ids in reading order across groups", () => {
+    const day = [timed('09:00', on(TUE, { id: 9 })), b, a, finished, other]
+    expect(droppedUntimedOrder([b, a, finished], completedLast, day)).toEqual([2, 1, 3, 4])
+  })
+
+  it('saves nothing when an open task lands below a completed one', () => {
+    expect(droppedUntimedOrder([a, finished, b], completedLast)).toBeNull()
   })
 })

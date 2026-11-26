@@ -104,9 +104,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- |
 | `predicates.ts` | `isUntimed`, `isRecurring`, `sameOccurrence`, `occurrenceKey` (the per-row key), `skippableOccurrence`, `canSkipOccurrence` |
 | `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only), `sortForSearch` (upcoming first, an ended series among the past) |
-| `projection.ts` | `buildBoard` (per-day cell items, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
-| `day-order.ts` | `untimedReadingOrder`, `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
-| `drop.ts` | `dropKind`: none, reorder, move, or move one occurrence |
+| `projection.ts` | `buildBoard` (per-day cell items in `calendarDayOrder`, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
+| `day-order.ts` | `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
+| `drop.ts` | `droppedUntimedOrder` (a drop saves only an order its view would show); `dropKind`: none, reorder (checked against `calendarDayOrder`), move, or move one occurrence |
 | `optimistic.ts` | Optimistic mirrors of server writes: `applyUntimedOrder`, `applyMove`, `applyLabelOrder`, `replaceOccurrence`, `withoutTasks`, `withoutOccurrence`, `restoreOccurrence` |
 
 `lib/recurrence/` maps picker options ⇄ RRULE and typed phrases; the backend validates and expands:
@@ -174,7 +174,7 @@ Single files in `lib/`:
 4. **One live zone per day.** Calendar zones share one `type` (`calendarZone`) and one board; while the phone agenda or `DayPanel` shows a day, that day's grid cell renders its items without a zone.
 5. **Hide mid-drag with `hidden`.** A zone hidden during a drag gets `hidden`, which drops it from hit-testing; never unmount it (the origin zone must stay registered) and never `invisible` (it keeps its rects and captures the pointer).
 6. **One child per item.** A zone renders every item; a cell's overflow lines stay as `invisible` children (`createLineFit`), the "+N" hint sits outside the zone, and the drag shadow stays visible.
-7. **Only the landing zone commits** (`dropKind`): a same-day drop reorders, a cross-day drop reschedules, a recurring row's cross-day drop moves one occurrence.
+7. **Only the landing zone commits** (`dropKind`): a same-day drop saves only an order the day would show (`droppedUntimedOrder`), else snaps back; a cross-day drop reschedules, a recurring row's cross-day drop moves one occurrence.
 8. **Grip on wide, hold on phone.** Every reorder list follows `ReorderList`: grip + `dragHandleZone` on wide, whole-row `dndzone` with `delayTouchStart` on phone; no grips at phone width.
 9. **Taps on drag items.** Handlers act on trusted clicks only (`trustedClick`); a stationary press dropped in place opens the editor (`tappedItem` with `presses`).
    A hold-to-drag row edits through a `div role=button` (`activateOnKey`): the library never drags a native button. Space starts a keyboard drag, Enter opens (`main.ts`).

@@ -12,7 +12,7 @@
   import { tappedItem } from '../dnd/tap'
   import { dayViewGroups, hasLabelGroups, type TaskGroup } from '../tasks/projection'
   import { groupByLabelView } from '../group-view.svelte'
-  import { untimedReadingOrder } from '../tasks/day-order'
+  import { droppedUntimedOrder } from '../tasks/drop'
   import { isUntimed, occurrenceKey } from '../tasks/predicates'
   import { completedLast } from '../tasks/sort'
   import GroupViewToggle from './GroupViewToggle.svelte'
@@ -73,11 +73,9 @@
         onEdit(tapped)
         return undefined
       }
-      const liveGroups = groups.map((group) => ({
-        label: group.label,
-        tasks: untimed.lists[keyOf(group)] ?? [],
-      }))
-      return core.reorder(untimedReadingOrder(liveGroups))
+      const day = groups.flatMap((group) => untimed.lists[keyOf(group)] ?? [])
+      const ids = droppedUntimedOrder(untimed.lists[key] ?? [], completedLast, day)
+      return ids ? core.reorder(ids) : undefined
     })
   }
 </script>

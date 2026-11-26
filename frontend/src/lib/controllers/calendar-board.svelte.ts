@@ -16,9 +16,8 @@ export function createCalendarBoard(
   keys: () => string[],
   open: (task: Task) => void,
 ) {
-  const drop = createDropList(() =>
-    buildBoard(core.tasks, keys(), groupByLabelView() ? core.labels : undefined),
-  )
+  const labelOrder = () => (groupByLabelView() ? core.labels : undefined)
+  const drop = createDropList(() => buildBoard(core.tasks, keys(), labelOrder()))
   let dropKey = $state<string | null>(null)
 
   function consider(key: string, e: CustomEvent<DndEvent<CellItem>>) {
@@ -29,7 +28,7 @@ export function createCalendarBoard(
   }
 
   function write(key: string, detail: DndEvent<CellItem>): Promise<boolean> | undefined {
-    const plan = dropKind(detail, key, core.tasks)
+    const plan = dropKind(detail, key, core.tasks, labelOrder())
     if (plan.kind === 'reorder') return core.reorder(plan.ids)
     if (plan.kind === 'move-occurrence')
       return core.moveOccurrence(plan.taskId, plan.occurrenceDate, plan.newDate)
