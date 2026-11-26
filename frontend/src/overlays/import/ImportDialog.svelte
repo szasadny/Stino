@@ -66,7 +66,7 @@
         onchange={(e) => importer.pick(e.currentTarget.files?.[0] ?? null)}
         disabled={importer.pending}
         aria-label={IMPORT_FILE_LABEL}
-        class="mt-3 block w-full cursor-pointer rounded-lg border border-lichen bg-fog text-sm text-sage transition file:mr-3 file:cursor-pointer file:border-0 file:border-r file:border-lichen file:bg-surface file:px-4 file:py-2 file:text-sm file:font-medium file:text-pine hover:file:bg-pine/5 focus:outline-none focus:ring-2 focus:ring-pine/40"
+        class="mt-3 block w-full cursor-pointer rounded-lg border border-lichen bg-fog text-sm text-sage transition file:mr-3 file:cursor-pointer file:border-0 file:border-r file:border-lichen file:bg-surface file:px-4 file:py-2 file:text-sm file:font-medium file:text-pine hover:file:bg-pine/5 focus:outline-none focus:ring-2 focus:ring-pine"
       />
       <p class="mt-2 text-xs text-sage">{IMPORT_REPEAT_NOTE}</p>
       <div class="mt-4 flex justify-end">

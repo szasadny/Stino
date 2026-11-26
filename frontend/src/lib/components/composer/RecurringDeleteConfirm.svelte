@@ -41,7 +41,7 @@
   type="button"
   onclick={() => (open = true)}
   disabled={composer.pending}
-  class="{DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
+  class="hit-area {DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
 >
   {DELETE}
 </button>
@@ -84,7 +84,7 @@
       {@attach autofocus}
       type="button"
       onclick={() => (open = false)}
-      class="{GHOST_BTN_CLASS} w-full px-4 py-2.5 text-sm"
+      class="hit-area {GHOST_BTN_CLASS} w-full px-4 py-2.5 text-sm"
     >
       {CANCEL}
     </button>

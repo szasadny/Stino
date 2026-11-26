@@ -102,6 +102,7 @@
   <IconButton
     label={moveSectionLabel(name, dir)}
     size="sm"
+    class="hit-area-y"
     onclick={() => moveSection(index, delta)}
     disabled={index + delta < 0 || index + delta >= labelSections.length}
   >

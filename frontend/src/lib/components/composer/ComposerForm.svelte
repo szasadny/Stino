@@ -87,10 +87,18 @@
         <span></span>
       {/if}
       <div class="flex shrink-0 items-center gap-1">
-        <button type="button" onclick={composer.close} class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}">
+        <button
+          type="button"
+          onclick={composer.close}
+          class="hit-area {GHOST_BTN_CLASS} {BTN_SM_CLASS}"
+        >
           {CANCEL}
         </button>
-        <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}">
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          class="hit-area {PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
+        >
           {composer.submitLabel}
         </button>
       </div>

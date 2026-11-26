@@ -99,7 +99,11 @@
     </ul>
   {:else}
     <div class="mb-3 flex justify-end">
-      <button type="button" onclick={select.enter} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
+      <button
+        type="button"
+        onclick={select.enter}
+        class="{GHOST_BTN_CLASS} min-h-11 px-2.5 py-1.5 text-xs sm:min-h-0"
+      >
         {BATCH_EDIT}
       </button>
     </div>

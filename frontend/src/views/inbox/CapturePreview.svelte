@@ -23,7 +23,7 @@
               type="button"
               onclick={onClearLabel}
               aria-label={REMOVE_LABEL}
-              class="grid h-4 w-4 place-items-center rounded-full text-sage transition hover:bg-bark/10 hover:text-bark"
+              class="hit-area grid h-4 w-4 place-items-center rounded-full text-sage transition hover:bg-bark/10 hover:text-bark"
             >
               <Close class="h-3 w-3" strokeWidth={2.2} />
             </button>

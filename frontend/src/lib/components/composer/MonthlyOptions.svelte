@@ -56,26 +56,28 @@
       <option value={-1}>{LAST_DAY}</option>
     </select>
   {:else}
-    <select
-      bind:value={position}
-      onchange={onChange}
-      aria-label={WHICH_WEEK}
-      class={COMPACT_INPUT_CLASS}
-    >
-      {#each ORDINAL_OPTIONS as option (option.value)}
-        <option value={option.value}>{option.label}</option>
-      {/each}
-    </select>
-    <select
-      bind:value={monthWeekday}
-      onchange={onChange}
-      aria-label={WEEKDAY}
-      class={COMPACT_INPUT_CLASS}
-    >
-      {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}
-        <option value={day.code}>{day.label}</option>
-      {/each}
-    </select>
+    <div class="flex items-center gap-2">
+      <select
+        bind:value={position}
+        onchange={onChange}
+        aria-label={WHICH_WEEK}
+        class={COMPACT_INPUT_CLASS}
+      >
+        {#each ORDINAL_OPTIONS as option (option.value)}
+          <option value={option.value}>{option.label}</option>
+        {/each}
+      </select>
+      <select
+        bind:value={monthWeekday}
+        onchange={onChange}
+        aria-label={WEEKDAY}
+        class={COMPACT_INPUT_CLASS}
+      >
+        {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}
+          <option value={day.code}>{day.label}</option>
+        {/each}
+      </select>
+    </div>
   {/if}
 </div>
 {#if note}

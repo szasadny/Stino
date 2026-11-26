@@ -43,7 +43,7 @@
 
 <div class="flex h-dvh flex-col overflow-hidden">
   <header
-    class="z-chrome flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
+    class="z-chrome flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] shadow-soft backdrop-blur-md"
   >
     <div class="flex items-center gap-2">
       <Cairn class="h-7 w-7" />

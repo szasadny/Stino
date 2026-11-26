@@ -90,6 +90,37 @@
     pointer-events: none;
     background: radial-gradient(125% 78% at 50% -12%, rgb(var(--mist) / 0.16), transparent 58%);
   }
+
+  /* Fields are left out: they keep the INPUT_LOOK ring, so a focused field never shows two. */
+  :where(button, a[href], summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid rgb(var(--pine));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .hit-area,
+  .hit-area-y {
+    position: relative;
+  }
+
+  /* Invisible 44px tap area; a later positioned sibling still wins where two areas meet. */
+  @media (pointer: coarse) {
+    .hit-area::after,
+    .hit-area-y::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+
+    .hit-area-y::after {
+      width: 100%;
+    }
+  }
 }
 
 /* Dark grounds add an ink ring so dark label hues stay visible. */

@@ -34,7 +34,7 @@
         type="button"
         onclick={() => onSelect(view.id)}
         aria-current={current === view.id ? 'page' : undefined}
-        class="relative flex-1 py-2.5 text-center text-xs font-medium transition {current ===
+        class="relative min-h-11 flex-1 py-2.5 text-center text-xs font-medium transition {current ===
         view.id
           ? 'text-pine-deep'
           : 'text-sage'}"

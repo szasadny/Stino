@@ -31,7 +31,7 @@
     <ToggleChip
       pressed={weekdays.includes(day.code)}
       onclick={() => toggleWeekday(day.code)}
-      class="h-7 w-9 rounded-lg"
+      class="hit-area-y h-7 w-9 rounded-lg"
     >
       {day.label}
     </ToggleChip>

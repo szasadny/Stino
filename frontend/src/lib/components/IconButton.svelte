@@ -3,7 +3,7 @@
   import type { HTMLButtonAttributes } from 'svelte/elements'
   import { ICON_BTN_CLASS } from '../constants'
 
-  const SIZES = { sm: 'grid h-6 w-6 place-items-center', md: 'p-1.5' }
+  const SIZES = { sm: 'grid h-6 w-6 place-items-center', md: 'hit-area p-1.5' }
 
   let {
     label,

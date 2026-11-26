@@ -27,7 +27,7 @@
 
   let open = $state(false)
 
-  const size = $derived(compact ? 'px-2 py-1 text-xs' : BTN_SM_CLASS)
+  const size = $derived(compact ? 'px-2 py-1 text-xs' : `hit-area ${BTN_SM_CLASS}`)
 
   // Close first so a failure surfaces in the view or dialog underneath.
   function confirm() {
@@ -56,7 +56,7 @@
           {@attach autofocus}
           type="button"
           onclick={() => (open = false)}
-          class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}"
+          class="hit-area {GHOST_BTN_CLASS} {BTN_SM_CLASS}"
         >
           {CANCEL}
         </button>
@@ -64,7 +64,7 @@
           type="button"
           onclick={confirm}
           disabled={busy}
-          class="{DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
+          class="hit-area {DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
         >
           {DELETE}
         </button>

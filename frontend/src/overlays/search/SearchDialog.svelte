@@ -36,7 +36,9 @@
         {/snippet}
       </PanelHeader>
     {:else}
-      <div class="flex items-center gap-2 border-b border-lichen px-5">
+      <div
+        class="flex items-center gap-2 border-b border-lichen px-5 transition-colors has-[input:focus]:border-pine"
+      >
         <SearchIcon class="h-5 w-5 shrink-0 text-sage" />
         <!-- Remounts when edit mode ends, which hands focus back to the field. -->
         <input

@@ -29,7 +29,8 @@
   <DateBadge {date} {isToday} />
 {/snippet}
 
-<section class="group">
+<!-- Clip x: the edge buttons' tap areas would otherwise scroll the day list sideways. -->
+<section class="group overflow-x-clip">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
     {#if variant === 'week'}
       <button
@@ -52,6 +53,7 @@
         onAdd={() => composer.create({ date: dateKey })}
         label={addTaskOnLabel(dayLabel)}
         alwaysOnMobile
+        class="hit-area"
       />
       {#if variant === 'month'}
         <IconButton label={hideDayLabel(dayLabel)} onclick={selection.clear}>
@@ -88,7 +90,7 @@
       {/each}
     </ul>
     {#if items.length === 0}
-      <p class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage/70">
+      <p class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage">
         {NOTHING_SCHEDULED}
       </p>
     {/if}

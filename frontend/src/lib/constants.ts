@@ -82,15 +82,17 @@ export const VIEWS: { id: ViewId; label: string }[] = [
 
 const DISABLED_LOOK = 'disabled:cursor-not-allowed disabled:opacity-40'
 // One height per size, so a field and a button line up in a row.
-const SIZE_SM = 'h-9 text-sm'
-const SIZE_MD = 'h-10 text-sm'
-export const BTN_SM_CLASS = `${SIZE_SM} px-3`
-export const BTN_MD_CLASS = `${SIZE_MD} px-4`
+const SIZE_SM = 'h-9'
+const SIZE_MD = 'h-10'
+export const BTN_SM_CLASS = `${SIZE_SM} px-3 text-sm`
+export const BTN_MD_CLASS = `${SIZE_MD} px-4 text-sm`
 
 const INPUT_LOOK = `rounded-lg border border-lichen bg-fog text-ink outline-none transition placeholder:text-sage enabled:hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20 ${DISABLED_LOOK}`
-export const INPUT_CLASS = `${INPUT_LOOK} ${SIZE_MD} px-3`
-export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} ${SIZE_SM} px-2.5`
-export const TEXTAREA_CLASS = `${INPUT_LOOK} px-3 py-2 text-sm`
+// iOS Safari zooms into a focused field set below 16px.
+const FIELD_TEXT = 'text-base sm:text-sm'
+export const INPUT_CLASS = `${INPUT_LOOK} ${SIZE_MD} px-3 ${FIELD_TEXT}`
+export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} ${SIZE_SM} px-2.5 ${FIELD_TEXT}`
+export const TEXTAREA_CLASS = `${INPUT_LOOK} px-3 py-2 ${FIELD_TEXT}`
 export const TITLE_INPUT_CLASS = `${INPUT_LOOK} px-3 py-2.5 text-base font-medium placeholder:font-normal`
 export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center font-emoji text-lg`
 
