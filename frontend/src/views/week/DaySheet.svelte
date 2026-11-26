@@ -41,7 +41,7 @@
     use:dragEdgeScroll
   >
     {#if composer.open}
-      <div {@attach refocusOnLeave}>
+      <div class="contents" {@attach refocusOnLeave}>
         <ComposerForm {composer} />
       </div>
     {:else if date}

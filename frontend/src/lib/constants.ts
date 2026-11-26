@@ -143,6 +143,10 @@ export const MODAL_SIZES = {
 export type ModalSize = keyof typeof MODAL_SIZES
 // Same inset as PanelHeader, so a dialog's body lines up with its title.
 export const MODAL_BODY_CLASS = 'px-5 py-4'
+// Mirror MODAL_BODY_CLASS: on a phone the content fills the body and its footer is pinned over the padding.
+export const MODAL_FILL_CLASS = '-mb-4 flex min-h-[calc(100%+1rem)] flex-col sm:mb-0 sm:min-h-full'
+export const MODAL_FOOTER_CLASS =
+  'sticky -bottom-4 -mx-5 mt-auto bg-surface px-5 pb-4 sm:static sm:mx-0 sm:px-0 sm:pb-0'
 
 export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 

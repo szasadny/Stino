@@ -4,6 +4,8 @@
   import {
     BTN_SM_CLASS,
     GHOST_BTN_CLASS,
+    MODAL_FILL_CLASS,
+    MODAL_FOOTER_CLASS,
     PRIMARY_BTN_CLASS,
     TEXTAREA_CLASS,
     TITLE_INPUT_CLASS,
@@ -42,7 +44,7 @@
   }
 </script>
 
-<form onsubmit={submit} class="space-y-4">
+<form onsubmit={submit} class="gap-4 {MODAL_FILL_CLASS}">
   <div class="space-y-3">
     <input
       bind:value={draft.title}
@@ -59,7 +61,7 @@
       rows="2"
       placeholder={NOTES}
       aria-label={NOTES}
-      class="w-full resize-none {TEXTAREA_CLASS}"
+      class="max-h-48 min-h-16 w-full resize-none [field-sizing:content] {TEXTAREA_CLASS}"
     ></textarea>
   </div>
 
@@ -69,7 +71,8 @@
 
   <RecurrencePicker value={draft.rule} startDate={draft.date || null} onChange={setRule} />
 
-  <div class="space-y-2 border-t border-lichen pt-3">
+  <!-- Pinned to the sheet's bottom on a phone, so Save stays reachable in a long form. -->
+  <div class="space-y-2 border-t border-lichen pt-3 {MODAL_FOOTER_CLASS}">
     {#if composer.editingSeries}
       <p class="text-xs text-sage">{SERIES_EDIT_NOTE}</p>
     {/if}
