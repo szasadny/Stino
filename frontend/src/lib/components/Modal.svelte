@@ -12,7 +12,6 @@
     onClose,
     onOpen,
     onEscape,
-    onHeaderClose,
     title,
     subtitle,
     label,
@@ -26,7 +25,6 @@
     onClose: () => void
     onOpen?: () => void
     onEscape?: () => boolean
-    onHeaderClose?: () => void
     title?: string
     subtitle?: string
     label?: string
@@ -133,7 +131,7 @@
     {#if header}
       {@render header()}
     {:else if title}
-      <PanelHeader {title} {subtitle} onClose={onHeaderClose ?? onClose} {titleId} />
+      <PanelHeader {title} {subtitle} {onClose} {titleId} />
     {/if}
 
     <ErrorAlert error={open ? (error ?? null) : null} class="mx-5 mt-4 shrink-0" />

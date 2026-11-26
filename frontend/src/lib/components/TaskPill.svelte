@@ -47,7 +47,9 @@
     guardDrag
   />
   {#if task.due_time}
-    <span class="shrink-0 text-3xs font-medium tabular-nums text-sage">{task.due_time}</span>
+    <span class="shrink-0 text-3xs font-medium leading-tight tabular-nums text-sage"
+      >{task.due_time}</span
+    >
   {/if}
   <span
     class="{wrap

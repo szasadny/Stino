@@ -36,11 +36,7 @@
       {day.label}
     </ToggleChip>
   {/each}
-  <ToggleChip
-    pressed={isWeekdaysPreset}
-    onclick={selectWeekdays}
-    class="ml-1 h-7 rounded-lg px-2.5"
-  >
+  <ToggleChip pressed={isWeekdaysPreset} onclick={selectWeekdays} class="h-7 rounded-lg px-2.5">
     {WEEKDAYS_PRESET}
   </ToggleChip>
 </div>

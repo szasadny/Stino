@@ -49,7 +49,7 @@
           placeholder={SEARCH_PLACEHOLDER}
           autocomplete="off"
           aria-label={SEARCH_TASKS}
-          class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage"
+          class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage [&::-webkit-search-cancel-button]:appearance-none"
         />
         <IconButton label={CLOSE_SEARCH} onclick={onClose} class="-mr-1 shrink-0">
           <Close />

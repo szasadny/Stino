@@ -81,6 +81,11 @@
   }
 </script>
 
+<!-- Holds the drag handle's place, so timed and untimed rows share one checkbox column. -->
+{#snippet handleSpace()}
+  <span class="h-5 w-5"></span>
+{/snippet}
+
 {#snippet timedList(list: Task[], classes: string)}
   {#if list.length > 0}
     <ul class="space-y-2 {classes}">
@@ -90,6 +95,7 @@
             {task}
             label={rowLabel(task)}
             slim={compact}
+            leading={compact ? undefined : handleSpace}
             onToggle={() => core.toggle(task)}
             onEdit={() => onEdit(task)}
           />

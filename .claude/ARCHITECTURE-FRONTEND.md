@@ -74,7 +74,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- | --- |
 | Shells | `ListViewShell` | Today and Inbox frame: title, actions, error, loading and empty states, optional edge scroll |
 | | `PeriodShell` | Month and Week frame: title, previous / today / next, swipe, error |
-| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `onHeaderClose` overrides the X, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
+| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
 | | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
 | | `DayListSection` | A day heading (`headingLevel` from the host) over its task rows: the phone month agenda and the phone week stack |

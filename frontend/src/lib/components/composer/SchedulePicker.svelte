@@ -59,8 +59,8 @@
       title={date ? '' : PICK_A_DATE_FIRST}
       class={COMPACT_INPUT_CLASS}
     />
-    <!-- One block on a phone, so the chips wrap together under the fields. -->
-    <div class="flex flex-wrap items-center gap-1.5 sm:contents">
+    <!-- One block, so the chips wrap together under the fields. -->
+    <div class="flex basis-full flex-wrap items-center gap-1.5">
       {#each chips as chip (chip.label)}
         <button
           type="button"

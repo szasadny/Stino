@@ -53,7 +53,7 @@
           {@attach refocus}
           type="button"
           onclick={onEdit}
-          class="{GHOST_BTN_CLASS} px-2 py-1 text-xs"
+          class="hit-area-y {GHOST_BTN_CLASS} px-2 py-1 text-xs"
         >
           {EDIT}
         </button>

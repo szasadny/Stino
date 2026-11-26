@@ -27,7 +27,7 @@
 
   let open = $state(false)
 
-  const size = $derived(compact ? 'px-2 py-1 text-xs' : `hit-area ${BTN_SM_CLASS}`)
+  const size = $derived(compact ? 'hit-area-y px-2 py-1 text-xs' : `hit-area ${BTN_SM_CLASS}`)
 
   // Close first so a failure surfaces in the view or dialog underneath.
   function confirm() {

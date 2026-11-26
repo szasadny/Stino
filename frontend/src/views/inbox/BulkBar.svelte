@@ -57,11 +57,15 @@
       <button
         type="button"
         onclick={select.toggleAll}
-        class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs"
+        class="hit-area-y {GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs"
       >
         {select.allSelected ? CLEAR_ALL : SELECT_ALL}
       </button>
-      <button type="button" onclick={select.exit} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
+      <button
+        type="button"
+        onclick={select.exit}
+        class="hit-area-y {GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs"
+      >
         {DONE}
       </button>
     </div>

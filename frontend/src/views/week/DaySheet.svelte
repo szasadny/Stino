@@ -28,7 +28,6 @@
   open={date != null}
   onClose={selection.clear}
   onEscape={composer.dismiss}
-  onHeaderClose={composer.open ? composer.close : selection.clear}
   title={date ? formatDayFull(date) : ''}
   {subtitle}
   size="sheet"
