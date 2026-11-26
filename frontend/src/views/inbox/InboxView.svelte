@@ -63,10 +63,12 @@
   }
 
   function finalize(event: CustomEvent<DndEvent<Task>>) {
-    list.finalize('inbox', event.detail.items)
-    const tapped = tappedItem(event.detail, presses.stationary)
-    if (tapped) edit(tapped)
-    else list.settle(core.reorder(list.lists.inbox.map((t) => t.id)))
+    list.finalize('inbox', event.detail, () => {
+      const tapped = tappedItem(event.detail, presses.stationary)
+      if (!tapped) return core.reorder(list.lists.inbox.map((t) => t.id))
+      edit(tapped)
+      return undefined
+    })
   }
 </script>
 
@@ -111,7 +113,7 @@
       items={list.lists.inbox}
       disabled={core.pending}
       class="flex flex-col gap-2"
-      onConsider={(e) => list.consider('inbox', e.detail.items)}
+      onConsider={(e) => list.consider('inbox', e.detail)}
       onFinalize={finalize}
     >
       {#snippet item(task: Task, handle: Snippet | null)}

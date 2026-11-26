@@ -238,7 +238,7 @@ Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.t
 | F19 | Every backticked `frontend/`, `.claude/`, `.github/`, `.codex/`, `.jscpd/` or `scripts/` path in `AGENTS.md`, `CLAUDE.md` and these docs exists | `keeps every repo path named in the agent docs real` |
 | F20 | `AGENTS.md` and ARCHITECTURE-FRONTEND.md describe the current state only | `keeps AGENTS.md and ARCHITECTURE-FRONTEND.md free of history` |
 | F21 | `AGENTS.md` and ARCHITECTURE-FRONTEND.md stay within their size caps; no prose line over 240 characters | `keeps AGENTS.md and ARCHITECTURE-FRONTEND.md within their size` |
-| F22 | One layout per view; flat zones; owned drop lists; one live zone per day; `hidden` mid-drag (§4.6) | review |
+| F22 | One layout per view; flat zones; projected drop lists; one live zone per day; `hidden` mid-drag (§4.6) | review |
 | F23 | Writes go through a task core or `createLock()`; copy lives in `lib/messages.ts`, shared constants in `lib/constants.ts` | review |
 
 ### Common violations (wrong → right)

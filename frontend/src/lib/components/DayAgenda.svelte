@@ -67,17 +67,18 @@
   })
 
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
-    untimed.finalize(key, e.detail.items)
-    const tapped = tappedItem(e.detail, presses.stationary)
-    if (tapped) {
-      onEdit(tapped)
-      return
-    }
-    const liveGroups = groups.map((group) => ({
-      label: group.label,
-      tasks: untimed.lists[keyOf(group)] ?? [],
-    }))
-    untimed.settle(core.reorder(untimedReadingOrder(liveGroups)))
+    untimed.finalize(key, e.detail, () => {
+      const tapped = tappedItem(e.detail, presses.stationary)
+      if (tapped) {
+        onEdit(tapped)
+        return undefined
+      }
+      const liveGroups = groups.map((group) => ({
+        label: group.label,
+        tasks: untimed.lists[keyOf(group)] ?? [],
+      }))
+      return core.reorder(untimedReadingOrder(liveGroups))
+    })
   }
 </script>
 
@@ -147,7 +148,7 @@
     type="untimed-{key}"
     disabled={core.pending}
     class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
-    onConsider={(e) => untimed.consider(key, e.detail.items)}
+    onConsider={(e) => untimed.consider(key, e.detail)}
     onFinalize={(e) => finalize(key, e)}
   >
     {#snippet item(task: Task, handle: Snippet | null)}

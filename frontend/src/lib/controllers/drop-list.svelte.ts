@@ -1,37 +1,59 @@
-import { untrack } from 'svelte'
+import { SOURCES, TRIGGERS, type DndEvent } from 'svelte-dnd-action'
 
-// Owned dnd lists keyed by zone; re-projected from `source` only while no gesture is live.
+// The source's projection, except while a gesture or the write it started is live.
 export function createDropList<K extends string, T>(source: () => Record<K, T[]>) {
-  let lists = $state<Record<K, T[]>>(untrack(source))
+  const projected = $derived(source())
+  let held = $state.raw<Record<K, T[]> | null>(null)
   let dragging = $state(false)
+  let writes = 0
 
-  $effect(() => {
-    const next = source()
-    if (untrack(() => dragging)) return
-    lists = next
-  })
+  function hold(key: K, items: T[]) {
+    held = { ...(held ?? projected), [key]: items }
+  }
+
+  function settle() {
+    if (!dragging && writes === 0) held = null
+  }
 
   return {
     get lists() {
-      return lists
+      return held ?? projected
     },
     get dragging() {
       return dragging
     },
-    consider(key: K, items: T[]): void {
+    consider(key: K, { items, info }: DndEvent<T>): void {
+      // A keyboard drag ends with this consider, after the finalize of each move.
+      if (info.trigger === TRIGGERS.DRAG_STOPPED) {
+        dragging = false
+        settle()
+        return
+      }
       dragging = true
-      lists[key] = items
+      hold(key, items)
     },
-    // Ends the gesture first, so the persisted change can re-project.
-    finalize(key: K, items: T[]): void {
-      lists[key] = items
-      dragging = false
-    },
-    // A write that never touched the source would leave the dropped order on screen.
-    settle(write: Promise<boolean>): void {
-      void write.then((landed) => {
-        if (!landed && !dragging) lists = untrack(source)
-      })
+    finalize(
+      key: K,
+      { items, info }: DndEvent<T>,
+      commit: () => Promise<unknown> | undefined,
+    ): void {
+      // The zone an item left reports separately; after a drop with no write it must not re-hold.
+      if (info.trigger === TRIGGERS.DROPPED_INTO_ANOTHER) {
+        if (held) hold(key, items)
+        return
+      }
+      hold(key, items)
+      if (info.source === SOURCES.POINTER) dragging = false
+      const write = commit()
+      if (write) {
+        writes++
+        const done = () => {
+          writes--
+          settle()
+        }
+        void write.then(done, done)
+      }
+      settle()
     },
   }
 }
