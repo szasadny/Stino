@@ -111,6 +111,7 @@
     </div>
     <ReorderList
       items={list.lists.inbox}
+      label={INBOX}
       disabled={core.pending}
       class="flex flex-col gap-2"
       onConsider={(e) => list.consider('inbox', e.detail)}
@@ -133,7 +134,7 @@
             compact
           />
         {/snippet}
-        <li out:foldAway={{ dragging: list.dragging }}>
+        <li aria-label={task.title} out:foldAway={{ dragging: list.dragging }}>
           <TaskRow
             {task}
             label={core.labelFor(task)}

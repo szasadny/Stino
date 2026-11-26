@@ -143,6 +143,7 @@
   <!-- One flat zone per label group (nested zones break dnd); distinct types block cross-group drops. -->
   <ReorderList
     items={untimed.lists[key] ?? []}
+    label={group.label?.name ?? NO_LABEL}
     type="untimed-{key}"
     disabled={core.pending}
     class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
@@ -150,7 +151,7 @@
     onFinalize={(e) => finalize(key, e)}
   >
     {#snippet item(task: Task, handle: Snippet | null)}
-      <li>
+      <li aria-label={task.title}>
         <TaskRow
           {task}
           label={rowLabel(task)}

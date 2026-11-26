@@ -33,7 +33,7 @@
 
 {#snippet pills(canDrag: boolean)}
   {#each items as item, i (item.id)}
-    <li class="shrink-0 {fit.hides(i, item) ? 'invisible' : ''}">
+    <li aria-label={item.task.title} class="shrink-0 {fit.hides(i, item) ? 'invisible' : ''}">
       <TaskPill task={item.task} draggable={canDrag} />
     </li>
   {/each}
@@ -88,6 +88,7 @@
     <!-- Not a tab stop at rest; the library re-enables zones as targets during a keyboard drag. -->
     <ul
       {@attach fit.measure}
+      aria-label={dayLabel}
       class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden"
       use:dragHandleZone={calendarZone(items, {
         delayTouchStart: DND_GRID_TOUCH_HOLD_MS,

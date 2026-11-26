@@ -74,6 +74,7 @@
     {:else}
       <ReorderList
         items={drop.lists.labels}
+        label={LABELS}
         disabled={!reorderable}
         class="space-y-2"
         onConsider={(e) => drop.consider('labels', e.detail)}

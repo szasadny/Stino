@@ -70,6 +70,7 @@
   <!-- Outside the zone: its children must match dnd items. -->
   <div class="relative">
     <ul
+      aria-label={dayLabel}
       class="min-h-[2.75rem] space-y-2"
       use:dndzone={calendarZone(items, {
         delayTouchStart: DND_TOUCH_HOLD_MS,
@@ -81,7 +82,7 @@
       onfinalize={(e) => board.finalize(dateKey, e)}
     >
       {#each items as item (item.id)}
-        <li>
+        <li aria-label={item.task.title}>
           <TaskRow
             task={item.task}
             label={core.labelFor(item.task)}
