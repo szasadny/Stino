@@ -53,6 +53,7 @@
   subtitle={TASK_REPEATS}
   size="sm"
   dismiss="closerequest"
+  containPresses
 >
   <div class="space-y-2 {MODAL_BODY_CLASS}">
     <button
