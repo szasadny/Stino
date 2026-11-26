@@ -46,7 +46,14 @@
 </button>
 
 {#if open}
-  <Modal open onClose={() => (open = false)} {title} size="sm" dismiss="closerequest">
+  <Modal
+    open
+    onClose={() => (open = false)}
+    {title}
+    size="sm"
+    dismiss="closerequest"
+    containPresses
+  >
     <div class="space-y-4 {MODAL_BODY_CLASS}">
       {#if detail}
         <p class="truncate text-sm text-sage">{detail}</p>

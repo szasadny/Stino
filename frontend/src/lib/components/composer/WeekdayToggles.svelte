@@ -26,7 +26,7 @@
 </script>
 
 <span class={FIELD_LABEL_CLASS}>{ON_DAYS}</span>
-<div class="flex flex-wrap items-center gap-1">
+<div class="flex flex-wrap items-center gap-x-1 gap-y-2">
   {#each WEEKDAY_OPTIONS as day (day.code)}
     <ToggleChip
       pressed={weekdays.includes(day.code)}
@@ -36,7 +36,11 @@
       {day.label}
     </ToggleChip>
   {/each}
-  <ToggleChip pressed={isWeekdaysPreset} onclick={selectWeekdays} class="h-7 rounded-lg px-2.5">
+  <ToggleChip
+    pressed={isWeekdaysPreset}
+    onclick={selectWeekdays}
+    class="hit-area-y h-7 rounded-lg px-2.5"
+  >
     {WEEKDAYS_PRESET}
   </ToggleChip>
 </div>

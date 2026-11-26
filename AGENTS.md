@@ -119,6 +119,7 @@ The easiest area for subtle bugs. Binding rules (detail: DATA-MODEL.md §5.2–�
 - The backend never computes "today": the browser sends its local date (rollover); the importer reads the CSV's own timezone column.
 - Recurrence is one task + an RRULE, never materialized rows; listings expand it per request into one row per occurrence with a derived `occurrence_date`, so clients key rows by `(id, occurrence_date)`.
 - Completing an occurrence writes a `completion` row; moving or skipping one writes a `task_exception`; neither mutates the series.
+- The task form keeps a series' start date on an occurrence of its rule: whichever of the two is edited, the other follows.
 - Day order: timed tasks by `due_time`, then untimed by `sort_order`; the by-label order is a frontend projection only. Picker options ⇄ RRULE live in `frontend/src/lib/recurrence/`.
 
 ## Import from TickTick
@@ -168,21 +169,24 @@ All chrome colours are Tailwind theme tokens (CSS variables in `app.css`, mapped
 | `pine` | `#2F5D50` | primary actions, active state |
 | `pine-deep` | `#1E3A34` | headers, emphasis |
 | `moss` | `#6F8F6B` | secondary accents, success |
-| `bark` | `#8B6F52` | warm accent, errors |
+| `bark` | `#876B4E` | warm accent, errors |
 | `mist` | `#8FB3C7` | the background gradient (CSS variable only, no Tailwind class) |
 | `ink` | `#2B332E` | primary text |
-| `sage` | `#6B7770` | secondary text, muted labels |
+| `sage` | `#67736C` | secondary text, muted labels |
 | `lichen` | `#DDE3DD` | borders, dividers |
+
+Every text token (`ink`, `sage`, `pine`, `pine-deep`, `bark`) reaches AA contrast on every ground token in both themes (guarded).
 
 - **Dark mode** ("forest at night"):
   - Defaults to **System** (`prefers-color-scheme`); Settings → Appearance (System/Light/Dark) persists in `localStorage` (`lib/theme.ts`) and sets `data-theme` on `<html>`, applied pre-paint by an inline script in `index.html`.
   - The dark `@media` block (guarded `:not([data-theme])` so an explicit choice wins) and `:root[data-theme='dark']` re-point the same variables, which Tailwind maps as `rgb(var(--x) / <alpha-value>)`; no `dark:` classes.
-  - The dark ground is a cool blue-charcoal, deliberately not green-tinted; evergreen lives in the accents. `pine`/`pine-deep` go **light** in dark so `bg-pine text-surface` stays readable; all text pairs ≥ AA.
+  - The dark ground is a cool blue-charcoal, deliberately not green-tinted; evergreen lives in the accents. `pine`/`pine-deep` go **light** in dark so `bg-pine text-surface` stays readable.
   - Calendar cells use `cell` / `cell-out`: light = in-month cells on `surface`, other-month days recede to fog; dark = inverted. Weekends are not tinted differently.
   - **Label colours are user data, never themed** (Hard Rule 6): rows and pills take a label tint, a `LabelChip` shows a small dot, legible on either ground.
 - **Label palette** (user-assignable, nature-derived, fixed set in `lib/palette.ts`): pine, moss, fern, clay, amber, slate, plum, stone.
 - **Logo:** a cairn of three stacked stones (`pine`/`moss`/`sage`) with clear gaps and a slight lean, legible at favicon size. `Cairn.svelte` fills from theme tokens; `favicon.svg` uses the light hexes.
-  `icon.svg` (cairn on a fog square) is the source for `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` and `favicon-48.png`; re-render them with `magick` if the logo changes. Keep it three distinct stones.
+  `icon.svg` (cairn on a fog square) is the source for `icon-192.png`, `icon-512.png` and `apple-touch-icon.png`, `favicon.svg` for `favicon-48.png`; re-render them with `magick` if the logo changes.
+  Keep it three distinct stones.
 - **Typography:** headings, wordmark and modal titles = **Hanken Grotesk** (`font-display`, self-hosted, imported in `main.ts`); body/UI = **Inter** (`font-sans`); extra sizes `text-wordmark`, `text-2xs`, `text-3xs`.
 - **Atmosphere & depth (restrained):** one soft gradient over `fog` (`body::before`); depth via `shadow-soft` (cards), `shadow-lift` (popovers) and `shadow-overlay` (modals) on the `--shadow` variables.
   Stacking uses `z-sticky`, `z-chrome`, `z-popover`, `z-floating`; field, button, chip and cell looks are the class constants in `lib/constants.ts` (`INPUT_CLASS`, `PRIMARY_BTN_CLASS`, …).

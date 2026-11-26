@@ -1,11 +1,5 @@
 import type { Task } from '../types'
 import { isUntimed } from './predicates'
-import type { TaskGroup } from './projection'
-
-// The id list `api.tasks.reorder` expects; timed tasks are fixed by time.
-export function untimedReadingOrder(groups: TaskGroup[]): number[] {
-  return groups.flatMap((g) => g.tasks.filter(isUntimed).map((t) => t.id))
-}
 
 // True when `ids` already follow sort_order, so a drop back in place saves nothing.
 export function isUntimedOrder(tasks: Task[], ids: number[]): boolean {

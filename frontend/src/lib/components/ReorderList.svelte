@@ -8,6 +8,7 @@
   // `item` renders exactly one <li> per entry; `handle` is null on a phone (hold-to-drag).
   let {
     items,
+    label,
     type,
     disabled = false,
     class: className = '',
@@ -16,6 +17,7 @@
     item,
   }: {
     items: T[]
+    label: string
     type?: string
     disabled?: boolean
     class?: string
@@ -44,6 +46,7 @@
 
 {#if isCompact()}
   <ul
+    aria-label={label}
     class={className}
     use:dndzone={{
       items,
@@ -63,6 +66,7 @@
   </ul>
 {:else}
   <ul
+    aria-label={label}
     class={className}
     use:dragHandleZone={{
       items,

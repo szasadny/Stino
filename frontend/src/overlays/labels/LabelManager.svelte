@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
+  import type { DndEvent } from 'svelte-dnd-action'
   import Modal from '../../lib/components/Modal.svelte'
   import ReorderList from '../../lib/components/ReorderList.svelte'
   import { MODAL_BODY_CLASS, MUTED_CENTER_CLASS } from '../../lib/constants'
@@ -43,9 +44,8 @@
     return true
   }
 
-  function finalize(items: Label[]) {
-    drop.finalize('labels', items)
-    drop.settle(store.reorder(items.map((l) => l.id)))
+  function finalize(detail: DndEvent<Label>) {
+    drop.finalize('labels', detail, () => store.reorder(detail.items.map((l) => l.id)))
   }
 </script>
 
@@ -74,10 +74,11 @@
     {:else}
       <ReorderList
         items={drop.lists.labels}
+        label={LABELS}
         disabled={!reorderable}
         class="space-y-2"
-        onConsider={(e) => drop.consider('labels', e.detail.items)}
-        onFinalize={(e) => finalize(e.detail.items)}
+        onConsider={(e) => drop.consider('labels', e.detail)}
+        onFinalize={(e) => finalize(e.detail)}
       >
         {#snippet item(label, handle)}
           <LabelRow

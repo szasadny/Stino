@@ -167,4 +167,97 @@ describe('createLock', () => {
     expect(after).not.toHaveBeenCalled()
     expect(lock.error).toBe('fail')
   })
+
+  describe('read', () => {
+    const always = () => true
+
+    it('returns the first fetch when no write overlapped it', async () => {
+      const lock = createLock()
+      const fetch = vi.fn(() => Promise.resolve('rows'))
+      const read = await lock.read(fetch, always)
+      expect([read?.data, read?.overlapped(), fetch.mock.calls.length]).toEqual(['rows', false, 1])
+    })
+
+    it('waits out a write in flight before it fetches', async () => {
+      const lock = createLock()
+      const gate = deferred()
+      const write = lock.run(() => gate.promise, 'fail')
+      const fetch = vi.fn(() => Promise.resolve('rows'))
+      const read = lock.read(fetch, always)
+      await Promise.resolve()
+      expect(fetch).not.toHaveBeenCalled()
+      gate.resolve()
+      await write
+      expect((await read)?.data).toBe('rows')
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it.each([
+      ['succeeded', () => Promise.resolve()],
+      ['failed', () => Promise.reject(new ApiError('server'))],
+    ])('fetches again after a write that %s during the fetch', async (_, persist) => {
+      const lock = createLock()
+      const first = deferred<string>()
+      const fetch = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValueOnce('fresh')
+      const read = lock.read(fetch, always)
+      await lock.run(persist, 'fail')
+      first.resolve('stale')
+      expect((await read)?.data).toBe('fresh')
+      expect(fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('counts an unlocked write without taking the lock', async () => {
+      const lock = createLock()
+      const first = deferred<string>()
+      const gate = deferred()
+      const fetch = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValueOnce('fresh')
+      const read = lock.read(fetch, always)
+      const write = lock.unlocked(() => gate.promise)
+      expect(lock.pending).toBe(false)
+      first.resolve('stale')
+      await Promise.resolve()
+      expect(fetch).toHaveBeenCalledOnce()
+      gate.resolve()
+      await write
+      expect((await read)?.data).toBe('fresh')
+    })
+
+    it('reports a write that starts after the read returned', async () => {
+      const lock = createLock()
+      const read = await lock.read(() => Promise.resolve('rows'), always)
+      void lock.queue(vi.fn(), () => Promise.resolve(), 'fail', vi.fn())
+      expect(read?.overlapped()).toBe(true)
+    })
+
+    it('stops once the read is superseded', async () => {
+      const lock = createLock()
+      const gate = deferred()
+      const write = lock.run(() => gate.promise, 'fail')
+      let current = true
+      const fetch = vi.fn(() => Promise.resolve('rows'))
+      const read = lock.read(fetch, () => current)
+      current = false
+      gate.resolve()
+      await write
+      expect(await read).toBeNull()
+      expect(fetch).not.toHaveBeenCalled()
+    })
+  })
+
+  it('persists a write queued behind a save while its `after` still runs', async () => {
+    const lock = createLock()
+    const after = deferred()
+    const saved = lock.save(
+      () => Promise.resolve(),
+      () => after.promise,
+      'fail',
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const persist = vi.fn(() => Promise.resolve())
+    expect(await lock.queue(vi.fn(), persist, 'fail', vi.fn())).toBe(true)
+    expect(lock.pending).toBe(true)
+    after.resolve()
+    expect(await saved).toBe(true)
+    expect(lock.pending).toBe(false)
+  })
 })

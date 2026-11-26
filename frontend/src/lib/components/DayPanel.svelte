@@ -88,6 +88,7 @@
   <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
     <!-- Min height keeps an empty day droppable. -->
     <ul
+      aria-label={title}
       class="flex flex-col gap-1 {items.length === 0 ? 'min-h-[3rem]' : ''}"
       use:dragHandleZone={calendarZone(items, {
         delayTouchStart: DND_GRID_TOUCH_HOLD_MS,
@@ -97,7 +98,7 @@
       onfinalize={(e) => board.finalize(dateKey, e)}
     >
       {#each items as item (item.id)}
-        <li>
+        <li aria-label={item.task.title}>
           <TaskPill task={item.task} draggable wrap />
         </li>
       {/each}

@@ -28,30 +28,34 @@
     value,
     startDate = null,
     onChange,
+    onFollow,
   }: {
     value: string | null
     startDate?: string | null
     onChange: (rule: string | null) => void
+    onFollow: (rule: string | null) => void
   } = $props()
 
   let unknownRule = $state(untrack(() => (isUnmodeledRule(value) ? value : null)))
   let rec = $state<RecurrenceValue>(untrack(() => parseRRule(value)))
   const summary = $derived(summarize(rec))
 
+  // The rule as last set here; a typed date passes through many values, and each follows from this.
+  let base = untrack(() => parseRRule(value))
   // Seeded at mount, so an opened rule that differs from its start stays until the date changes.
   let followedStart = untrack(() => startDate)
   $effect.pre(() => {
     if (startDate === followedStart) return
     followedStart = startDate
     untrack(() => {
-      const next = followStart(rec, startDate)
-      if (buildRRule(next) === buildRRule(rec)) return
-      rec = next
-      emit()
+      if (base.freq === 'none') return
+      rec = followStart(base, startDate)
+      onFollow(buildRRule(rec))
     })
   })
 
   function emit() {
+    base = $state.snapshot(rec)
     onChange(buildRRule(rec))
   }
   function setFreq(next: RecurrenceFreq) {

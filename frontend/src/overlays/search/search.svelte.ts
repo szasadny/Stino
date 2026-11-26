@@ -44,12 +44,14 @@ export function createSearch() {
 
   async function run(term: string, mine: number): Promise<void> {
     clearErrors()
-    const withTicks = core.toggles.beginLoad()
     try {
-      const found = await api.search(term)
-      if (mine !== token) return
+      const found = await core.read(
+        () => api.search(term),
+        () => mine === token,
+      )
+      if (!found) return
       // Sorted on arrival only, so a ticked row stays under the pointer.
-      results = sortForSearch(withTicks(found), todayKey())
+      results = sortForSearch(found.data, todayKey())
       searched = true
     } catch (err) {
       if (mine === token) searchError = errorMessage(err, SEARCH_FAILED)

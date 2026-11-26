@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { REF_SUNDAY_ISO } from '../test/factories'
+import { REF_SUNDAY_ISO, REF_THURSDAY_ISO } from '../test/factories'
 import {
   DEFAULT_CUSTOM_INTERVAL,
   EMPTY_RECURRENCE,
+  WORKDAYS,
   followStart,
   isMonthday,
   isOrdinalPosition,
@@ -15,6 +16,7 @@ import {
   withFreq,
   withUnit,
   type RecurrenceValue,
+  type WeekdayCode,
 } from './model'
 import { parseRRule } from './rrule-parse'
 
@@ -150,10 +152,8 @@ describe('followStart', () => {
 
   it.each<[string, Partial<RecurrenceValue>]>([
     ['daily', { freq: 'daily' }],
-    ['weekly', { freq: 'weekly', weekdays: ['MO', 'TH'] }],
     ['yearly', { freq: 'yearly' }],
     ['every N days', { freq: 'custom', unit: 'day' }],
-    ['every N weeks', { freq: 'custom', unit: 'week', weekdays: ['WE'] }],
   ])('leaves a %s rule alone', (_, fields) => {
     const value = { ...monthly, ...fields }
     expect(followStart(value, REF_SUNDAY_ISO)).toEqual(value)
@@ -172,5 +172,67 @@ describe('followStart', () => {
   it('follows a day picked by hand that differed from the old date', () => {
     const picked = followStart({ ...monthly, monthday: 3 }, '2026-06-01')
     expect(followStart(picked, REF_SUNDAY_ISO).monthday).toBe(25)
+  })
+})
+
+describe('followStart on weekdays', () => {
+  const weekly = (weekdays: WeekdayCode[]): RecurrenceValue => ({
+    ...EMPTY_RECURRENCE,
+    freq: 'weekly',
+    weekdays,
+  })
+
+  it('keeps an empty list, which already means the start weekday', () => {
+    expect(followStart(weekly([]), REF_SUNDAY_ISO)).toEqual(weekly([]))
+  })
+
+  it('moves a single weekday to the new date', () => {
+    expect(followStart(weekly(['MO']), REF_SUNDAY_ISO)).toEqual(weekly(['SU']))
+  })
+
+  it('keeps several weekdays when the new date is one of them', () => {
+    expect(followStart(weekly(['MO', 'SU']), REF_SUNDAY_ISO)).toEqual(weekly(['MO', 'SU']))
+  })
+
+  it('adds the new date weekday to several weekdays, in week order', () => {
+    expect(followStart(weekly(['SU', 'MO']), REF_THURSDAY_ISO)).toEqual(weekly(['MO', 'TH', 'SU']))
+    expect(followStart(weekly(['TH', 'MO']), REF_SUNDAY_ISO)).toEqual(weekly(['MO', 'TH', 'SU']))
+  })
+
+  it('lets the workday set gain a Saturday', () => {
+    expect(followStart(weekly([...WORKDAYS]), '2026-10-24')).toEqual(weekly([...WORKDAYS, 'SA']))
+  })
+
+  it('follows a custom every-N-weeks rule too', () => {
+    const weeks: RecurrenceValue = { ...weekly(['WE']), freq: 'custom', unit: 'week' }
+    expect(followStart(weeks, REF_SUNDAY_ISO)).toEqual({ ...weeks, weekdays: ['SU'] })
+  })
+
+  it('rewrites nothing when the date is cleared', () => {
+    expect(followStart(weekly(['MO']), null)).toEqual(weekly(['MO']))
+  })
+})
+
+describe('followStart and the end date', () => {
+  const ending: RecurrenceValue = { ...EMPTY_RECURRENCE, freq: 'daily', until: '2026-11-20' }
+
+  it('drops an end date that lies before the new date', () => {
+    expect(followStart(ending, '2026-11-21')).toEqual({ ...ending, until: null })
+  })
+
+  it('keeps an end date on or after the new date', () => {
+    expect(followStart(ending, '2026-11-20')).toEqual(ending)
+    expect(followStart(ending, '2026-11-02')).toEqual(ending)
+  })
+
+  it('brings the end date back when a later follow from the same base moves the date back', () => {
+    const base: RecurrenceValue = { ...ending, freq: 'weekly', weekdays: ['MO'] }
+    expect(followStart(base, '2026-11-24').until).toBeNull()
+    expect(followStart(base, '2026-11-17')).toEqual({ ...base, weekdays: ['TU'] })
+  })
+
+  it('leaves the end date of a rule without a repeat alone', () => {
+    const none: RecurrenceValue = { ...ending, freq: 'none' }
+    expect(followStart(none, '2026-11-21')).toEqual(none)
   })
 })

@@ -2,8 +2,8 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import { ApiError } from '../errors'
-import { LOAD_FAILED, UPDATE_TASK_FAILED } from '../messages'
-import { MON, deferred, done, makeLabel, makeTask, on, recurring } from '../test/factories'
+import { LOAD_FAILED, SAVE_ORDER_FAILED, UPDATE_TASK_FAILED } from '../messages'
+import { MON, TUE, deferred, done, makeLabel, makeTask, on, recurring } from '../test/factories'
 import type { Task } from '../types'
 import { createComposer } from './composer.svelte'
 import { createTaskCore, type TaskCore } from './task-core.svelte'
@@ -11,7 +11,14 @@ import { createTaskCore, type TaskCore } from './task-core.svelte'
 vi.mock('../api', () => ({
   api: {
     labels: { list: vi.fn(), create: vi.fn() },
-    tasks: { create: vi.fn(), complete: vi.fn(), uncomplete: vi.fn(), reorder: vi.fn() },
+    tasks: {
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      complete: vi.fn(),
+      uncomplete: vi.fn(),
+      reorder: vi.fn(),
+    },
   },
 }))
 
@@ -87,6 +94,19 @@ describe('createTaskCore', () => {
     )
     expect(await core.ensureLabel('Run')).toBeNull()
     expect(core.error).toBe('Couldn’t create the label: a label with that name already exists.')
+  })
+
+  it('keeps a label created while a task write was failing', async () => {
+    await settle()
+    const saving = deferred()
+    vi.mocked(api.tasks.remove).mockReturnValueOnce(saving.promise)
+    vi.mocked(api.labels.create).mockResolvedValueOnce(makeLabel({ id: 9, name: 'Gym' }))
+    const removed = core.remove(1)
+    await core.ensureLabel('Gym')
+    saving.reject(new ApiError('network'))
+    expect(await removed).toBe(false)
+    expect(core.tasks.map((t) => t.id)).toEqual([1])
+    expect(core.labels.map((l) => l.name)).toEqual(['Home', 'Gym'])
   })
 
   it('inserts, patches and drops rows without a reload', async () => {
@@ -202,15 +222,18 @@ describe('createTaskCore ticks', () => {
     expect(core.tasks.map((t) => t.completed)).toEqual([false, true])
   })
 
-  it('never reverts a failed tick over a newer reload', async () => {
+  it('restores a failed tick, then lands the reload that waited for it', async () => {
     void core.toggle(a)
     const second = core.toggle(b)
     reply(0).resolve(done(a))
     await settle()
     fetchTasks.mockResolvedValue([done(a), { ...b, title: 'Server' }])
-    await core.reload()
+    const reload = core.reload()
     reply(1).reject(new ApiError('server'))
     expect(await second).toBe(false)
+    expect(doneIds()).toEqual([1])
+    await reload
+    expect(fetchTasks).toHaveBeenCalledTimes(2)
     expect(core.tasks.map((t) => [t.title, t.completed])).toEqual([
       ['T1', true],
       ['Server', false],
@@ -247,34 +270,21 @@ describe('createTaskCore ticks', () => {
     expect(doneIds()).toEqual([1])
   })
 
-  it('keeps a queued tick shown when a quiet reload lands before its request', async () => {
+  it('holds a reload while ticks are queued, then lands the saved rows', async () => {
     void core.toggle(a)
     const second = core.toggle(b)
-    fetchTasks.mockResolvedValue([a, { ...b, title: 'Server' }])
-    await core.reload()
-    expect(doneIds()).toEqual([1, 2])
+    fetchTasks.mockResolvedValue([done(a), { ...done(b), title: 'Server' }])
+    const reload = core.reload()
+    await settle()
+    expect([fetchTasks.mock.calls.length, doneIds()]).toEqual([1, [1, 2]])
     reply(0).resolve(done(a))
     await settle()
-    reply(1).resolve({ ...done(b), title: 'Server' })
+    reply(1).resolve(done(b))
     expect(await second).toBe(true)
+    await reload
     expect(core.tasks.map((t) => [t.title, t.completed])).toEqual([
       ['T1', true],
       ['Server', true],
-    ])
-  })
-
-  it('reverts a queued tick that fails after a reload to the reloaded row', async () => {
-    void core.toggle(a)
-    const second = core.toggle(b)
-    fetchTasks.mockResolvedValue([a, { ...b, title: 'Server' }])
-    await core.reload()
-    reply(0).resolve(done(a))
-    await settle()
-    reply(1).reject(new ApiError('server'))
-    expect(await second).toBe(false)
-    expect(core.tasks.map((t) => [t.title, t.completed])).toEqual([
-      ['T1', true],
-      ['Server', false],
     ])
   })
 
@@ -286,5 +296,217 @@ describe('createTaskCore ticks', () => {
     expect(write).not.toHaveBeenCalled()
     reply(0).resolve(done(a))
     expect(await tick).toBe(true)
+  })
+})
+
+describe('createTaskCore loads that overlap a write', () => {
+  const a = on(MON, { id: 1, sort_order: 0 })
+  const b = on(MON, { id: 2, sort_order: 1 })
+  const c = on(MON, { id: 3, sort_order: 2 })
+  let core: TaskCore
+  let cleanup: () => void
+  let fetches: ReturnType<typeof deferred<Task[]>>[]
+
+  const fetchTasks = () => {
+    const reply = deferred<Task[]>()
+    fetches.push(reply)
+    return reply.promise
+  }
+  const land = async (index: number, tasks: Task[]) => {
+    fetches[index]?.resolve(tasks)
+    await settle()
+  }
+  const order = () => [...core.tasks].sort((x, y) => x.sort_order - y.sort_order).map((t) => t.id)
+  const doneIds = () => core.tasks.filter((t) => t.completed).map((t) => t.id)
+  const titles = () => core.tasks.map((t) => t.title)
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    fetches = []
+    vi.mocked(api.labels.list).mockResolvedValue([])
+    cleanup = $effect.root(() => {
+      core = createTaskCore()
+      core.bindLoad(fetchTasks, LOAD_FAILED)
+    })
+    flushSync()
+    await land(0, [a, b, c])
+  })
+
+  afterEach(() => cleanup())
+
+  it('keeps a tick that settled while an older reload was in flight', async () => {
+    vi.mocked(api.tasks.complete).mockResolvedValue(done(a))
+    const reload = core.reload()
+    expect(await core.toggle(a)).toBe(true)
+    await land(1, [a, b, c])
+    expect([doneIds(), fetches.length]).toEqual([[1], 3])
+    await land(2, [done(a), b, c])
+    await reload
+    expect([doneIds(), fetches.length]).toEqual([[1], 3])
+  })
+
+  it('keeps a reorder that settled while an older reload was in flight', async () => {
+    vi.mocked(api.tasks.reorder).mockResolvedValue(undefined)
+    const reload = core.reload()
+    expect(await core.reorder([3, 2, 1])).toBe(true)
+    await land(1, [a, b, c])
+    expect([order(), fetches.length]).toEqual([[3, 2, 1], 3])
+    await land(2, [{ ...c, sort_order: 0 }, b, { ...a, sort_order: 2 }])
+    await reload
+    expect(order()).toEqual([3, 2, 1])
+  })
+
+  it('keeps a move that settled while an older reload was in flight', async () => {
+    vi.mocked(api.tasks.update).mockResolvedValue(on(TUE, { id: 1 }))
+    const reload = core.reload()
+    expect(await core.moveToDay(1, TUE, null)).toBe(true)
+    await land(1, [a, b, c])
+    expect(core.tasks.find((t) => t.id === 1)?.due_date).toBe(TUE)
+    await land(2, [on(TUE, { id: 1 }), b, c])
+    await reload
+    expect([core.tasks.find((t) => t.id === 1)?.due_date, fetches.length]).toEqual([TUE, 3])
+  })
+
+  it('commits nothing while a write is in flight and refetches once it settles', async () => {
+    const saving = deferred()
+    vi.mocked(api.tasks.reorder).mockReturnValue(saving.promise)
+    const reload = core.reload()
+    const reorder = core.reorder([3, 2, 1])
+    await land(1, [{ ...a, title: 'Stale' }, b, c])
+    expect([titles(), order(), fetches.length]).toEqual([['T3', 'T2', 'T1'], [3, 2, 1], 2])
+    saving.resolve()
+    expect(await reorder).toBe(true)
+    await settle()
+    expect(fetches.length).toBe(3)
+    await land(2, [{ ...c, sort_order: 0 }, b, { ...a, sort_order: 2, title: 'Server' }])
+    await reload
+    expect(titles()).toEqual(['T3', 'T2', 'Server'])
+  })
+
+  it('refetches after a write that started and settled during the fetch', async () => {
+    vi.mocked(api.tasks.remove).mockResolvedValue(undefined)
+    const reload = core.reload()
+    expect(await core.remove(2)).toBe(true)
+    await land(1, [a, b, c])
+    expect([titles(), fetches.length]).toEqual([['T1', 'T3'], 3])
+    await land(2, [a, c])
+    await reload
+    expect(titles()).toEqual(['T1', 'T3'])
+  })
+
+  it('fetches once for a save followed by its reload', async () => {
+    const saved = core.save(() => Promise.resolve(), core.reload, 'x')
+    await settle()
+    expect([fetches.length, core.pending]).toEqual([2, true])
+    await land(1, [a, b, { ...c, title: 'Saved' }])
+    expect(await saved).toBe(true)
+    expect([titles(), fetches.length, core.pending]).toEqual([['T1', 'T2', 'Saved'], 2, false])
+  })
+
+  it('persists a tick queued behind a save while its reload runs, then refetches', async () => {
+    vi.mocked(api.tasks.complete).mockResolvedValue(done(a))
+    const saved = core.save(() => Promise.resolve(), core.reload, 'x')
+    await settle()
+    expect(await core.toggle(a)).toBe(true)
+    await land(1, [a, b, c])
+    expect([doneIds(), fetches.length]).toEqual([[1], 3])
+    await land(2, [done(a), b, c])
+    expect(await saved).toBe(true)
+    expect(doneIds()).toEqual([1])
+  })
+
+  it('keeps the revert of a failed write and refetches the load it overlapped', async () => {
+    const saving = deferred()
+    vi.mocked(api.tasks.reorder).mockReturnValue(saving.promise)
+    const reorder = core.reorder([3, 2, 1])
+    const reload = core.reload()
+    saving.reject(new ApiError('server'))
+    expect(await reorder).toBe(false)
+    expect(order()).toEqual([1, 2, 3])
+    await settle()
+    expect(fetches.length).toBe(2)
+    await land(1, [a, b, { ...c, title: 'Server' }])
+    await reload
+    expect([order(), titles(), core.error]).toEqual([
+      [1, 2, 3],
+      ['T1', 'T2', 'Server'],
+      SAVE_ORDER_FAILED,
+    ])
+  })
+
+  it('lands the server row after a move whose order write fails', async () => {
+    vi.mocked(api.tasks.update).mockResolvedValue(on(TUE, { id: 1 }))
+    vi.mocked(api.tasks.reorder).mockRejectedValue(new ApiError('server'))
+    expect(await core.moveToDay(1, TUE, [1])).toBe(false)
+    expect(fetches.length).toBe(2)
+    await land(1, [on(TUE, { id: 1 }), b, c])
+    expect(core.tasks.find((t) => t.id === 1)?.due_date).toBe(TUE)
+  })
+
+  it('commits only the newest of two loads that overlap each other and a write', async () => {
+    const saving = deferred<Task>()
+    vi.mocked(api.tasks.complete).mockReturnValue(saving.promise)
+    const older = core.reload()
+    const tick = core.toggle(a)
+    const newer = core.reload()
+    saving.resolve(done(a))
+    expect(await tick).toBe(true)
+    await settle()
+    expect(fetches.length).toBe(3)
+    await land(2, [done(a), b, { ...c, title: 'Newer' }])
+    await land(1, [a, b, { ...c, title: 'Older' }])
+    await Promise.all([older, newer])
+    expect([titles(), doneIds(), fetches.length]).toEqual([['T1', 'T2', 'Newer'], [1], 3])
+  })
+
+  it('keeps a non-quiet load loading until its refetch commits, and wraps only that commit', async () => {
+    vi.mocked(api.tasks.complete).mockResolvedValue(done(a))
+    const wrap = vi.fn(async (commit: () => void) => commit())
+    const load = core.loadThrough(fetchTasks, wrap)
+    expect(core.loading).toBe(true)
+    expect(await core.toggle(a)).toBe(true)
+    await land(1, [a, b, c])
+    expect([core.loading, wrap.mock.calls.length, fetches.length]).toEqual([true, 0, 3])
+    await land(2, [done(a), b, c])
+    await load
+    expect([core.loading, wrap.mock.calls.length, doneIds()]).toEqual([false, 1, [1]])
+  })
+
+  it('waits for every overlapping write to settle, then fetches once more', async () => {
+    const replies = [deferred<Task>(), deferred<Task>(), deferred<Task>()]
+    let next = 0
+    vi.mocked(api.tasks.complete).mockImplementation(
+      () => replies[next++]?.promise ?? Promise.reject(new Error('unexpected')),
+    )
+    const reload = core.reload()
+    const ticks = [a, b, c].map((t) => core.toggle(t))
+    await land(1, [a, b, c])
+    for (const [index, task] of [a, b, c].entries()) {
+      expect(fetches.length).toBe(2)
+      replies[index]?.resolve(done(task))
+      await settle()
+    }
+    expect(await Promise.all(ticks)).toEqual([true, true, true])
+    expect(fetches.length).toBe(3)
+    await land(2, [done(a), done(b), done(c)])
+    await reload
+    expect([doneIds(), fetches.length]).toEqual([[1, 2, 3], 3])
+  })
+
+  it('refetches labels when a label created mid-load is missing from them', async () => {
+    const cleanupFresh = $effect.root(() => {
+      core = createTaskCore()
+      core.bindLoad(fetchTasks, LOAD_FAILED)
+    })
+    flushSync()
+    const gym = makeLabel({ id: 9, name: 'Gym' })
+    vi.mocked(api.labels.create).mockResolvedValue(gym)
+    expect(await core.ensureLabel('Gym')).toEqual(gym)
+    vi.mocked(api.labels.list).mockResolvedValue([gym])
+    await land(1, [a, b, c])
+    expect([core.labels.map((l) => l.id), fetches.length]).toEqual([[9], 3])
+    await land(2, [a, b, c])
+    expect(core.labels.map((l) => l.id)).toEqual([9])
+    cleanupFresh()
   })
 })

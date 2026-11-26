@@ -100,7 +100,7 @@ Every row has exactly one correct location; anywhere else is a contract violatio
 | A new tab | `views/<name>/` + `VIEWS` (`lib/constants.ts`) + `ViewId` (`lib/types.ts`) + `VIEW_COMPONENTS` in `App.svelte` |
 | A frontend unit test | `<module>.test.ts` beside the module; `api` stubbed with `vi.mock` |
 | A test fixture or factory | `lib/test/factories.ts` |
-| A frontend guard | An `it(...)` in `lib/test/architecture.test.ts`; scan helpers in `lib/test/guards/repo.ts` |
+| A frontend guard | An `it(...)` in `lib/test/architecture.test.ts` (token contrast: `lib/test/contrast.test.ts`); scan helpers in `lib/test/guards/repo.ts` |
 | A lint rule | `frontend/eslint.config.js`; never an `eslint-disable` |
 | A value mirrored from the backend or `index.html` | Both homes + DATA-MODEL.md §5.6 |
 
@@ -185,7 +185,7 @@ In [DATA-MODEL.md](./DATA-MODEL.md). §5.x references resolve there.
 ## 7. The Modularity Contract
 
 Every change satisfies all of these. Backend guards live in `backend/tests/guards/` (`cargo test --locked --test guards`), lints in `backend/Cargo.toml` + `backend/clippy.toml`.
-Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.test.ts` (`npm run test:guards`), lints in `frontend/eslint.config.js`. A rule marked *review* has no guard.
+Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.test.ts` and `frontend/src/lib/test/contrast.test.ts` (`npm run test:guards`), lints in `frontend/eslint.config.js`. A rule marked *review* has no guard.
 
 **Backend:**
 
@@ -238,8 +238,9 @@ Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.t
 | F19 | Every backticked `frontend/`, `.claude/`, `.github/`, `.codex/`, `.jscpd/` or `scripts/` path in `AGENTS.md`, `CLAUDE.md` and these docs exists | `keeps every repo path named in the agent docs real` |
 | F20 | `AGENTS.md` and ARCHITECTURE-FRONTEND.md describe the current state only | `keeps AGENTS.md and ARCHITECTURE-FRONTEND.md free of history` |
 | F21 | `AGENTS.md` and ARCHITECTURE-FRONTEND.md stay within their size caps; no prose line over 240 characters | `keeps AGENTS.md and ARCHITECTURE-FRONTEND.md within their size` |
-| F22 | One layout per view; flat zones; owned drop lists; one live zone per day; `hidden` mid-drag (§4.6) | review |
+| F22 | One layout per view; flat zones; projected drop lists; one live zone per day; `hidden` mid-drag (§4.6) | review |
 | F23 | Writes go through a task core or `createLock()`; copy lives in `lib/messages.ts`, shared constants in `lib/constants.ts` | review |
+| F24 | Every text token reaches 4.5:1 on every ground token, in both themes | `keeps every text token at AA contrast on every ground, in both themes` |
 
 ### Common violations (wrong → right)
 

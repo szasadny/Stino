@@ -13,7 +13,7 @@
 </script>
 
 {#if label || preview}
-  <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-sage">
+  <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-sage">
     {#if label}
       {#if 'label' in label}
         <span class="inline-flex items-center gap-1.5">

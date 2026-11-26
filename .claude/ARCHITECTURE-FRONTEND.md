@@ -46,11 +46,11 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Owns | Bound by |
 | --- | --- | --- |
-| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
-| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
-| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` and `beginLoad` re-show outstanding ticks on rows that replace a list; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
+| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`), `read` for another list's fetch; `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock (`unlocked`) | Every view; `search.svelte.ts` |
+| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write; `unlocked` counts a write without the lock; `read` fetches again until no write overlapped the fetch | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
+| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` re-shows outstanding ticks on a write's snapshot revert; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
 | `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
-| `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
+| `drop-list.svelte.ts` | `createDropList(source)`: dnd lists keyed by zone; the landing zone's `finalize` ends the gesture and runs its write | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday` (then `onToday` once it has slid in); binds the core's load to the period's range | `MonthView`, `WeekView` |
 | `calendar-board.svelte.ts` | `createCalendarBoard(core, keys, open)`: per-day drop lists, `consider` / `finalize`, the drop plan and tap-to-open | `MonthView`, `WeekView` |
 | `calendar-selection.svelte.ts` | `createCalendarSelection(core)`: the open day, its tasks, the anchor rect for `DayPanel` and the date button it returns focus to | `MonthView`, `WeekView` |
@@ -59,9 +59,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | Concern | Model |
 | --- | --- |
 | Server data | One `createTaskCore()` per view or overlay; components read it, never keep a copy (review) |
-| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
+| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits, and only once no write overlapped its fetch (`lock.read`) |
 | Add/edit | `createComposer`; `afterSave` defaults to the core's `reload`, Inbox passes its own to drop a task that gained a date |
-| Drag lists | `createDropList`, re-projected only while no gesture is live (§4.6) |
+| Drag lists | `createDropList`, the source's projection outside a gesture (§4.6) |
 | Period navigation | `createPeriodNav` → `core.loadThrough` fetches the target range first, then commits inside `navigateWithSlide` (`nav-transition.ts`), a View Transition that never mounts the outgoing grid twice |
 | Refresh | `bumpRefresh()` (`refresh.svelte.ts`) after a change outside a view's core: `App.svelte` on closing Search or Labels, `import.svelte.ts` after an import, `day-change.svelte.ts` after a new day or a rollover; every `bindLoad` core reloads quietly |
 | Today and rollover | `watchDayChange()` (`day-change.svelte.ts`, started by `App.svelte`) posts the browser's date to the rollover endpoint on mount and on tab return, once per day, then advances `today.svelte.ts`, its only writer |
@@ -72,9 +72,10 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | Group | Component | For |
 | --- | --- | --- |
-| Shells | `ListViewShell` | Today and Inbox frame: title, actions, error, loading and empty states, optional edge scroll |
-| | `PeriodShell` | Month and Week frame: title, previous / today / next, swipe, error |
-| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
+| Shells | `ListViewShell` | Today and Inbox frame: error, loading and empty states, optional edge scroll |
+| | `PeriodShell` | Month and Week frame: previous / today / next, swipe, error |
+| | `PageHeader` | Title, subtitle and actions of both shells |
+| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `dismiss="closerequest"` turns off the outside click; `containPresses` stops presses at a dialog that sits in a drag row |
 | | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
 | | `DayListSection` | A day heading (`headingLevel` from the host) over its task rows: the phone month agenda and the phone week stack |
@@ -104,16 +105,16 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- |
 | `predicates.ts` | `isUntimed`, `isRecurring`, `sameOccurrence`, `occurrenceKey` (the per-row key), `skippableOccurrence`, `canSkipOccurrence` |
 | `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only), `sortForSearch` (upcoming first, an ended series among the past) |
-| `projection.ts` | `buildBoard` (per-day cell items, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
-| `day-order.ts` | `untimedReadingOrder`, `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
-| `drop.ts` | `dropKind`: none, reorder, move, or move one occurrence |
+| `projection.ts` | `buildBoard` (per-day cell items in `calendarDayOrder`, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
+| `day-order.ts` | `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
+| `drop.ts` | `droppedUntimedOrder` (a drop saves only an order its view would show); `dropKind`: none, reorder (checked against `calendarDayOrder`), move, or move one occurrence |
 | `optimistic.ts` | Optimistic mirrors of server writes: `applyUntimedOrder`, `applyMove`, `applyLabelOrder`, `replaceOccurrence`, `withoutTasks`, `withoutOccurrence`, `restoreOccurrence` |
 
 `lib/recurrence/` maps picker options ⇄ RRULE and typed phrases; the backend validates and expands:
 
 | File | Exports |
 | --- | --- |
-| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a monthly rule follows a changed start date) |
+| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a weekly or monthly rule follows a changed start date and drops an end before it) |
 | `options.ts` | Option lists for the picker controls, labelled from `messages.ts` |
 | `rrule-build.ts` | `buildRRule` |
 | `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only), `seriesUntil` (any rule's end date) |
@@ -153,9 +154,9 @@ Single files in `lib/`:
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |
 | `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
-| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today) |
+| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today), `snapDate`/`settleDate` (an edited date moves to its rule's first occurrence on or after it) |
 | `errors.ts` | `ApiError` (`kind` network, server or rejected; a 4xx carries the API's `{"error"}` text as `reason`), `rejectionReason`; `errorMessage`: network → `NETWORK_ERROR_MESSAGE`, rejected with a reason → action message plus reason (`failureWithReason`), else the action message |
-| `theme.ts` | `getThemePref`, `setThemePref` |
+| `theme.ts` | `getThemePref`, `setThemePref` (sets `data-theme` and points the `theme-color` metas at the chosen scheme, `themeColorMedia`) |
 | `nav-transition.ts` | `navigateWithSlide(dir, apply)` |
 | `palette.ts` | `LABEL_PALETTE`, `PaletteHex` |
 | `day-change.svelte.ts` | `watchDayChange`, `createDayChange` |
@@ -170,11 +171,11 @@ Single files in `lib/`:
 
 1. **One layout per view.** `isCompact()` (width ≤ `COMPACT_MAX_WIDTH`) picks exactly one layout in markup; never render both and hide one with CSS, which mounts duplicate drag zones.
 2. **Flat zones.** `svelte-dnd-action` zones never nest; a nested inner zone stops dragging. `DayAgenda` label sections are sibling zones with distinct `type`s, reordered with up/down buttons.
-3. **Owned drop lists.** A zone renders a `createDropList` list, changed only by `consider` / `finalize` and re-projected from source only while no gesture is live.
+3. **Projected drop lists.** A zone renders a `createDropList` list: the source's projection, held by `consider` / `finalize` only while a gesture or the write it started is live.
 4. **One live zone per day.** Calendar zones share one `type` (`calendarZone`) and one board; while the phone agenda or `DayPanel` shows a day, that day's grid cell renders its items without a zone.
 5. **Hide mid-drag with `hidden`.** A zone hidden during a drag gets `hidden`, which drops it from hit-testing; never unmount it (the origin zone must stay registered) and never `invisible` (it keeps its rects and captures the pointer).
 6. **One child per item.** A zone renders every item; a cell's overflow lines stay as `invisible` children (`createLineFit`), the "+N" hint sits outside the zone, and the drag shadow stays visible.
-7. **Only the landing zone commits** (`dropKind`): a same-day drop reorders, a cross-day drop reschedules, a recurring row's cross-day drop moves one occurrence.
+7. **Only the landing zone commits** (`dropKind`): a same-day drop saves only an order the day would show (`droppedUntimedOrder`), else snaps back; a cross-day drop reschedules, a recurring row's cross-day drop moves one occurrence.
 8. **Grip on wide, hold on phone.** Every reorder list follows `ReorderList`: grip + `dragHandleZone` on wide, whole-row `dndzone` with `delayTouchStart` on phone; no grips at phone width.
 9. **Taps on drag items.** Handlers act on trusted clicks only (`trustedClick`); a stationary press dropped in place opens the editor (`tappedItem` with `presses`).
    A hold-to-drag row edits through a `div role=button` (`activateOnKey`): the library never drags a native button. Space starts a keyboard drag, Enter opens (`main.ts`).

@@ -37,6 +37,11 @@ export function dayViewGroups(tasks: Task[], labels: Label[], grouped: boolean):
   return tasks.length > 0 ? [{ label: null, tasks }] : []
 }
 
+// What one calendar day shows, from the server order; a drop is checked against it too.
+export function calendarDayOrder(day: Task[], labelOrder?: Label[]): Task[] {
+  return completedLast(labelOrder ? labelDayOrder(day, labelOrder) : day)
+}
+
 // Every day key gets an array, so empty days are valid drop targets.
 export function buildBoard(
   tasks: Task[],
@@ -49,8 +54,10 @@ export function buildBoard(
   }
   const board: Record<string, CellItem[]> = {}
   for (const [key, day] of byDay) {
-    const ordered = labelOrder && day.length > 0 ? labelDayOrder(day, labelOrder) : day
-    board[key] = completedLast(ordered).map((task) => ({ id: occurrenceKey(task), task }))
+    board[key] = calendarDayOrder(day, labelOrder).map((task) => ({
+      id: occurrenceKey(task),
+      task,
+    }))
   }
   return board
 }

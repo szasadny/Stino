@@ -39,7 +39,7 @@
   }
 </script>
 
-<li class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
+<li aria-label={label.name} class="rounded-xl border border-lichen bg-fog/60 px-3 py-2.5">
   {#if editing}
     <LabelForm {label} busy={store.pending} onSubmit={save} onCancel={onDone} />
   {:else}

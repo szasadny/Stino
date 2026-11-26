@@ -16,31 +16,34 @@ export function createCalendarBoard(
   keys: () => string[],
   open: (task: Task) => void,
 ) {
-  const drop = createDropList(() =>
-    buildBoard(core.tasks, keys(), groupByLabelView() ? core.labels : undefined),
-  )
+  const labelOrder = () => (groupByLabelView() ? core.labels : undefined)
+  const drop = createDropList(() => buildBoard(core.tasks, keys(), labelOrder()))
   let dropKey = $state<string | null>(null)
 
   function consider(key: string, e: CustomEvent<DndEvent<CellItem>>) {
-    drop.consider(key, e.detail.items)
+    drop.consider(key, e.detail)
     // A tiny month cell hides the per-list ring under the finger, so mark the whole day.
     if (e.detail.items.some(isShadowItem)) dropKey = key
     else if (dropKey === key) dropKey = null
   }
 
+  function write(key: string, detail: DndEvent<CellItem>): Promise<boolean> | undefined {
+    const plan = dropKind(detail, key, core.tasks, labelOrder())
+    if (plan.kind === 'reorder') return core.reorder(plan.ids)
+    if (plan.kind === 'move-occurrence')
+      return core.moveOccurrence(plan.taskId, plan.occurrenceDate, plan.newDate)
+    if (plan.kind === 'move') return core.moveToDay(plan.movedId, key, plan.reorderIds)
+    return undefined
+  }
+
   function finalize(key: string, e: CustomEvent<DndEvent<CellItem>>) {
     dropKey = null
-    drop.finalize(key, e.detail.items)
-    const tapped = tappedItem(e.detail, presses.stationary)
-    if (tapped) {
+    drop.finalize(key, e.detail, () => {
+      const tapped = tappedItem(e.detail, presses.stationary)
+      if (!tapped) return write(key, e.detail)
       open(tapped.task)
-      return
-    }
-    const plan = dropKind(e.detail, key, core.tasks)
-    if (plan.kind === 'reorder') drop.settle(core.reorder(plan.ids))
-    else if (plan.kind === 'move-occurrence')
-      drop.settle(core.moveOccurrence(plan.taskId, plan.occurrenceDate, plan.newDate))
-    else if (plan.kind === 'move') drop.settle(core.moveToDay(plan.movedId, key, plan.reorderIds))
+      return undefined
+    })
   }
 
   return {

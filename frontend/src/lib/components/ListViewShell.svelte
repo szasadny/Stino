@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import { DISPLAY_TITLE_CLASS, MUTED_CENTER_CLASS } from '../constants'
+  import { MUTED_CENTER_CLASS } from '../constants'
   import { dragEdgeScroll } from '../dnd/drag-scroll.action'
   import { LOADING } from '../messages'
   import EmptyState from './EmptyState.svelte'
   import ErrorAlert from './ErrorAlert.svelte'
+  import PageHeader from './PageHeader.svelte'
 
   let {
     title,
@@ -38,13 +39,7 @@
 </script>
 
 <section class="relative mx-auto flex h-full w-full max-w-2xl flex-col px-4">
-  <header class="flex shrink-0 items-start justify-between gap-3 pt-6 sm:pt-8">
-    <div>
-      <h1 class="{DISPLAY_TITLE_CLASS} text-2xl">{title}</h1>
-      <p class="mt-1 min-h-5 text-sm text-sage">{subtitle}</p>
-    </div>
-    {@render actions?.()}
-  </header>
+  <PageHeader {title} {subtitle} {actions} class="gap-3 pt-6 sm:pt-8" />
 
   <ErrorAlert {error} class="mt-4" />
 

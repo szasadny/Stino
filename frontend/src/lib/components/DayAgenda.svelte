@@ -12,7 +12,7 @@
   import { tappedItem } from '../dnd/tap'
   import { dayViewGroups, hasLabelGroups, type TaskGroup } from '../tasks/projection'
   import { groupByLabelView } from '../group-view.svelte'
-  import { untimedReadingOrder } from '../tasks/day-order'
+  import { droppedUntimedOrder } from '../tasks/drop'
   import { isUntimed, occurrenceKey } from '../tasks/predicates'
   import { completedLast } from '../tasks/sort'
   import GroupViewToggle from './GroupViewToggle.svelte'
@@ -67,17 +67,16 @@
   })
 
   function finalize(key: string, e: CustomEvent<DndEvent<Task>>) {
-    untimed.finalize(key, e.detail.items)
-    const tapped = tappedItem(e.detail, presses.stationary)
-    if (tapped) {
-      onEdit(tapped)
-      return
-    }
-    const liveGroups = groups.map((group) => ({
-      label: group.label,
-      tasks: untimed.lists[keyOf(group)] ?? [],
-    }))
-    untimed.settle(core.reorder(untimedReadingOrder(liveGroups)))
+    untimed.finalize(key, e.detail, () => {
+      const tapped = tappedItem(e.detail, presses.stationary)
+      if (tapped) {
+        onEdit(tapped)
+        return undefined
+      }
+      const day = groups.flatMap((group) => untimed.lists[keyOf(group)] ?? [])
+      const ids = droppedUntimedOrder(untimed.lists[key] ?? [], completedLast, day)
+      return ids ? core.reorder(ids) : undefined
+    })
   }
 </script>
 
@@ -122,7 +121,7 @@
   {@const key = keyOf(group)}
   {@const timed = timedOf(group, false)}
   {#if grouped}
-    <div class="mb-2 flex items-center gap-1.5 px-0.5">
+    <div class="mb-2.5 flex items-center gap-1.5 px-0.5">
       <svelte:element this={`h${headingLevel}`} class="flex min-w-0">
         {#if group.label}
           <LabelChip label={group.label} />
@@ -144,14 +143,15 @@
   <!-- One flat zone per label group (nested zones break dnd); distinct types block cross-group drops. -->
   <ReorderList
     items={untimed.lists[key] ?? []}
+    label={group.label?.name ?? NO_LABEL}
     type="untimed-{key}"
     disabled={core.pending}
     class="space-y-2 {timed.length > 0 ? 'mt-2' : ''}"
-    onConsider={(e) => untimed.consider(key, e.detail.items)}
+    onConsider={(e) => untimed.consider(key, e.detail)}
     onFinalize={(e) => finalize(key, e)}
   >
     {#snippet item(task: Task, handle: Snippet | null)}
-      <li>
+      <li aria-label={task.title}>
         <TaskRow
           {task}
           label={rowLabel(task)}

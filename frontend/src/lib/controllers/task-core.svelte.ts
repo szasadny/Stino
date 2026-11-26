@@ -67,21 +67,25 @@ export function createTaskCore() {
     quiet: boolean,
   ): Promise<void> {
     const mine = ++loadToken
-    const withTicks = toggles.beginLoad()
+    const current = () => mine === loadToken
     if (!quiet) loading = true
     lock.clearError()
     try {
-      const data = await fetcher()
-      if (mine !== loadToken) return
-      await commitWrap(() => {
-        if (mine !== loadToken) return
-        state.tasks = withoutMissedOccurrences(withTicks(data.tasks), todayKey())
-        if (data.labels) state.labels = data.labels
-      })
+      for (let committed = false; !committed;) {
+        const read = await lock.read(fetcher, current)
+        if (!read) return
+        // A write can start inside the wrapper's paused window; its rows then predate it.
+        await commitWrap(() => {
+          if (!current() || read.overlapped()) return
+          state.tasks = withoutMissedOccurrences(read.data.tasks, todayKey())
+          if (read.data.labels) state.labels = read.data.labels
+          committed = true
+        })
+      }
     } catch (err) {
-      if (mine === loadToken) lock.fail(errorMessage(err, failMsg))
+      if (current()) lock.fail(errorMessage(err, failMsg))
     } finally {
-      if (mine === loadToken) loading = false
+      if (current()) loading = false
     }
   }
 
@@ -96,15 +100,22 @@ export function createTaskCore() {
     persist: () => Promise<unknown>,
     failMsg: string,
   ): Promise<boolean> {
-    const snapTasks = state.tasks
-    const snapLabels = state.labels
-    const tokenAtStart = loadToken
-    return lock.optimistic(apply, persist, failMsg, () => {
-      // Loads aren't gated by the lock; never revert over a newer load's server data.
-      if (loadToken !== tokenAtStart) return
-      state.tasks = toggles.overlay(snapTasks)
-      state.labels = snapLabels
-    })
+    const snap = { ...state }
+    let applied = snap
+    // No load commits while a write is in flight, so the snapshot is never older than one.
+    return lock.optimistic(
+      () => {
+        apply()
+        applied = { ...state }
+      },
+      persist,
+      failMsg,
+      // Only what `apply` changed: a label created meanwhile survives a failed task write.
+      () => {
+        if (applied.tasks !== snap.tasks) state.tasks = toggles.overlay(snap.tasks)
+        if (applied.labels !== snap.labels) state.labels = snap.labels
+      },
+    )
   }
 
   return {
@@ -129,6 +140,7 @@ export function createTaskCore() {
     clearError: lock.clearError,
     run: lock.run,
     save: lock.save,
+    read: lock.read,
     optimistic,
     reload,
     toggle: (task: Task) => toggles.toggleIn(list, task),
@@ -163,11 +175,9 @@ export function createTaskCore() {
     insert(task: Task): void {
       state.tasks = [...state.tasks, task]
     },
-
     patch(task: Task): void {
       state.tasks = replaceOccurrence(state.tasks, task)
     },
-
     dropIds(ids: Iterable<number>): void {
       state.tasks = withoutTasks(state.tasks, ids)
     },
@@ -188,8 +198,9 @@ function createWrites(
       if (found) return found
       // Outside the lock: a busy task write must not swallow the user's pick.
       try {
-        const color = nextPaletteColor(state.labels)
-        const label = await api.labels.create({ name: clean, color, emoji: null })
+        const label = await lock.unlocked(() =>
+          api.labels.create({ name: clean, color: nextPaletteColor(state.labels), emoji: null }),
+        )
         state.labels = [...state.labels, label]
         return label
       } catch (err) {

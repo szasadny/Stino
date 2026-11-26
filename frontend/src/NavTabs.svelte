@@ -26,8 +26,9 @@
     {/each}
   </nav>
 {:else}
+  <!-- Half the inset: the label clears the home indicator without a 34px empty band. -->
   <nav
-    class="z-chrome flex shrink-0 border-t border-lichen/80 bg-surface/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+    class="z-chrome flex shrink-0 border-t border-lichen/80 bg-surface/85 pb-[calc(env(safe-area-inset-bottom)/2)] backdrop-blur-md"
   >
     {#each VIEWS as view (view.id)}
       <button

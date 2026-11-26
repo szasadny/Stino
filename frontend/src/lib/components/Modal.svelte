@@ -18,6 +18,7 @@
     label,
     size = 'md',
     dismiss = 'any',
+    containPresses = false,
     error,
     header,
     children,
@@ -31,6 +32,7 @@
     label?: string
     size?: ModalSize
     dismiss?: 'any' | 'closerequest'
+    containPresses?: boolean
     error?: string | null
     header?: Snippet
     children: Snippet
@@ -89,10 +91,12 @@
     }
   }
 
-  // Presses must not reach a drag item or row the DOM sits in; releases stay free for in-dialog drags.
+  // A dialog inside a drag row keeps its presses from that row; any other lets a click end a keyboard drag.
   // `on` runs Svelte's delegated handlers inside the dialog before the stop.
-  const containPresses: Attachment<HTMLDialogElement> = (dialog) => {
-    const stop = (event: Event) => event.stopPropagation()
+  const watchPresses: Attachment<HTMLDialogElement> = (dialog) => {
+    const stop = (event: Event) => {
+      if (containPresses) event.stopPropagation()
+    }
     const offs = [
       on(dialog, 'pointerdown', (event) => {
         pressedOutside = isOutsidePress(dialogPress(dialog, event))
@@ -115,7 +119,7 @@
 <dialog
   bind:this={dialogEl}
   {@attach closeOnDestroy}
-  {@attach containPresses}
+  {@attach watchPresses}
   closedby={dismiss}
   aria-labelledby={title && !header ? titleId : undefined}
   aria-label={label}

@@ -1,28 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FRI, TUE, makeLabel, makeTask, on, timed } from '../test/factories'
-import { appendedUntimedOrder, isUntimedOrder, untimedReadingOrder } from './day-order'
-import type { TaskGroup } from './projection'
-
-describe('untimedReadingOrder', () => {
-  it('returns untimed ids in group order then within-group order, excluding timed', () => {
-    const groups: TaskGroup[] = [
-      {
-        label: makeLabel({ id: 1 }),
-        tasks: [timed('09:00', { id: 10 }), makeTask({ id: 11 }), makeTask({ id: 12 })],
-      },
-      { label: makeLabel({ id: 2 }), tasks: [makeTask({ id: 20 })] },
-      { label: null, tasks: [makeTask({ id: 30 })] },
-    ]
-    expect(untimedReadingOrder(groups)).toEqual([11, 12, 20, 30])
-  })
-
-  it('is empty when every task is timed', () => {
-    const groups: TaskGroup[] = [
-      { label: null, tasks: [timed('08:00', { id: 1 }), timed('09:00', { id: 2 })] },
-    ]
-    expect(untimedReadingOrder(groups)).toEqual([])
-  })
-})
+import { FRI, TUE, makeTask, on } from '../test/factories'
+import { appendedUntimedOrder, isUntimedOrder } from './day-order'
 
 describe('isUntimedOrder', () => {
   const tasks = [
