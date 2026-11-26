@@ -131,6 +131,7 @@ export function createLock() {
     },
 
     // Fetches again until no write overlapped; `overlapped` stays true once a later write starts.
+    // A persist must never await a read: it would wait for its own write to end.
     async read<T>(
       fetch: () => Promise<T>,
       current: () => boolean,

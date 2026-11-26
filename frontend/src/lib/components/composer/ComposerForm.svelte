@@ -5,7 +5,6 @@
     draftToInput,
     emptyDraft,
     settleDate,
-    snapDate,
     type ComposerDraft,
   } from '../../composer'
   import {
@@ -52,7 +51,7 @@
 
   // After the flush, so the rule has followed the new date before the date snaps to it.
   function commitDate() {
-    void tick().then(() => (draft.date = snapDate(draft)))
+    void tick().then(() => (draft.date = settleDate(draft, opened)))
   }
 
   function submit(event: SubmitEvent) {
