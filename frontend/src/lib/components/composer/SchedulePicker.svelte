@@ -20,7 +20,11 @@
   } from '../../messages'
   import { todayDate } from '../../today.svelte'
 
-  let { date = $bindable(), time = $bindable() }: { date: string; time: string } = $props()
+  let {
+    date = $bindable(),
+    time = $bindable(),
+    onCommit,
+  }: { date: string; time: string; onCommit: () => void } = $props()
 
   const chips = $derived.by(() => {
     const quick = quickDates(todayDate())
@@ -34,6 +38,7 @@
   function setDate(value: string) {
     date = value
     syncTime()
+    onCommit()
   }
 
   function syncTime() {
@@ -47,6 +52,7 @@
     <input
       bind:value={date}
       onchange={syncTime}
+      onblur={onCommit}
       type="date"
       aria-label={DUE_DATE}
       class={COMPACT_INPUT_CLASS}

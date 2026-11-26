@@ -119,6 +119,7 @@ The easiest area for subtle bugs. Binding rules (detail: DATA-MODEL.md §5.2–�
 - The backend never computes "today": the browser sends its local date (rollover); the importer reads the CSV's own timezone column.
 - Recurrence is one task + an RRULE, never materialized rows; listings expand it per request into one row per occurrence with a derived `occurrence_date`, so clients key rows by `(id, occurrence_date)`.
 - Completing an occurrence writes a `completion` row; moving or skipping one writes a `task_exception`; neither mutates the series.
+- The task form keeps a series' start date on an occurrence of its rule: whichever of the two is edited, the other follows.
 - Day order: timed tasks by `due_time`, then untimed by `sort_order`; the by-label order is a frontend projection only. Picker options ⇄ RRULE live in `frontend/src/lib/recurrence/`.
 
 ## Import from TickTick

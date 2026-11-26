@@ -1,6 +1,13 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte'
-  import { dateForRule, draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
+  import { flushSync, tick, untrack } from 'svelte'
+  import {
+    dateForRule,
+    draftToInput,
+    emptyDraft,
+    settleDate,
+    snapDate,
+    type ComposerDraft,
+  } from '../../composer'
   import {
     BTN_SM_CLASS,
     GHOST_BTN_CLASS,
@@ -23,7 +30,8 @@
 
   let { composer }: { composer: Composer } = $props()
 
-  const draft = $state<ComposerDraft>(untrack(() => emptyDraft(composer.initial)))
+  const opened = untrack(() => emptyDraft(composer.initial))
+  const draft = $state<ComposerDraft>({ ...opened })
   const canSubmit = $derived(draft.title.trim().length > 0 && !composer.pending)
 
   function focus(node: HTMLElement) {
@@ -38,9 +46,22 @@
     draft.rule = rule
   }
 
+  function followRule(rule: string | null) {
+    draft.rule = rule
+  }
+
+  // After the flush, so the rule has followed the new date before the date snaps to it.
+  function commitDate() {
+    void tick().then(() => (draft.date = snapDate(draft)))
+  }
+
   function submit(event: SubmitEvent) {
     event.preventDefault()
-    if (canSubmit) void composer.submit(draftToInput(draft))
+    if (!canSubmit) return
+    draft.date = settleDate(draft, opened)
+    // The picker follows the settled date before the rule is read.
+    flushSync()
+    void composer.submit(draftToInput(draft))
   }
 </script>
 
@@ -67,9 +88,14 @@
 
   <LabelPicker labels={composer.labels} bind:labelId={draft.labelId} />
 
-  <SchedulePicker bind:date={draft.date} bind:time={draft.time} />
+  <SchedulePicker bind:date={draft.date} bind:time={draft.time} onCommit={commitDate} />
 
-  <RecurrencePicker value={draft.rule} startDate={draft.date || null} onChange={setRule} />
+  <RecurrencePicker
+    value={draft.rule}
+    startDate={draft.date || null}
+    onChange={setRule}
+    onFollow={followRule}
+  />
 
   <!-- Pinned to the sheet's bottom on a phone, so Save stays reachable in a long form. -->
   <div class="space-y-2 border-t border-lichen pt-3 {MODAL_FOOTER_CLASS}">

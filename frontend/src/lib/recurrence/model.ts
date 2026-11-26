@@ -102,15 +102,31 @@ export function monthlyDefaultsFor(
   }
 }
 
-// The last day, last weekday and workday shapes are not derived from a date, so they stay.
+// An end before the start leaves a series with no occurrence, so a later date drops it.
 export function followStart(value: RecurrenceValue, iso: string | null): RecurrenceValue {
+  if (!iso || value.freq === 'none') return value
+  const followed = followShape(value, iso)
+  return followed.until && followed.until < iso ? { ...followed, until: null } : followed
+}
+
+// The last day, last weekday and workday shapes are not derived from a date, so they stay.
+function followShape(value: RecurrenceValue, iso: string): RecurrenceValue {
+  const weekly = value.freq === 'weekly' || (value.freq === 'custom' && value.unit === 'week')
+  if (weekly) return followWeekday(value, weekdayCode(fromISODate(iso)))
   const monthly = value.freq === 'monthly' || (value.freq === 'custom' && value.unit === 'month')
-  if (!iso || !monthly) return value
+  if (!monthly) return value
   const { monthday, position, monthWeekday } = monthlyDefaultsFor(iso)
   if (value.monthlyMode === 'monthday')
     return value.monthday === -1 ? value : { ...value, monthday }
   if (value.position === -1 || value.monthWeekday === WORKDAY_CODE) return value
   return { ...value, position, monthWeekday }
+}
+
+function followWeekday(value: RecurrenceValue, code: WeekdayCode): RecurrenceValue {
+  const { weekdays } = value
+  if (weekdays.length === 0 || weekdays.includes(code)) return value
+  if (weekdays.length === 1) return { ...value, weekdays: [code] }
+  return { ...value, weekdays: orderWeekdays([...weekdays, code]) }
 }
 
 export function withFreq(

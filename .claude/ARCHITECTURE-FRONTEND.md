@@ -113,7 +113,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Exports |
 | --- | --- |
-| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a monthly rule follows a changed start date) |
+| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a weekly or monthly rule follows a changed start date and drops an end before it) |
 | `options.ts` | Option lists for the picker controls, labelled from `messages.ts` |
 | `rrule-build.ts` | `buildRRule` |
 | `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only), `seriesUntil` (any rule's end date) |
@@ -153,7 +153,7 @@ Single files in `lib/`:
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |
 | `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
-| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today) |
+| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today), `snapDate`/`settleDate` (an edited date moves to its rule's first occurrence on or after it) |
 | `errors.ts` | `ApiError` (`kind` network, server or rejected; a 4xx carries the API's `{"error"}` text as `reason`), `rejectionReason`; `errorMessage`: network → `NETWORK_ERROR_MESSAGE`, rejected with a reason → action message plus reason (`failureWithReason`), else the action message |
 | `theme.ts` | `getThemePref`, `setThemePref` (sets `data-theme` and points the `theme-color` metas at the chosen scheme, `themeColorMedia`) |
 | `nav-transition.ts` | `navigateWithSlide(dir, apply)` |
