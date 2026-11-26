@@ -30,12 +30,17 @@
   function reset() {
     if (importer.reset() && fileInput) fileInput.value = ''
   }
+
+  // On close, not on open: a result that landed while the dialog was closed is still shown once.
+  function close() {
+    reset()
+    onClose()
+  }
 </script>
 
 <Modal
   {open}
-  {onClose}
-  onOpen={reset}
+  onClose={close}
   title={IMPORT_TITLE}
   subtitle={IMPORT_SUBTITLE}
   error={importer.error}
