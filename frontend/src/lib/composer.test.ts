@@ -1,6 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { draftToInput, emptyDraft, taskToDraft } from './composer'
+import { dateForRule, draftToInput, emptyDraft, taskToDraft } from './composer'
+import { EMPTY_RECURRENCE, followStart, withFreq } from './recurrence/model'
+import { buildRRule } from './recurrence/rrule-build'
+import { REF_SUNDAY_ISO, REF_THURSDAY_ISO } from './test/factories'
 import type { Task } from './types'
+
+describe('dateForRule', () => {
+  const today = REF_SUNDAY_ISO
+
+  it('starts an undated draft today when a repeat is chosen', () => {
+    expect(dateForRule(emptyDraft(), 'FREQ=WEEKLY', today)).toBe(today)
+  })
+
+  it('keeps an existing date', () => {
+    const draft = emptyDraft({ date: REF_THURSDAY_ISO })
+    expect(dateForRule(draft, 'FREQ=DAILY', today)).toBe(REF_THURSDAY_ISO)
+  })
+
+  it('does not refill a date cleared on purpose while a repeat is set', () => {
+    const cleared = emptyDraft({ date: '', rule: 'FREQ=WEEKLY' })
+    expect(dateForRule(cleared, 'FREQ=DAILY', today)).toBe('')
+  })
+
+  it('fills nothing when the repeat stays off', () => {
+    expect(dateForRule(emptyDraft(), null, today)).toBe('')
+  })
+
+  it('makes Monthly on an undated draft repeat on today, not day 1', () => {
+    const monthly = withFreq(EMPTY_RECURRENCE, 'monthly', null)
+    const date = dateForRule(emptyDraft(), buildRRule(monthly), today)
+    expect(buildRRule(followStart(monthly, date))).toBe('FREQ=MONTHLY;BYMONTHDAY=25')
+  })
+})
 
 describe('draftToInput', () => {
   it('trims the title and collapses empty notes to null', () => {

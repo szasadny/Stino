@@ -3,6 +3,7 @@ import { REF_SUNDAY_ISO } from '../test/factories'
 import {
   DEFAULT_CUSTOM_INTERVAL,
   EMPTY_RECURRENCE,
+  followStart,
   isMonthday,
   isOrdinalPosition,
   isWeekdayCode,
@@ -13,7 +14,9 @@ import {
   weekdayCode,
   withFreq,
   withUnit,
+  type RecurrenceValue,
 } from './model'
+import { parseRRule } from './rrule-parse'
 
 describe('monthlyDefaultsFor', () => {
   it('keeps the empty defaults without a start date', () => {
@@ -105,5 +108,69 @@ describe('withFreq / withUnit', () => {
     expect(months).toMatchObject({ unit: 'month', monthday: 25 })
     expect(withUnit({ ...months, monthday: 3 }, 'month', REF_SUNDAY_ISO).monthday).toBe(3)
     expect(withUnit(custom, 'day', REF_SUNDAY_ISO)).toEqual({ ...custom, unit: 'day' })
+  })
+})
+
+describe('followStart', () => {
+  const monthly: RecurrenceValue = { ...EMPTY_RECURRENCE, freq: 'monthly', monthday: 15 }
+  const nthWeekday: RecurrenceValue = {
+    ...monthly,
+    monthlyMode: 'weekday',
+    position: 2,
+    monthWeekday: 'TU',
+  }
+
+  it('moves a monthly day of the month to the new date', () => {
+    expect(followStart(monthly, REF_SUNDAY_ISO)).toEqual({ ...monthly, monthday: 25 })
+  })
+
+  it('moves an Nth weekday to the new date, a fifth one included', () => {
+    expect(followStart(nthWeekday, REF_SUNDAY_ISO)).toEqual({
+      ...nthWeekday,
+      position: 4,
+      monthWeekday: 'SU',
+    })
+    expect(followStart(nthWeekday, '2026-07-31')).toMatchObject({ position: 5, monthWeekday: 'FR' })
+  })
+
+  it('follows a custom every-N-months rule too', () => {
+    const months: RecurrenceValue = { ...monthly, freq: 'custom', unit: 'month', interval: 3 }
+    expect(followStart(months, '2026-06-01')).toEqual({ ...months, monthday: 1 })
+  })
+
+  it.each<[string, Partial<RecurrenceValue>]>([
+    ['the last day', { monthday: -1 }],
+    ['the last weekday', { monthlyMode: 'weekday', position: -1, monthWeekday: 'FR' }],
+    ['the first workday', { monthlyMode: 'weekday', position: 1, monthWeekday: 'WD' }],
+    ['the last workday', { monthlyMode: 'weekday', position: -1, monthWeekday: 'WD' }],
+  ])('keeps %s', (_, fields) => {
+    const value = { ...monthly, ...fields }
+    expect(followStart(value, REF_SUNDAY_ISO)).toEqual(value)
+  })
+
+  it.each<[string, Partial<RecurrenceValue>]>([
+    ['daily', { freq: 'daily' }],
+    ['weekly', { freq: 'weekly', weekdays: ['MO', 'TH'] }],
+    ['yearly', { freq: 'yearly' }],
+    ['every N days', { freq: 'custom', unit: 'day' }],
+    ['every N weeks', { freq: 'custom', unit: 'week', weekdays: ['WE'] }],
+  ])('leaves a %s rule alone', (_, fields) => {
+    const value = { ...monthly, ...fields }
+    expect(followStart(value, REF_SUNDAY_ISO)).toEqual(value)
+  })
+
+  it('never rewrites a rule the picker cannot model', () => {
+    const unmodeled = parseRRule('FREQ=MONTHLY;BYMONTHDAY=15;COUNT=3')
+    expect(followStart(unmodeled, REF_SUNDAY_ISO)).toEqual(unmodeled)
+  })
+
+  it('rewrites nothing when the date is cleared', () => {
+    expect(followStart(monthly, null)).toEqual(monthly)
+    expect(followStart(nthWeekday, null)).toEqual(nthWeekday)
+  })
+
+  it('follows a day picked by hand that differed from the old date', () => {
+    const picked = followStart({ ...monthly, monthday: 3 }, '2026-06-01')
+    expect(followStart(picked, REF_SUNDAY_ISO).monthday).toBe(25)
   })
 })

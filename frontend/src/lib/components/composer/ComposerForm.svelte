@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte'
-  import { draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
+  import { dateForRule, draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
   import {
     BTN_SM_CLASS,
     GHOST_BTN_CLASS,
@@ -11,6 +11,7 @@
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
   import { CANCEL, DELETE_TASK_TITLE, NOTES, SERIES_EDIT_NOTE, TASK_NAME } from '../../messages'
+  import { todayKey } from '../../today.svelte'
   import { isCoarsePointer } from '../../viewport.svelte'
   import DeleteConfirm from '../DeleteConfirm.svelte'
   import LabelPicker from './LabelPicker.svelte'
@@ -28,6 +29,11 @@
     if (draft.title && isCoarsePointer()) return
     // After the flush: opening a dialog in it runs showModal, which moves focus to its first control.
     void tick().then(() => node.focus())
+  }
+
+  function setRule(rule: string | null) {
+    draft.date = dateForRule(draft, rule, todayKey())
+    draft.rule = rule
   }
 
   function submit(event: SubmitEvent) {
@@ -61,11 +67,7 @@
 
   <SchedulePicker bind:date={draft.date} bind:time={draft.time} />
 
-  <RecurrencePicker
-    value={draft.rule}
-    startDate={draft.date || null}
-    onChange={(rule) => (draft.rule = rule)}
-  />
+  <RecurrencePicker value={draft.rule} startDate={draft.date || null} onChange={setRule} />
 
   <div class="space-y-2 border-t border-lichen pt-3">
     {#if composer.editingSeries}

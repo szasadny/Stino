@@ -24,6 +24,15 @@ export function taskToDraft(task: Task): ComposerDraft {
   }
 }
 
+// Only the first repeat on an undated draft fills today, so a deliberately cleared date stays clear.
+export function dateForRule(
+  draft: Pick<ComposerDraft, 'date' | 'rule'>,
+  rule: string | null,
+  today: string,
+): string {
+  return !draft.date && !draft.rule && rule ? today : draft.date
+}
+
 // Drops time and rule when there's no date, because the backend rejects either without one.
 export function draftToInput(draft: ComposerDraft): TaskInput {
   const date = draft.date || null

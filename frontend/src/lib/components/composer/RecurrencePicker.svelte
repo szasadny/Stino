@@ -7,6 +7,7 @@
   import { CLEAR, CUSTOM_SCHEDULE, NEEDS_A_DATE, REPEAT } from '../../messages'
   import { summarize } from '../../recurrence/describe'
   import {
+    followStart,
     normalizeInterval,
     withFreq,
     withUnit,
@@ -36,6 +37,19 @@
   let unknownRule = $state(untrack(() => (isUnmodeledRule(value) ? value : null)))
   let rec = $state<RecurrenceValue>(untrack(() => parseRRule(value)))
   const summary = $derived(summarize(rec))
+
+  // Seeded at mount, so an opened rule that differs from its start stays until the date changes.
+  let followedStart = untrack(() => startDate)
+  $effect.pre(() => {
+    if (startDate === followedStart) return
+    followedStart = startDate
+    untrack(() => {
+      const next = followStart(rec, startDate)
+      if (buildRRule(next) === buildRRule(rec)) return
+      rec = next
+      emit()
+    })
+  })
 
   function emit() {
     onChange(buildRRule(rec))

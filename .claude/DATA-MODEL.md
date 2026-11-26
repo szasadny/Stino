@@ -133,6 +133,7 @@ The backend accepts any RRULE that repeats daily or less often and yields an occ
 | Ends on a date | `;UNTIL=…` on any shape |
 
 - A month without the chosen day (a 31st, a fifth Monday) has no occurrence.
+- Choosing a repeat with no date sets the date to today; changing the date moves a monthly day n or Nth weekday to the new date, while last day, last weekday and workday shapes stay.
 - Any other shape, including one with `COUNT`, is shown read-only by the picker.
 
 ### 5.5 TickTick import mapping
