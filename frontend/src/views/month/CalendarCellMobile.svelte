@@ -53,7 +53,9 @@
     <DateBadge {date} {isToday} muted={!inCurrentMonth} size="sm" />
     {#if fit.overflow > 0}
       <span
-        class="shrink-0 pr-0.5 text-3xs leading-tight tabular-nums text-sage"
+        class="shrink-0 pr-0.5 text-3xs leading-tight tabular-nums {isToday
+          ? 'text-pine'
+          : 'text-sage'}"
         title={moreTasks(fit.overflow)}
       >
         +{fit.overflow}

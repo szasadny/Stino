@@ -106,7 +106,9 @@
     <button
       type="button"
       onclick={select}
-      class="shrink-0 pl-0.5 text-left text-2xs leading-tight text-sage transition hover:text-pine-deep"
+      class="shrink-0 pl-0.5 text-left text-2xs leading-tight transition hover:text-pine-deep {isToday
+        ? 'text-pine'
+        : 'text-sage'}"
     >
       +{moreTasks(fit.overflow)}
     </button>

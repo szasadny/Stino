@@ -7,9 +7,9 @@
 {#if error}
   <div
     role="alert"
-    class="flex items-start gap-2 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-bark {className}"
+    class="flex items-start gap-2 rounded-lg border border-bark/30 bg-bark/10 px-3 py-2 text-sm text-ink {className}"
   >
-    <Icon class="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2}>
+    <Icon class="mt-0.5 h-4 w-4 shrink-0 text-bark" strokeWidth={2}>
       <path
         d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
       />

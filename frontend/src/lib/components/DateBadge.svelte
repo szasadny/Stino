@@ -22,7 +22,7 @@
   const base = $derived(
     `grid place-items-center rounded-full font-semibold tabular-nums ${
       size === 'sm' ? 'h-5 w-5 shrink-0 text-2xs' : 'h-6 w-6 text-xs'
-    } ${isToday ? 'bg-pine text-surface' : muted ? 'text-sage/60' : 'text-ink'}`,
+    } ${isToday ? 'bg-pine text-surface' : muted ? 'text-sage' : 'text-ink'}`,
   )
 </script>
 
