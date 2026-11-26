@@ -8,7 +8,17 @@
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
   import { autofocus } from '../../dnd/autofocus.action'
-  import { CANCEL, DELETE, DELETE_RECURRING_TITLE } from '../../messages'
+  import {
+    CANCEL,
+    COMPLETED_OCCURRENCE_KEPT,
+    DELETE,
+    DELETE_RECURRING_TITLE,
+    EVERY_OCCURRENCE,
+    SERIES_KEEPS_REPEATING,
+    TASK_REPEATS,
+    THIS_OCCURRENCE,
+    WHOLE_SERIES,
+  } from '../../messages'
   import Modal from '../Modal.svelte'
 
   let { composer }: { composer: Composer } = $props()
@@ -40,7 +50,7 @@
   {open}
   onClose={() => (open = false)}
   title={DELETE_RECURRING_TITLE}
-  subtitle="This task repeats."
+  subtitle={TASK_REPEATS}
   size="sm"
   dismiss="closerequest"
 >
@@ -52,14 +62,14 @@
       aria-describedby={canDeleteOccurrence ? undefined : noteId}
       class={choiceClass}
     >
-      This occurrence
+      {THIS_OCCURRENCE}
       {#if canDeleteOccurrence}
-        <span class="mt-0.5 block text-xs font-normal text-sage">The series keeps repeating.</span>
+        <span class="mt-0.5 block text-xs font-normal text-sage">{SERIES_KEEPS_REPEATING}</span>
       {/if}
     </button>
     {#if !canDeleteOccurrence}
       <!-- Outside the faded button so the reason stays legible. -->
-      <p id={noteId} class="px-1 text-xs text-sage">Completed, so it’s kept in your history.</p>
+      <p id={noteId} class="px-1 text-xs text-sage">{COMPLETED_OCCURRENCE_KEPT}</p>
     {/if}
     <button
       type="button"
@@ -67,10 +77,8 @@
       disabled={composer.pending}
       class={choiceClass}
     >
-      Whole series
-      <span class="mt-0.5 block text-xs font-normal text-sage"
-        >Every past and future occurrence.</span
-      >
+      {WHOLE_SERIES}
+      <span class="mt-0.5 block text-xs font-normal text-sage">{EVERY_OCCURRENCE}</span>
     </button>
     <button
       {@attach autofocus}

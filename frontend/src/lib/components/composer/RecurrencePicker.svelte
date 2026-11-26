@@ -4,6 +4,7 @@
   import { prefersReducedMotion } from 'svelte/motion'
   import { slide } from 'svelte/transition'
   import { CLEAR_BTN_CLASS, DISCLOSURE_MS, FIELD_LABEL_CLASS } from '../../constants'
+  import { CLEAR, CUSTOM_SCHEDULE, NEEDS_A_DATE, REPEAT } from '../../messages'
   import { summarize } from '../../recurrence/describe'
   import {
     normalizeInterval,
@@ -63,14 +64,14 @@
 </script>
 
 <div class="space-y-2">
-  <span class={FIELD_LABEL_CLASS}>Repeat</span>
+  <span class={FIELD_LABEL_CLASS}>{REPEAT}</span>
 
   {#if unknownRule}
     <div
       class="flex items-center justify-between gap-2 rounded-lg border border-lichen bg-surface px-3 py-2"
     >
-      <span class="text-sm text-ink">Repeats on a custom schedule</span>
-      <button type="button" onclick={clearUnknown} class="{CLEAR_BTN_CLASS} py-1"> Clear </button>
+      <span class="text-sm text-ink">{CUSTOM_SCHEDULE}</span>
+      <button type="button" onclick={clearUnknown} class="{CLEAR_BTN_CLASS} py-1">{CLEAR}</button>
     </div>
   {:else}
     <div class="flex flex-wrap gap-1">
@@ -117,7 +118,7 @@
         {/if}
 
         <RepeatEnds until={rec.until} {startDate} onChange={setUntil} />
-        <p class="text-xs text-sage">{summary}{startDate ? '' : ' · needs a date'}</p>
+        <p class="text-xs text-sage">{summary}{startDate ? '' : ` · ${NEEDS_A_DATE}`}</p>
       </div>
     {/if}
   {/if}

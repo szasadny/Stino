@@ -4,7 +4,7 @@
   import ReorderList from '../../lib/components/ReorderList.svelte'
   import { MODAL_BODY_CLASS, MUTED_CENTER_CLASS } from '../../lib/constants'
   import { createDropList } from '../../lib/controllers/drop-list.svelte'
-  import { LOADING } from '../../lib/messages'
+  import { LABELS, LABELS_SUBTITLE, LOADING, NO_LABELS_YET } from '../../lib/messages'
   import type { Label } from '../../lib/types'
   import { isCoarsePointer } from '../../lib/viewport.svelte'
   import { createLabelStore } from './label-store.svelte'
@@ -54,8 +54,8 @@
   {onClose}
   {onOpen}
   onEscape={endRename}
-  title="Labels"
-  subtitle="Color tags you can assign to tasks."
+  title={LABELS}
+  subtitle={LABELS_SUBTITLE}
   size="lg"
   error={store.error}
 >
@@ -70,7 +70,7 @@
     {#if store.loading}
       <p class="{MUTED_CENTER_CLASS} py-6">{LOADING}</p>
     {:else if store.labels.length === 0}
-      <p class="{MUTED_CENTER_CLASS} py-6">No labels yet. Create your first above.</p>
+      <p class="{MUTED_CENTER_CLASS} py-6">{NO_LABELS_YET}</p>
     {:else}
       <ReorderList
         items={drop.lists.labels}

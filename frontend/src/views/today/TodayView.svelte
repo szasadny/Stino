@@ -1,9 +1,9 @@
 <script lang="ts">
   import { api } from '../../lib/api'
   import { formatDayFull } from '../../lib/date'
-  import { pluralize } from '../../lib/format'
+  import { tasksDueToday } from '../../lib/format'
   import { BTN_SM_CLASS, PRIMARY_BTN_CLASS } from '../../lib/constants'
-  import { LOAD_TODAY_FAILED } from '../../lib/messages'
+  import { ADD_A_TASK, LOAD_TODAY_FAILED, NOTHING_DUE_TODAY } from '../../lib/messages'
   import { todayDate, todayKey } from '../../lib/today.svelte'
   import { createTaskCore } from '../../lib/controllers/task-core.svelte'
   import { createComposer } from '../../lib/controllers/composer.svelte'
@@ -18,7 +18,7 @@
 
   const count = $derived(core.tasks.filter((t) => !t.completed).length)
   const unknown = $derived(core.loading || (core.error != null && core.tasks.length === 0))
-  const subtitle = $derived(unknown ? '' : `${pluralize(count, 'task')} due today`)
+  const subtitle = $derived(unknown ? '' : tasksDueToday(count))
 </script>
 
 <ListViewShell
@@ -27,7 +27,7 @@
   error={core.error}
   loading={core.loading}
   empty={core.tasks.length === 0}
-  emptyMessage="Nothing due today."
+  emptyMessage={NOTHING_DUE_TODAY}
 >
   {#snippet actions()}
     <button
@@ -36,7 +36,7 @@
       class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS} flex shrink-0 items-center gap-1.5"
     >
       <Plus class="h-4 w-4" />
-      Add task
+      {ADD_A_TASK}
     </button>
   {/snippet}
 

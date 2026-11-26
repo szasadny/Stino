@@ -41,7 +41,7 @@
   setCalendarContext({ core, board, selection, composer })
 </script>
 
-<PeriodShell {nav} title={formatMonthYear(year, month)} unit="month" todayLabel="Today">
+<PeriodShell {nav} title={formatMonthYear(year, month)} unit="month">
   <div class="grid shrink-0 grid-cols-7 gap-1.5 px-0.5 pb-1">
     {#each WEEKDAYS as weekday (weekday)}
       <div class="text-center text-2xs {EYEBROW_CLASS}">

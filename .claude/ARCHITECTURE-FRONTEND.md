@@ -145,7 +145,7 @@ Single files in `lib/`:
 | `types.ts` | API shapes (`Task`, `Label`, `TaskInput`, `LabelInput`, `BatchOp`, `ImportSummary`, `RolloverSummary`), `ViewId`, `ThemePref` |
 | `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`), look-token classes (§4.7) |
 | `messages.ts` | User-facing copy: load and save failures and `failureWithReason`, network and refresh messages, titles, button text, aria-label builders |
-| `format.ts` | `pluralize`, `dayTaskCount` |
+| `format.ts` | Copy that needs a count or a date (`pluralize`, `dayTaskCount`, `dayCellLabel`, `taskDateLabel`); imports `messages.ts`, never the reverse |
 | `storage.ts` | `readStored`, `writeStored`: `localStorage` that never throws |
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |

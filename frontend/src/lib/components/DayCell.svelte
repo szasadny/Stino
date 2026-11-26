@@ -6,8 +6,8 @@
   import { dayCellToneClass } from '../dnd/cell-tone'
   import { createLineFit } from '../dnd/line-fit.action.svelte'
   import { calendarZone } from '../dnd/zone-options'
-  import { pluralize } from '../format'
-  import { addTaskOnLabel } from '../messages'
+  import { dayCellLabel } from '../format'
+  import { addTaskOnLabel, moreTasks } from '../messages'
   import { todayKey } from '../today.svelte'
   import DateBadge from './DateBadge.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
@@ -25,7 +25,7 @@
   const isToday = $derived(dateKey === todayKey())
   const open = $derived(selection.selectedKey === dateKey)
   const dayLabel = $derived(formatDayFull(date))
-  const ariaLabel = $derived(`${dayLabel}, ${pluralize(items.length, 'task')}`)
+  const ariaLabel = $derived(dayCellLabel(dayLabel, items.length))
   const fit = createLineFit(() => items.length)
   const select = () => selection.select(date)
 </script>
@@ -97,7 +97,7 @@
       onclick={select}
       class="shrink-0 pl-0.5 text-left text-2xs leading-tight text-sage transition hover:text-pine-deep"
     >
-      +{fit.overflow} more
+      +{moreTasks(fit.overflow)}
     </button>
   {/if}
 </div>

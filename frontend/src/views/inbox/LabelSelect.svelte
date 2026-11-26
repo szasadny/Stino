@@ -1,5 +1,6 @@
 <script lang="ts">
   import { COMPACT_INPUT_CLASS } from '../../lib/constants'
+  import { NO_LABEL } from '../../lib/messages'
   import type { Label } from '../../lib/types'
   import LabelChip from '../../lib/components/LabelChip.svelte'
   import Chevron from '../../lib/components/icons/Chevron.svelte'
@@ -47,7 +48,7 @@
     {#if selected}
       <LabelChip label={selected} />
     {:else}
-      <span class="text-sage">None</span>
+      <span class="text-sage">{NO_LABEL}</span>
     {/if}
     <Chevron dir="down" class="h-4 w-4 shrink-0 text-sage transition {open ? 'rotate-180' : ''}" />
   </button>

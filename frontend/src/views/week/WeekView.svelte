@@ -46,7 +46,7 @@
   setCalendarContext({ core, board, selection, composer })
 </script>
 
-<PeriodShell {nav} {title} unit="week" todayLabel="This week" nowrap>
+<PeriodShell {nav} {title} unit="week" nowrap>
   {#if isCompact()}
     <div class="vt-calendar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto" use:dragEdgeScroll>
       {#each days as { date, key } (key)}

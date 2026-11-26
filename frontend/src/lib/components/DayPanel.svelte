@@ -2,12 +2,13 @@
   import type { Attachment } from 'svelte/attachments'
   import { on } from 'svelte/events'
   import { dragHandleZone } from 'svelte-dnd-action'
-  import { DND_GRID_TOUCH_HOLD_MS } from '../constants'
+  import { DND_GRID_TOUCH_HOLD_MS, MUTED_CENTER_CLASS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate } from '../date'
   import { panelPosition } from '../dnd/panel-pos'
   import { calendarZone } from '../dnd/zone-options'
   import { dayTaskCount } from '../format'
+  import { DROP_OR_ADD_HINT, tasksOnDayLabel } from '../messages'
   import AddTaskButton from './AddTaskButton.svelte'
   import PanelHeader from './PanelHeader.svelte'
   import TaskPill from './TaskPill.svelte'
@@ -70,7 +71,7 @@
   style:left="{pos?.left ?? 0}px"
   style:top="{pos?.top ?? 0}px"
   role="dialog"
-  aria-label="Tasks on {title}"
+  aria-label={tasksOnDayLabel(title)}
 >
   <PanelHeader {title} {subtitle} onClose={selection.clear} size="sm" />
 
@@ -93,7 +94,7 @@
     </ul>
 
     {#if items.length === 0}
-      <p class="pt-2 text-center text-sm text-sage">Drag a task here or add one below.</p>
+      <p class="{MUTED_CENTER_CLASS} pt-2">{DROP_OR_ADD_HINT}</p>
     {/if}
   </div>
 

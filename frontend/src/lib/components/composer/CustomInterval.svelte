@@ -1,5 +1,6 @@
 <script lang="ts">
   import { COMPACT_INPUT_CLASS } from '../../constants'
+  import { EVERY, REPEAT_INTERVAL } from '../../messages'
   import { MAX_CUSTOM_INTERVAL, type CustomUnit } from '../../recurrence/model'
   import { CUSTOM_UNIT_OPTIONS } from '../../recurrence/options'
   import ToggleChip from './ToggleChip.svelte'
@@ -18,14 +19,14 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-  <span class="text-xs text-sage">Every</span>
+  <span class="text-xs text-sage">{EVERY}</span>
   <input
     type="number"
     min="1"
     max={MAX_CUSTOM_INTERVAL}
     value={interval}
     oninput={(e) => onInterval(Number(e.currentTarget.value))}
-    aria-label="Repeat interval"
+    aria-label={REPEAT_INTERVAL}
     class="w-16 {COMPACT_INPUT_CLASS}"
   />
   <div class="flex gap-1">

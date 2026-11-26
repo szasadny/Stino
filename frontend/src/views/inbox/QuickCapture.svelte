@@ -6,6 +6,14 @@
     SECONDARY_BTN_CLASS,
     TITLE_MAX_LENGTH,
   } from '../../lib/constants'
+  import {
+    ADD_WITH_DETAILS,
+    CAPTURE_INPUT_LABEL,
+    CAPTURE_PLACEHOLDER,
+    CAPTURE_PLACEHOLDER_SHORT,
+    DETAILS,
+    SUBMIT_ADD,
+  } from '../../lib/messages'
   import { isCompact } from '../../lib/viewport.svelte'
   import Icon from '../../lib/components/icons/Icon.svelte'
   import CapturePreview from './CapturePreview.svelte'
@@ -38,10 +46,10 @@
         onkeyup={capture.syncCaret}
         onclick={capture.syncCaret}
         type="text"
-        placeholder={isCompact() ? 'gym tomorrow 9am' : 'call mum tomorrow 6pm #social'}
+        placeholder={isCompact() ? CAPTURE_PLACEHOLDER_SHORT : CAPTURE_PLACEHOLDER}
         maxlength={TITLE_MAX_LENGTH}
         autocomplete="off"
-        aria-label="New task title"
+        aria-label={CAPTURE_INPUT_LABEL}
         role="combobox"
         aria-expanded={capture.menuOpen}
         aria-controls={listboxId}
@@ -65,20 +73,20 @@
       type="button"
       onclick={onDetails}
       disabled={busy}
-      title="Add with full details"
+      title={ADD_WITH_DETAILS}
       class="{SECONDARY_BTN_CLASS} {BTN_MD_CLASS} flex shrink-0 items-center gap-1.5"
     >
       <Icon class="h-4 w-4" strokeWidth={1.8}>
         <path d="M4 6h16M4 12h16M4 18h10" />
       </Icon>
-      <span class="hidden sm:inline">Details</span>
+      <span class="hidden sm:inline">{DETAILS}</span>
     </button>
     <button
       type="submit"
       disabled={!capture.text.trim() || busy}
       class="{PRIMARY_BTN_CLASS} {BTN_MD_CLASS} shrink-0"
     >
-      Add
+      {SUBMIT_ADD}
     </button>
   </div>
   <CapturePreview

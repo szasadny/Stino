@@ -1,5 +1,6 @@
 <script lang="ts">
   import { COMPACT_INPUT_CLASS } from '../../constants'
+  import { DAY_OF_MONTH, LAST_DAY, REPEAT_ON_THE, WEEKDAY, WHICH_WEEK } from '../../messages'
   import { monthlySkipNote } from '../../recurrence/describe'
   import type { MonthWeekday, MonthlyMode, OrdinalPosition } from '../../recurrence/model'
   import {
@@ -41,24 +42,24 @@
 </div>
 
 <div class="flex flex-wrap items-center gap-2">
-  <span class="text-xs text-sage">Repeat on the</span>
+  <span class="text-xs text-sage">{REPEAT_ON_THE}</span>
   {#if monthlyMode === 'monthday'}
     <select
       bind:value={monthday}
       onchange={onChange}
-      aria-label="Day of the month"
+      aria-label={DAY_OF_MONTH}
       class={COMPACT_INPUT_CLASS}
     >
       {#each MONTHDAY_OPTIONS as day (day)}
         <option value={day}>{day}</option>
       {/each}
-      <option value={-1}>Last day</option>
+      <option value={-1}>{LAST_DAY}</option>
     </select>
   {:else}
     <select
       bind:value={position}
       onchange={onChange}
-      aria-label="Which week"
+      aria-label={WHICH_WEEK}
       class={COMPACT_INPUT_CLASS}
     >
       {#each ORDINAL_OPTIONS as option (option.value)}
@@ -68,7 +69,7 @@
     <select
       bind:value={monthWeekday}
       onchange={onChange}
-      aria-label="Weekday"
+      aria-label={WEEKDAY}
       class={COMPACT_INPUT_CLASS}
     >
       {#each MONTH_WEEKDAY_OPTIONS as day (day.code)}

@@ -4,6 +4,7 @@
   import { getCalendarContext } from '../controllers/calendar-context'
   import { labelTint } from '../labels'
   import { activateOnKey, trustedClick } from '../dnd/tap'
+  import { openTaskPillLabel } from '../messages'
   import CheckToggle from './CheckToggle.svelte'
 
   let { task, draggable = false }: { task: Task; draggable?: boolean } = $props()
@@ -12,11 +13,7 @@
   const onOpen = () => composer.edit(task)
   const tint = $derived(labelTint(core.labelFor(task)?.color, 'bg-pine/10'))
 
-  const openLabel = $derived(
-    `${task.title}${task.due_time ? `, ${task.due_time}` : ''}${
-      draggable ? ', drag to move to another day' : ''
-    }`,
-  )
+  const openLabel = $derived(openTaskPillLabel(task.title, task.due_time, draggable))
 
   function dragHandleIf(node: HTMLElement) {
     return draggable ? dragHandle(node) : undefined

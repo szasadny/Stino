@@ -10,7 +10,7 @@
     TITLE_MAX_LENGTH,
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
-  import { DELETE_TASK_TITLE } from '../../messages'
+  import { CANCEL, DELETE_TASK_TITLE, NOTES, SERIES_EDIT_NOTE, TASK_NAME } from '../../messages'
   import { isCoarsePointer } from '../../viewport.svelte'
   import DeleteConfirm from '../DeleteConfirm.svelte'
   import LabelPicker from './LabelPicker.svelte'
@@ -42,17 +42,17 @@
       bind:value={draft.title}
       use:focus
       type="text"
-      placeholder="Task name"
+      placeholder={TASK_NAME}
       maxlength={TITLE_MAX_LENGTH}
       autocomplete="off"
-      aria-label="Task name"
+      aria-label={TASK_NAME}
       class="w-full {TITLE_INPUT_CLASS}"
     />
     <textarea
       bind:value={draft.notes}
       rows="2"
-      placeholder="Notes"
-      aria-label="Notes"
+      placeholder={NOTES}
+      aria-label={NOTES}
       class="w-full resize-none {TEXTAREA_CLASS}"
     ></textarea>
   </div>
@@ -69,7 +69,7 @@
 
   <div class="space-y-2 border-t border-lichen pt-3">
     {#if composer.editingSeries}
-      <p class="text-xs text-sage">Changes apply to the whole series.</p>
+      <p class="text-xs text-sage">{SERIES_EDIT_NOTE}</p>
     {/if}
     <div class="flex items-center justify-between gap-3">
       {#if composer.onDelete && composer.onDeleteOccurrence}
@@ -86,7 +86,7 @@
       {/if}
       <div class="flex shrink-0 items-center gap-1">
         <button type="button" onclick={composer.close} class="{GHOST_BTN_CLASS} {BTN_SM_CLASS}">
-          Cancel
+          {CANCEL}
         </button>
         <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}">
           {composer.submitLabel}

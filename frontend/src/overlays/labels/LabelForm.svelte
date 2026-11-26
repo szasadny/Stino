@@ -17,6 +17,20 @@
     PRIMARY_BTN_CLASS,
   } from '../../lib/constants'
   import { labelColorVar } from '../../lib/labels'
+  import {
+    CANCEL,
+    CLEAR,
+    EMOJI,
+    EMOJI_SUGGESTIONS,
+    LABEL_COLOR,
+    LABEL_EMOJI,
+    LABEL_NAME,
+    LABEL_NAME_PLACEHOLDER,
+    NEW_LABEL,
+    OPTIONAL,
+    SUBMIT_ADD,
+    SUBMIT_SAVE,
+  } from '../../lib/messages'
   import { LABEL_PALETTE } from '../../lib/palette'
   import type { Label, LabelInput } from '../../lib/types'
 
@@ -68,7 +82,7 @@
 
 <form onsubmit={submit} class={className}>
   {#if !editing}
-    <label for={nameId} class="mb-2 {FIELD_LABEL_CLASS}">New label</label>
+    <label for={nameId} class="mb-2 {FIELD_LABEL_CLASS}">{NEW_LABEL}</label>
   {/if}
   <div class="flex items-center gap-2">
     <input
@@ -76,15 +90,15 @@
       bind:this={nameEl}
       bind:value={name}
       type="text"
-      placeholder={editing ? undefined : 'e.g. Home'}
+      placeholder={editing ? undefined : LABEL_NAME_PLACEHOLDER}
       maxlength={LABEL_NAME_MAX_LENGTH}
       autocomplete="off"
-      aria-label={editing ? 'Label name' : undefined}
+      aria-label={editing ? LABEL_NAME : undefined}
       class="min-w-0 flex-1 {editing ? COMPACT_INPUT_CLASS : INPUT_CLASS}"
     />
     {#if onCancel}
       <button type="button" onclick={onCancel} class="{GHOST_BTN_CLASS} {btnSize} shrink-0">
-        Cancel
+        {CANCEL}
       </button>
     {/if}
     <button
@@ -92,11 +106,11 @@
       disabled={!name.trim() || busy}
       class="{PRIMARY_BTN_CLASS} {btnSize} shrink-0"
     >
-      {editing ? 'Save' : 'Add'}
+      {editing ? SUBMIT_SAVE : SUBMIT_ADD}
     </button>
   </div>
 
-  <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Label color">
+  <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label={LABEL_COLOR}>
     {#each LABEL_PALETTE as swatch (swatch.hex)}
       <button
         type="button"
@@ -117,17 +131,17 @@
   </div>
 
   <div class="mt-3">
-    <span class={FIELD_LABEL_CLASS}>Emoji <span class="font-normal">(optional)</span></span>
+    <span class={FIELD_LABEL_CLASS}>{EMOJI} <span class="font-normal">{OPTIONAL}</span></span>
     <div class="mt-1.5 flex items-start gap-2">
       <input
         type="text"
         bind:value={emoji}
         maxlength={LABEL_EMOJI_MAX_LENGTH}
         placeholder="🙂"
-        aria-label="Label emoji"
+        aria-label={LABEL_EMOJI}
         class={EMOJI_INPUT_CLASS}
       />
-      <div class="grid flex-1 grid-cols-6 gap-1" role="group" aria-label="Emoji suggestions">
+      <div class="grid flex-1 grid-cols-6 gap-1" role="group" aria-label={EMOJI_SUGGESTIONS}>
         {#each LABEL_EMOJI_SUGGESTIONS as suggestion (suggestion)}
           <button
             type="button"
@@ -149,7 +163,7 @@
           onclick={() => (emoji = '')}
           class="{CLEAR_BTN_CLASS} h-9 shrink-0 self-start"
         >
-          Clear
+          {CLEAR}
         </button>
       {/if}
     </div>

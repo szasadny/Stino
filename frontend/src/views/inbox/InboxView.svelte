@@ -5,7 +5,16 @@
   import { GHOST_BTN_CLASS } from '../../lib/constants'
   import { presses } from '../../lib/dnd/presses.action'
   import { tappedItem } from '../../lib/dnd/tap'
-  import { DELETE_TASK_TITLE, LOAD_INBOX_FAILED } from '../../lib/messages'
+  import {
+    BATCH_EDIT,
+    completedToast,
+    DELETE_TASK_TITLE,
+    EDIT,
+    INBOX,
+    INBOX_EMPTY,
+    INBOX_SUBTITLE,
+    LOAD_INBOX_FAILED,
+  } from '../../lib/messages'
   import type { Task } from '../../lib/types'
   import { createComposer, type ComposerChange } from '../../lib/controllers/composer.svelte'
   import { createDropList } from '../../lib/controllers/drop-list.svelte'
@@ -59,12 +68,12 @@
 </script>
 
 <ListViewShell
-  title="Inbox"
-  subtitle="Capture now, schedule later."
+  title={INBOX}
+  subtitle={INBOX_SUBTITLE}
   error={core.error}
   loading={core.loading}
   empty={core.tasks.length === 0}
-  emptyMessage="Your inbox is clear."
+  emptyMessage={INBOX_EMPTY}
   edgeScroll
 >
   {#snippet top()}
@@ -88,7 +97,7 @@
   {:else}
     <div class="mb-3 flex justify-end">
       <button type="button" onclick={select.enter} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
-        Batch edit
+        {BATCH_EDIT}
       </button>
     </div>
     <ReorderList
@@ -105,7 +114,7 @@
             onclick={() => edit(task)}
             class="{GHOST_BTN_CLASS} px-2 py-1 text-xs"
           >
-            Edit
+            {EDIT}
           </button>
           <DeleteConfirm
             onConfirm={() => core.remove(task.id)}
@@ -133,7 +142,7 @@
 
   {#snippet overlay()}
     <UndoToast
-      message={complete.undone ? `Completed “${complete.undone.title}”` : null}
+      message={complete.undone ? completedToast(complete.undone.title) : null}
       busy={core.pending}
       onUndo={complete.undo}
     />

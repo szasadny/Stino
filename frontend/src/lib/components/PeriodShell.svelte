@@ -4,7 +4,7 @@
   import { getCalendarContext } from '../controllers/calendar-context'
   import type { PeriodNav } from '../controllers/period-nav.svelte'
   import { swipe } from '../dnd/swipe.action'
-  import { LOADING } from '../messages'
+  import { LOADING, periodStepLabel, TODAY } from '../messages'
   import ErrorAlert from './ErrorAlert.svelte'
   import IconButton from './IconButton.svelte'
   import Chevron from './icons/Chevron.svelte'
@@ -13,14 +13,12 @@
     nav,
     title,
     unit,
-    todayLabel,
     nowrap = false,
     children,
   }: {
     nav: PeriodNav
     title: string
     unit: 'month' | 'week'
-    todayLabel: string
     nowrap?: boolean
     children: Snippet
   } = $props()
@@ -44,7 +42,7 @@
       {/if}
     </div>
     <div class="flex items-center gap-1 {nowrap ? 'shrink-0' : ''}">
-      <IconButton label="Previous {unit}" onclick={() => nav.go(-1)}>
+      <IconButton label={periodStepLabel(unit, -1)} onclick={() => nav.go(-1)}>
         <Chevron dir="left" />
       </IconButton>
       <button
@@ -52,9 +50,9 @@
         onclick={nav.goToday}
         class="{GHOST_BTN_CLASS} px-3 py-1.5 {noWrap} text-sm"
       >
-        {todayLabel}
+        {TODAY}
       </button>
-      <IconButton label="Next {unit}" onclick={() => nav.go(1)}>
+      <IconButton label={periodStepLabel(unit, 1)} onclick={() => nav.go(1)}>
         <Chevron dir="right" />
       </IconButton>
     </div>

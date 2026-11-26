@@ -4,7 +4,7 @@
   import DeleteConfirm from '../../lib/components/DeleteConfirm.svelte'
   import LabelChip from '../../lib/components/LabelChip.svelte'
   import { GHOST_BTN_CLASS } from '../../lib/constants'
-  import { deleteLabelTitle, LABEL_DELETE_KEEPS_TASKS } from '../../lib/messages'
+  import { deleteLabelTitle, EDIT, LABEL_DELETE_KEEPS_TASKS } from '../../lib/messages'
   import type { Label, LabelInput } from '../../lib/types'
   import type { LabelStore } from './label-store.svelte'
   import LabelForm from './LabelForm.svelte'
@@ -55,7 +55,7 @@
           onclick={onEdit}
           class="{GHOST_BTN_CLASS} px-2 py-1 text-xs"
         >
-          Edit
+          {EDIT}
         </button>
         <DeleteConfirm
           onConfirm={() => store.remove(label.id)}

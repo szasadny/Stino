@@ -8,6 +8,7 @@
 <script lang="ts" generics="T extends LabelListboxRow">
   import LabelMark from '../../lib/components/LabelMark.svelte'
   import { POPOVER_CLASS } from '../../lib/constants'
+  import { CREATE, NO_LABEL } from '../../lib/messages'
 
   let {
     rows,
@@ -65,10 +66,10 @@
         {:else if row.type === 'create'}
           <span class="grid h-2.5 w-2.5 shrink-0 place-items-center text-pine">＋</span>
           <span class="truncate text-sm text-pine-deep"
-            >Create “<span class="font-medium">{row.name}</span>”</span
+            >{CREATE} “<span class="font-medium">{row.name}</span>”</span
           >
         {:else}
-          <span class="text-sm text-sage">None</span>
+          <span class="text-sm text-sage">{NO_LABEL}</span>
         {/if}
       </button>
     </li>

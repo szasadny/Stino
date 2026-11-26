@@ -11,7 +11,18 @@
   import { isPlausibleISODate } from '../../lib/date'
   import DeleteConfirm from '../../lib/components/DeleteConfirm.svelte'
   import { deleteTasksTitle } from '../../lib/format'
-  import { CANNOT_UNDO } from '../../lib/messages'
+  import {
+    APPLY,
+    CANNOT_UNDO,
+    CLEAR_ALL,
+    COMPLETE,
+    deleteCount,
+    DONE,
+    SCHEDULE,
+    SELECT_ALL,
+    selectedCount,
+    SET_LABEL,
+  } from '../../lib/messages'
   import LabelSelect from './LabelSelect.svelte'
   import type { InboxSelect } from './inbox-select.svelte'
 
@@ -32,17 +43,17 @@
   class="sticky top-0 z-sticky rounded-xl border border-lichen bg-fog/95 p-3 shadow-soft backdrop-blur"
 >
   <div class="flex items-center justify-between gap-3">
-    <span class="text-sm font-medium text-ink">{select.ids.length} selected</span>
+    <span class="text-sm font-medium text-ink">{selectedCount(select.ids.length)}</span>
     <div class="flex items-center gap-1">
       <button
         type="button"
         onclick={select.toggleAll}
         class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs"
       >
-        {select.allSelected ? 'Clear all' : 'Select all'}
+        {select.allSelected ? CLEAR_ALL : SELECT_ALL}
       </button>
       <button type="button" onclick={select.exit} class="{GHOST_BTN_CLASS} px-2.5 py-1.5 text-xs">
-        Done
+        {DONE}
       </button>
     </div>
   </div>
@@ -51,7 +62,7 @@
     <div class="mt-3 flex flex-wrap items-end gap-3 border-t border-lichen pt-3">
       {#if core.labels.length > 0}
         <div class="min-w-[10rem]">
-          <label for="{uid}-label" class="mb-1 {FIELD_LABEL_CLASS}">Set label</label>
+          <label for="{uid}-label" class="mb-1 {FIELD_LABEL_CLASS}">{SET_LABEL}</label>
           <LabelSelect
             id="{uid}-label"
             labels={core.labels}
@@ -61,7 +72,7 @@
         </div>
       {/if}
       <form onsubmit={schedule}>
-        <label for="{uid}-date" class="mb-1 {FIELD_LABEL_CLASS}">Schedule</label>
+        <label for="{uid}-date" class="mb-1 {FIELD_LABEL_CLASS}">{SCHEDULE}</label>
         <div class="flex items-center gap-1.5">
           <input
             id="{uid}-date"
@@ -75,7 +86,7 @@
             disabled={core.pending || !dateValid}
             class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
           >
-            Apply
+            {APPLY}
           </button>
         </div>
       </form>
@@ -86,10 +97,10 @@
           disabled={core.pending}
           class="{SECONDARY_BTN_CLASS} {BTN_SM_CLASS}"
         >
-          Complete
+          {COMPLETE}
         </button>
         <DeleteConfirm
-          label="Delete {select.ids.length}"
+          label={deleteCount(select.ids.length)}
           onConfirm={select.remove}
           title={deleteTasksTitle(select.ids.length)}
           detail={CANNOT_UNDO}

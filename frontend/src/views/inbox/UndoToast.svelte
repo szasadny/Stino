@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { UNDO } from '../../lib/messages'
+
   let { message, busy, onUndo }: { message: string | null; busy: boolean; onUndo: () => void } =
     $props()
 </script>
@@ -20,7 +22,7 @@
         disabled={busy}
         class="min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold text-pine transition hover:bg-pine/5 disabled:opacity-40 sm:min-h-9"
       >
-        Undo
+        {UNDO}
       </button>
     </div>
   {/if}

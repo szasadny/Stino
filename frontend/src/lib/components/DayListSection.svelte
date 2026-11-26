@@ -4,7 +4,7 @@
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate, weekdayLong } from '../date'
   import { calendarZone } from '../dnd/zone-options'
-  import { addTaskOnLabel, NOTHING_SCHEDULED } from '../messages'
+  import { addTaskOnLabel, hideDayLabel, NOTHING_SCHEDULED, openDayLabel } from '../messages'
   import { todayKey } from '../today.svelte'
   import DateBadge from './DateBadge.svelte'
   import IconButton from './IconButton.svelte'
@@ -35,7 +35,7 @@
       <button
         type="button"
         onclick={() => selection.select(date)}
-        aria-label="Open {dayLabel}"
+        aria-label={openDayLabel(dayLabel)}
         class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-pine/5 active:bg-pine/10"
       >
         {@render heading()}
@@ -54,7 +54,7 @@
         alwaysOnMobile
       />
       {#if variant === 'month'}
-        <IconButton label="Hide {dayLabel}" onclick={selection.clear}>
+        <IconButton label={hideDayLabel(dayLabel)} onclick={selection.clear}>
           <Close />
         </IconButton>
       {/if}

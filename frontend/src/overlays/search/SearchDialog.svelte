@@ -7,7 +7,14 @@
   import Modal from '../../lib/components/Modal.svelte'
   import PanelHeader from '../../lib/components/PanelHeader.svelte'
   import { MODAL_BODY_CLASS } from '../../lib/constants'
-  import { EDIT_TASK_TITLE } from '../../lib/messages'
+  import {
+    BACK_TO_RESULTS,
+    CLOSE_SEARCH,
+    EDIT_TASK_TITLE,
+    SEARCH,
+    SEARCH_PLACEHOLDER,
+    SEARCH_TASKS,
+  } from '../../lib/messages'
   import { createSearch } from './search.svelte'
   import SearchResults from './SearchResults.svelte'
 
@@ -18,12 +25,12 @@
   const composer = search.composer
 </script>
 
-<Modal open {onClose} onEscape={composer.dismiss} label="Search" size="xl" error={search.error}>
+<Modal open {onClose} onEscape={composer.dismiss} label={SEARCH} size="xl" error={search.error}>
   {#snippet header()}
     {#if composer.open}
-      <PanelHeader title={EDIT_TASK_TITLE} {onClose} closeLabel="Close search">
+      <PanelHeader title={EDIT_TASK_TITLE} {onClose} closeLabel={CLOSE_SEARCH}>
         {#snippet leading()}
-          <IconButton label="Back to results" onclick={composer.close} class="-ml-1 -mt-1 shrink-0">
+          <IconButton label={BACK_TO_RESULTS} onclick={composer.close} class="-ml-1 -mt-1 shrink-0">
             <ArrowLeft />
           </IconButton>
         {/snippet}
@@ -37,12 +44,12 @@
           value={search.query}
           oninput={(e) => search.input(e.currentTarget.value)}
           type="search"
-          placeholder="Search tasks…"
+          placeholder={SEARCH_PLACEHOLDER}
           autocomplete="off"
-          aria-label="Search tasks"
+          aria-label={SEARCH_TASKS}
           class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage"
         />
-        <IconButton label="Close search" onclick={onClose} class="-mr-1 shrink-0">
+        <IconButton label={CLOSE_SEARCH} onclick={onClose} class="-mr-1 shrink-0">
           <Close />
         </IconButton>
       </div>

@@ -2,22 +2,18 @@
   import EmptyState from '../../lib/components/EmptyState.svelte'
   import TaskRow from '../../lib/components/TaskRow.svelte'
   import { MUTED_CENTER_CLASS } from '../../lib/constants'
-  import { formatShortDate } from '../../lib/date'
+  import { taskDateLabel } from '../../lib/format'
+  import { noSearchMatch, SEARCH_PROMPT, SEARCHING } from '../../lib/messages'
   import { isRecurring, occurrenceKey } from '../../lib/tasks/predicates'
-  import type { Task } from '../../lib/types'
   import type { Search } from './search.svelte'
 
   let { search }: { search: Search } = $props()
 
   const term = $derived(search.query.trim())
-
-  function dateLabelFor(task: Task): string {
-    return task.due_date ? formatShortDate(task.due_date) : 'Inbox'
-  }
 </script>
 
 {#if !term}
-  <EmptyState message="Start typing to search across all your tasks." />
+  <EmptyState message={SEARCH_PROMPT} />
 {:else if search.results.length > 0}
   <ul
     aria-busy={search.stale}
@@ -31,7 +27,7 @@
         <TaskRow
           task={series ? { ...task, completed: false } : task}
           label={search.core.labelFor(task)}
-          dateLabel={dateLabelFor(task)}
+          dateLabel={taskDateLabel(task)}
           onToggle={series ? undefined : () => void search.toggle(task)}
           onEdit={() => search.edit(task)}
         />
@@ -39,7 +35,7 @@
     {/each}
   </ul>
 {:else if search.loading}
-  <p class="{MUTED_CENTER_CLASS} py-8">Searching…</p>
+  <p class="{MUTED_CENTER_CLASS} py-8">{SEARCHING}</p>
 {:else if search.searched}
-  <EmptyState message={`No tasks match “${term}”.`} />
+  <EmptyState message={noSearchMatch(term)} />
 {/if}

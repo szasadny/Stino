@@ -1,5 +1,6 @@
 <script lang="ts">
   import { FIELD_LABEL_CLASS } from '../../constants'
+  import { ON_DAYS, WEEKDAYS_PRESET } from '../../messages'
   import { WORKDAYS, isWorkdaySet, orderWeekdays, type WeekdayCode } from '../../recurrence/model'
   import { WEEKDAY_OPTIONS } from '../../recurrence/options'
   import ToggleChip from './ToggleChip.svelte'
@@ -24,7 +25,7 @@
   }
 </script>
 
-<span class={FIELD_LABEL_CLASS}>On days</span>
+<span class={FIELD_LABEL_CLASS}>{ON_DAYS}</span>
 <div class="flex flex-wrap items-center gap-1">
   {#each WEEKDAY_OPTIONS as day (day.code)}
     <ToggleChip
@@ -40,6 +41,6 @@
     onclick={selectWeekdays}
     class="ml-1 h-7 rounded-lg px-2.5"
   >
-    Weekdays
+    {WEEKDAYS_PRESET}
   </ToggleChip>
 </div>

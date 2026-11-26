@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { DISPLAY_TITLE_CLASS } from '../constants'
+  import { CLOSE } from '../messages'
   import IconButton from './IconButton.svelte'
   import Close from './icons/Close.svelte'
 
@@ -9,7 +10,7 @@
     subtitle,
     onClose,
     titleId,
-    closeLabel = 'Close',
+    closeLabel = CLOSE,
     size = 'md',
     leading,
   }: {

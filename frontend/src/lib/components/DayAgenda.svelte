@@ -4,7 +4,8 @@
   import type { Task } from '../types'
   import type { TaskCore } from '../controllers/task-core.svelte'
   import { createDropList } from '../controllers/drop-list.svelte'
-  import { EYEBROW_CLASS, MUTED_CENTER_CLASS } from '../constants'
+  import { EYEBROW_CLASS } from '../constants'
+  import { moveSectionLabel, NO_LABEL, SORT_TASKS } from '../messages'
   import { isCompact } from '../viewport.svelte'
   import { moveId } from '../labels'
   import { presses } from '../dnd/presses.action'
@@ -99,7 +100,7 @@
 {#snippet moveButton(name: string, index: number, delta: -1 | 1)}
   {@const dir = delta < 0 ? 'up' : 'down'}
   <IconButton
-    label="Move {name} {dir}"
+    label={moveSectionLabel(name, dir)}
     size="sm"
     onclick={() => moveSection(index, delta)}
     disabled={index + delta < 0 || index + delta >= labelSections.length}
@@ -116,7 +117,7 @@
       {#if group.label}
         <LabelChip label={group.label} />
       {:else}
-        <span class="text-xs {EYEBROW_CLASS}">No label</span>
+        <span class="text-xs {EYEBROW_CLASS}">{NO_LABEL}</span>
       {/if}
       {#if sectionIndex != null && labelSections.length > 1}
         <div class="ml-auto flex items-center gap-0.5">
@@ -159,26 +160,22 @@
   )}
 {/snippet}
 
-{#if groups.length === 0}
-  <p class="{MUTED_CENTER_CLASS} py-6">No tasks on this day.</p>
-{:else}
-  {#if canGroup}
-    <div class="mb-3 flex justify-end">
-      <GroupViewToggle label="Sort tasks" size="sm" />
-    </div>
-  {/if}
-
-  <div class="space-y-5">
-    {#each labelSections as section, index (section.id)}
-      <section>
-        {@render sectionBody(section.group, index)}
-      </section>
-    {/each}
-
-    {#if noLabelGroup}
-      <section>
-        {@render sectionBody(noLabelGroup, null)}
-      </section>
-    {/if}
+{#if canGroup}
+  <div class="mb-3 flex justify-end">
+    <GroupViewToggle label={SORT_TASKS} size="sm" />
   </div>
 {/if}
+
+<div class="space-y-5">
+  {#each labelSections as section, index (section.id)}
+    <section>
+      {@render sectionBody(section.group, index)}
+    </section>
+  {/each}
+
+  {#if noLabelGroup}
+    <section>
+      {@render sectionBody(noLabelGroup, null)}
+    </section>
+  {/if}
+</div>
