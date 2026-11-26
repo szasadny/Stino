@@ -57,7 +57,7 @@
       <NavTabs {current} onSelect={select} placement="header" />
     {/if}
 
-    <div class="ml-auto flex items-center gap-1">
+    <div class="ml-auto flex items-center gap-1.5">
       <IconButton label={SEARCH} onclick={() => (searchOpen = true)} aria-haspopup="dialog">
         <Search strokeWidth={1.8} />
       </IconButton>

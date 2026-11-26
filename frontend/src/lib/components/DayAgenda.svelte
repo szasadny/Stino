@@ -121,7 +121,7 @@
   {@const key = keyOf(group)}
   {@const timed = timedOf(group, false)}
   {#if grouped}
-    <div class="mb-2 flex items-center gap-1.5 px-0.5">
+    <div class="mb-2.5 flex items-center gap-1.5 px-0.5">
       <svelte:element this={`h${headingLevel}`} class="flex min-w-0">
         {#if group.label}
           <LabelChip label={group.label} />

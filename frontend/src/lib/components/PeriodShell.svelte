@@ -41,7 +41,7 @@
         <span class="text-xs text-sage">{LOADING}</span>
       {/if}
     </div>
-    <div class="flex items-center gap-1 {nowrap ? 'shrink-0' : ''}">
+    <div class="flex items-center gap-1.5 {nowrap ? 'shrink-0' : ''}">
       <IconButton label={periodStepLabel(unit, -1)} onclick={() => nav.go(-1)}>
         <Chevron dir="left" />
       </IconButton>
