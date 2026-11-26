@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import { createDayChange } from './day-change.svelte'
+import { ApiError } from './errors'
 import { bumpRefresh } from './refresh.svelte'
 import { REF_THURSDAY_ISO } from './test/factories'
 import { setToday, todayKey } from './today.svelte'
@@ -37,7 +38,7 @@ describe('createDayChange', () => {
   })
 
   it('retries a failed rollover on the next check', async () => {
-    vi.mocked(api.tasks.rollover).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.tasks.rollover).mockRejectedValueOnce(new ApiError('network'))
     vi.mocked(api.tasks.rollover).mockResolvedValueOnce({ moved: 0 })
     const day = createDayChange()
     await day.check()

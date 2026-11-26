@@ -1,3 +1,14 @@
+import {
+  INBOX,
+  MONTH,
+  ORDER_BY_LABEL,
+  ORDER_LIST,
+  THEME_DARK,
+  THEME_LIGHT,
+  THEME_SYSTEM,
+  TODAY,
+  WEEK,
+} from './messages'
 import type { ThemePref, ViewId } from './types'
 
 // Caps mirrored from backend config.rs.
@@ -63,40 +74,51 @@ export const THEME_STORAGE_KEY = 'stino-theme'
 export const GROUP_VIEW_STORAGE_KEY = 'stino-day-grouping'
 
 export const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: THEME_SYSTEM },
+  { value: 'light', label: THEME_LIGHT },
+  { value: 'dark', label: THEME_DARK },
 ]
 
 export const GROUP_VIEW_OPTIONS: { value: boolean; label: string }[] = [
-  { value: false, label: 'List' },
-  { value: true, label: 'By label' },
+  { value: false, label: ORDER_LIST },
+  { value: true, label: ORDER_BY_LABEL },
 ]
 
 export const VIEWS: { id: ViewId; label: string }[] = [
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
+  { id: 'inbox', label: INBOX },
+  { id: 'today', label: TODAY },
+  { id: 'week', label: WEEK },
+  { id: 'month', label: MONTH },
 ]
 
-const INPUT_LOOK =
-  'rounded-lg border border-lichen bg-fog text-ink outline-none transition placeholder:text-sage hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20'
-export const INPUT_CLASS = `${INPUT_LOOK} px-3 py-2 text-sm`
-export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} px-2.5 py-1.5 text-sm`
-export const TITLE_INPUT_CLASS = `${INPUT_LOOK} px-3 py-2.5 text-base font-medium placeholder:font-normal`
-export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center text-lg`
+const DISABLED_LOOK = 'disabled:cursor-not-allowed disabled:opacity-40'
+// One height per size, so a field and a button line up in a row.
+const SIZE_SM = 'h-9'
+const SIZE_MD = 'h-10'
+export const BTN_SM_CLASS = `${SIZE_SM} px-3 text-sm`
+export const BTN_MD_CLASS = `${SIZE_MD} px-4 text-sm`
 
-export const PRIMARY_BTN_CLASS =
-  'rounded-lg bg-pine text-sm font-medium text-surface transition hover:bg-pine-deep disabled:cursor-not-allowed disabled:opacity-40'
-export const DESTRUCTIVE_BTN_CLASS =
-  'rounded-lg font-medium text-bark transition hover:bg-bark/10 disabled:cursor-not-allowed disabled:opacity-40'
-export const GHOST_BTN_CLASS =
-  'rounded-lg text-xs font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep'
-export const CLEAR_BTN_CLASS =
-  'rounded-lg px-2 text-xs font-medium text-sage transition hover:bg-bark/10 hover:text-bark'
+const INPUT_LOOK = `rounded-lg border border-lichen bg-fog text-ink outline-none transition placeholder:text-sage enabled:hover:border-sage/50 focus:border-pine focus:bg-surface focus:ring-2 focus:ring-pine/20 ${DISABLED_LOOK}`
+// iOS Safari zooms into a focused field set below 16px.
+const FIELD_TEXT = 'text-base sm:text-sm'
+export const INPUT_CLASS = `${INPUT_LOOK} ${SIZE_MD} px-3 ${FIELD_TEXT}`
+export const COMPACT_INPUT_CLASS = `${INPUT_LOOK} ${SIZE_SM} px-2.5 ${FIELD_TEXT}`
+export const TEXTAREA_CLASS = `${INPUT_LOOK} px-3 py-2 ${FIELD_TEXT}`
+export const TITLE_INPUT_CLASS = `${INPUT_LOOK} px-3 py-2.5 text-base font-medium placeholder:font-normal`
+export const EMOJI_INPUT_CLASS = `${INPUT_LOOK} h-9 w-12 shrink-0 text-center font-emoji text-lg`
+
+export const PRIMARY_BTN_CLASS = `rounded-lg bg-pine font-medium text-surface transition enabled:hover:bg-pine-deep ${DISABLED_LOOK}`
+export const SECONDARY_BTN_CLASS = `rounded-lg border border-lichen font-medium text-pine-deep transition enabled:hover:border-pine/40 enabled:hover:bg-pine/5 ${DISABLED_LOOK}`
+export const DESTRUCTIVE_BTN_CLASS = `rounded-lg font-medium text-bark transition enabled:hover:bg-bark/10 ${DISABLED_LOOK}`
+export const GHOST_BTN_CLASS = `rounded-lg font-medium text-sage transition enabled:hover:bg-pine/5 enabled:hover:text-pine-deep ${DISABLED_LOOK}`
+export const CLEAR_BTN_CLASS = `rounded-lg px-2 text-xs font-medium text-sage transition enabled:hover:bg-bark/10 enabled:hover:text-bark ${DISABLED_LOOK}`
+export const ICON_BTN_CLASS = `rounded-lg text-sage transition enabled:hover:bg-pine/5 enabled:hover:text-pine-deep ${DISABLED_LOOK}`
 export const CHIP_ON_CLASS = 'border-pine bg-pine/10 text-pine'
 export const CHIP_OFF_CLASS = 'border-lichen text-sage hover:border-pine/40 hover:text-pine-deep'
+export const DISPLAY_TITLE_CLASS = 'font-display font-semibold tracking-tight text-pine-deep'
+export const EYEBROW_CLASS = 'font-medium uppercase tracking-wide text-sage'
+export const TASK_CARD_CLASS =
+  'flex items-start gap-3 rounded-xl border px-3 py-2.5 shadow-soft transition'
 export const FIELD_LABEL_CLASS = 'block text-xs font-medium text-sage'
 export const MUTED_CENTER_CLASS = 'text-center text-sm text-sage'
 export const POPOVER_CLASS =
@@ -107,18 +129,18 @@ export const OPEN_CELL_CLASS = 'ring-2 ring-inset ring-pine/50'
 // `h-fit`, not `h-auto`: a modal <dialog> is inset-0, so `auto` stretches it to its max height.
 const SHEET_PANEL =
   'm-2 h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none rounded-2xl sm:m-auto sm:h-fit sm:max-h-none'
-const SHEET_CONTAINER = 'h-full sm:h-auto sm:max-h-[85vh]'
+const SHEET_CONTAINER = 'h-full sm:h-auto sm:max-h-[85dvh]'
 
 export const MODAL_SIZES = {
   sm: { panel: 'm-auto w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl', container: '' },
   md: { panel: 'm-auto w-[min(30rem,calc(100vw-1.5rem))] rounded-2xl', container: '' },
   lg: {
-    panel: 'm-auto max-h-[85vh] w-[min(34rem,calc(100vw-1.5rem))] rounded-2xl',
-    container: 'max-h-[85vh]',
+    panel: 'm-auto max-h-[85dvh] w-[min(34rem,calc(100vw-1.5rem))] rounded-2xl',
+    container: 'max-h-[85dvh]',
   },
   xl: {
-    panel: 'mx-auto mt-[8vh] max-h-[84vh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl',
-    container: 'max-h-[84vh]',
+    panel: 'mx-auto mt-[8dvh] max-h-[84dvh] w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl',
+    container: 'max-h-[84dvh]',
   },
   sheet: {
     panel: `${SHEET_PANEL} sm:w-[min(32rem,calc(100vw-1.5rem))] sm:max-w-[min(32rem,calc(100vw-1.5rem))]`,
@@ -130,7 +152,15 @@ export const MODAL_SIZES = {
   },
 } as const
 export type ModalSize = keyof typeof MODAL_SIZES
+// Same inset as PanelHeader, so a dialog's body lines up with its title.
+export const MODAL_BODY_CLASS = 'px-5 py-4'
+// Mirror MODAL_BODY_CLASS: on a phone the content fills the body and its footer is pinned over the padding.
+export const MODAL_FILL_CLASS = '-mb-4 flex min-h-[calc(100%+1rem)] flex-col sm:mb-0 sm:min-h-full'
+export const MODAL_FOOTER_CLASS =
+  'sticky -bottom-4 -mx-5 mt-auto bg-surface px-5 pb-4 sm:static sm:mx-0 sm:px-0 sm:pb-0'
 
+// The grip's box; a row without a grip reserves the same space.
+export const DRAG_HANDLE_SIZE_CLASS = 'h-5 w-5'
 export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 
 export const LABEL_EMOJI_SUGGESTIONS = [

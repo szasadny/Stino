@@ -1,9 +1,23 @@
 <script lang="ts">
-  import { INPUT_CLASS, PRIMARY_BTN_CLASS, TITLE_MAX_LENGTH } from '../../lib/constants'
+  import {
+    BTN_MD_CLASS,
+    INPUT_CLASS,
+    PRIMARY_BTN_CLASS,
+    SECONDARY_BTN_CLASS,
+    TITLE_MAX_LENGTH,
+  } from '../../lib/constants'
+  import {
+    ADD_WITH_DETAILS,
+    CAPTURE_INPUT_LABEL,
+    CAPTURE_PLACEHOLDER,
+    CAPTURE_PLACEHOLDER_SHORT,
+    DETAILS,
+    SUBMIT_ADD,
+  } from '../../lib/messages'
   import { isCompact } from '../../lib/viewport.svelte'
   import Icon from '../../lib/components/icons/Icon.svelte'
   import CapturePreview from './CapturePreview.svelte'
-  import LabelListbox from './LabelListbox.svelte'
+  import LabelListbox, { optionId } from './LabelListbox.svelte'
   import type { QuickCapture } from './quick-capture.svelte'
 
   let {
@@ -32,14 +46,17 @@
         onkeyup={capture.syncCaret}
         onclick={capture.syncCaret}
         type="text"
-        placeholder={isCompact() ? 'gym tomorrow 9am' : 'call mum tomorrow 6pm #social'}
+        placeholder={isCompact() ? CAPTURE_PLACEHOLDER_SHORT : CAPTURE_PLACEHOLDER}
         maxlength={TITLE_MAX_LENGTH}
         autocomplete="off"
-        aria-label="New task title"
+        aria-label={CAPTURE_INPUT_LABEL}
         role="combobox"
         aria-expanded={capture.menuOpen}
         aria-controls={listboxId}
         aria-autocomplete="list"
+        aria-activedescendant={capture.menuOpen
+          ? optionId(listboxId, capture.highlight)
+          : undefined}
         class="w-full {INPUT_CLASS}"
       />
       {#if capture.menuOpen}
@@ -48,7 +65,6 @@
           rows={capture.suggestions}
           active={capture.highlight}
           {anchor}
-          keepFocus
           onChoose={capture.choose}
           onHover={capture.hover}
           onDismiss={capture.dismiss}
@@ -59,20 +75,20 @@
       type="button"
       onclick={onDetails}
       disabled={busy}
-      title="Add with full details"
-      class="flex shrink-0 items-center gap-1.5 rounded-lg border border-lichen px-3 py-2 text-sm font-medium text-sage transition hover:border-pine/40 hover:text-pine-deep disabled:opacity-40"
+      title={ADD_WITH_DETAILS}
+      class="{SECONDARY_BTN_CLASS} {BTN_MD_CLASS} flex shrink-0 items-center gap-1.5"
     >
       <Icon class="h-4 w-4" strokeWidth={1.8}>
         <path d="M4 6h16M4 12h16M4 18h10" />
       </Icon>
-      <span class="hidden sm:inline">Details</span>
+      <span class="hidden sm:inline">{DETAILS}</span>
     </button>
     <button
       type="submit"
       disabled={!capture.text.trim() || busy}
-      class="{PRIMARY_BTN_CLASS} shrink-0 px-4 py-2"
+      class="{PRIMARY_BTN_CLASS} {BTN_MD_CLASS} shrink-0"
     >
-      Add
+      {SUBMIT_ADD}
     </button>
   </div>
   <CapturePreview

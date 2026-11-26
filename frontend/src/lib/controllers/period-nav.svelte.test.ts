@@ -2,6 +2,7 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import { addWeeks, buildWeekGrid, spanBounds, startOfWeek, toISODate } from '../date'
+import { ApiError } from '../errors'
 import { LOAD_FAILED } from '../messages'
 import { navigateWithSlide } from '../nav-transition'
 import { MON, NEXT_MON, WED, on } from '../test/factories'
@@ -31,6 +32,7 @@ describe('createPeriodNav', () => {
   let core: TaskCore
   let nav: PeriodNav
   let onNavigate: ReturnType<typeof vi.fn<() => void>>
+  let onToday: ReturnType<typeof vi.fn<() => void>>
   let cleanup: () => void
 
   beforeEach(async () => {
@@ -39,6 +41,7 @@ describe('createPeriodNav', () => {
     vi.mocked(api.tasks.range).mockReset().mockResolvedValue([])
     vi.mocked(navigateWithSlide).mockClear()
     onNavigate = vi.fn<() => void>()
+    onToday = vi.fn<() => void>()
     cleanup = $effect.root(() => {
       core = createTaskCore()
       nav = createPeriodNav(core, {
@@ -47,6 +50,7 @@ describe('createPeriodNav', () => {
         rangeFor: (start) => spanBounds(buildWeekGrid(start)),
         failMsg: LOAD_FAILED,
         onNavigate,
+        onToday,
       })
     })
     flushSync()
@@ -80,7 +84,7 @@ describe('createPeriodNav', () => {
   })
 
   it('steps from the period on screen again after a failed load', async () => {
-    vi.mocked(api.tasks.range).mockRejectedValueOnce('down')
+    vi.mocked(api.tasks.range).mockRejectedValueOnce(new ApiError('server'))
     await nav.go(1)
     expect(toISODate(nav.start)).toBe(MON)
     await nav.go(1)
@@ -103,5 +107,25 @@ describe('createPeriodNav', () => {
     await nav.goToday()
     expect(navigateWithSlide).toHaveBeenLastCalledWith(null, expect.any(Function))
     expect(toISODate(nav.start)).toBe(MON)
+  })
+
+  it('reports Today after it has slid in, also when already on the current period', async () => {
+    await nav.go(1)
+    expect(onToday).not.toHaveBeenCalled()
+    const back = nav.goToday()
+    expect(onToday).not.toHaveBeenCalled()
+    await back
+    expect(onToday).toHaveBeenCalledOnce()
+    await nav.goToday()
+    expect(onToday).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not report Today when a newer step overtook it or its load failed', async () => {
+    await nav.go(1)
+    await Promise.all([nav.goToday(), nav.go(1)])
+    expect(onToday).not.toHaveBeenCalled()
+    vi.mocked(api.tasks.range).mockRejectedValueOnce(new ApiError('server'))
+    await nav.goToday()
+    expect(onToday).not.toHaveBeenCalled()
   })
 })

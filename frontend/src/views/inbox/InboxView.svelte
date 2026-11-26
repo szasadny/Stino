@@ -5,7 +5,17 @@
   import { GHOST_BTN_CLASS } from '../../lib/constants'
   import { presses } from '../../lib/dnd/presses.action'
   import { tappedItem } from '../../lib/dnd/tap'
-  import { LOAD_INBOX_FAILED } from '../../lib/messages'
+  import { scheduledNotice } from '../../lib/format'
+  import { todayDate } from '../../lib/today.svelte'
+  import {
+    BATCH_EDIT,
+    DELETE_TASK_TITLE,
+    EDIT,
+    INBOX,
+    INBOX_EMPTY,
+    INBOX_SUBTITLE,
+    LOAD_INBOX_FAILED,
+  } from '../../lib/messages'
   import type { Task } from '../../lib/types'
   import { createComposer, type ComposerChange } from '../../lib/controllers/composer.svelte'
   import { createDropList } from '../../lib/controllers/drop-list.svelte'
@@ -26,9 +36,11 @@
 
   const core = createTaskCore()
   core.bindLoad(() => api.tasks.inbox(), LOAD_INBOX_FAILED)
-  const capture = createQuickCapture(core)
-  const select = createInboxSelect(core)
   const complete = createInboxComplete(core)
+  const capture = createQuickCapture(core, {
+    onScheduled: (dueDate) => complete.notify(scheduledNotice(dueDate, todayDate())),
+  })
+  const select = createInboxSelect(core)
   const list = createDropList(() => ({ inbox: core.tasks }))
 
   // A task that gains a date leaves the Inbox.
@@ -59,12 +71,12 @@
 </script>
 
 <ListViewShell
-  title="Inbox"
-  subtitle="Capture now, schedule later."
+  title={INBOX}
+  subtitle={INBOX_SUBTITLE}
   error={core.error}
   loading={core.loading}
   empty={core.tasks.length === 0}
-  emptyMessage="Your inbox is clear."
+  emptyMessage={INBOX_EMPTY}
   edgeScroll
 >
   {#snippet top()}
@@ -87,8 +99,12 @@
     </ul>
   {:else}
     <div class="mb-3 flex justify-end">
-      <button type="button" onclick={select.enter} class="{GHOST_BTN_CLASS} px-2.5 py-1.5">
-        Batch edit
+      <button
+        type="button"
+        onclick={select.enter}
+        class="{GHOST_BTN_CLASS} min-h-11 px-2.5 py-1.5 text-xs sm:min-h-0"
+      >
+        {BATCH_EDIT}
       </button>
     </div>
     <ReorderList
@@ -100,10 +116,20 @@
     >
       {#snippet item(task: Task, handle: Snippet | null)}
         {#snippet actions()}
-          <button type="button" onclick={() => edit(task)} class="{GHOST_BTN_CLASS} px-2 py-1">
-            Edit
+          <button
+            type="button"
+            onclick={() => edit(task)}
+            class="{GHOST_BTN_CLASS} px-2 py-1 text-xs"
+          >
+            {EDIT}
           </button>
-          <DeleteConfirm onConfirm={() => core.remove(task.id)} busy={core.pending} compact />
+          <DeleteConfirm
+            onConfirm={() => core.remove(task.id)}
+            title={DELETE_TASK_TITLE}
+            detail={task.title}
+            busy={core.pending}
+            compact
+          />
         {/snippet}
         <li out:foldAway={{ dragging: list.dragging }}>
           <TaskRow
@@ -111,7 +137,7 @@
             label={core.labelFor(task)}
             completing={complete.isCompleting(task.id)}
             onToggle={() => complete.toggle(task)}
-            onEdit={handle ? undefined : () => edit(task)}
+            onEdit={() => edit(task)}
             holdToDrag={handle == null}
             leading={handle ?? undefined}
             trailing={handle ? actions : undefined}
@@ -123,9 +149,9 @@
 
   {#snippet overlay()}
     <UndoToast
-      message={complete.undone ? `Completed “${complete.undone.title}”` : null}
+      message={complete.message}
       busy={core.pending}
-      onUndo={complete.undo}
+      onUndo={complete.undoable ? complete.undo : undefined}
     />
   {/snippet}
 </ListViewShell>

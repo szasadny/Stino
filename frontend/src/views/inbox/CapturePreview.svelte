@@ -2,6 +2,7 @@
   import LabelChip from '../../lib/components/LabelChip.svelte'
   import Close from '../../lib/components/icons/Close.svelte'
   import Icon from '../../lib/components/icons/Icon.svelte'
+  import { NEW_LABEL_TAG, REMOVE_LABEL, schedulingFor } from '../../lib/messages'
   import type { CaptureLabel } from './quick-capture.svelte'
 
   let {
@@ -21,8 +22,8 @@
             <button
               type="button"
               onclick={onClearLabel}
-              aria-label="Remove label"
-              class="grid h-4 w-4 place-items-center rounded-full text-sage transition hover:bg-bark/10 hover:text-bark"
+              aria-label={REMOVE_LABEL}
+              class="hit-area grid h-4 w-4 place-items-center rounded-full text-sage transition hover:bg-bark/10 hover:text-bark"
             >
               <Close class="h-3 w-3" strokeWidth={2.2} />
             </button>
@@ -34,7 +35,7 @@
         >
           <span aria-hidden="true">＋</span>
           <span class="truncate font-medium">{label.pending}</span>
-          <span class="text-sage">new label</span>
+          <span class="text-sage">{NEW_LABEL_TAG}</span>
         </span>
       {/if}
     {/if}
@@ -44,7 +45,7 @@
           <path d="M5 12h14" />
           <path d="M13 6l6 6-6 6" />
         </Icon>
-        Scheduling for {preview}
+        {schedulingFor(preview)}
       </span>
     {/if}
   </div>

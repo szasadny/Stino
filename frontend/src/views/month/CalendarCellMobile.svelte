@@ -6,8 +6,9 @@
   import { createLineFit } from '../../lib/dnd/line-fit.action.svelte'
   import { activateOnKey } from '../../lib/dnd/tap'
   import { calendarZone } from '../../lib/dnd/zone-options'
-  import { pluralize } from '../../lib/format'
-  import { labelColorVar } from '../../lib/labels'
+  import { dayCellLabel } from '../../lib/format'
+  import { labelTint } from '../../lib/labels'
+  import { moreTasks } from '../../lib/messages'
   import type { CellItem } from '../../lib/tasks/projection'
   import { todayKey } from '../../lib/today.svelte'
   import DateBadge from '../../lib/components/DateBadge.svelte'
@@ -20,22 +21,17 @@
   const isToday = $derived(dateKey === todayKey())
   const open = $derived(selection.selectedKey === dateKey)
   const fit = createLineFit(() => items.length)
-  const ariaLabel = $derived(
-    `${formatDayFull(date)}, ${pluralize(items.length, 'task')}` +
-      (fit.overflow > 0 ? `, ${fit.overflow} more` : ''),
-  )
+  const ariaLabel = $derived(dayCellLabel(formatDayFull(date), items.length, fit.overflow))
   const toggle = () => (open ? selection.clear() : selection.select(date))
 </script>
 
 {#snippet line(item: CellItem, index: number)}
-  {@const label = core.labelFor(item.task)}
+  {@const tint = labelTint(core.labelFor(item.task)?.color, 'bg-pine/10')}
   <li
-    class="shrink-0 truncate rounded px-1 py-px text-3xs leading-tight {label
-      ? 'label-tint'
-      : 'bg-pine/10'}
+    class="shrink-0 truncate rounded px-1 py-px text-3xs leading-tight {tint.class}
       {item.task.completed ? 'text-sage line-through' : 'text-ink'}
       {fit.hides(index, item) ? 'invisible' : ''}"
-    style={labelColorVar(label?.color)}
+    style={tint.style}
   >
     {item.task.title}
   </li>
@@ -58,7 +54,7 @@
     {#if fit.overflow > 0}
       <span
         class="shrink-0 pr-0.5 text-3xs leading-tight tabular-nums text-sage"
-        title="{fit.overflow} more"
+        title={moreTasks(fit.overflow)}
       >
         +{fit.overflow}
       </span>

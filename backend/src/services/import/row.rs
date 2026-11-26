@@ -8,7 +8,7 @@ use crate::domain::NewTask;
 use crate::services::recurrence;
 use crate::services::validation::parse_date_lenient;
 
-// TickTick's default list — not mapped to a label.
+// TickTick's default list, not mapped to a label.
 const DEFAULT_LIST: &str = "inbox";
 const TAG_SEPARATOR: char = ',';
 const STATUS_COMPLETED: &str = "1";

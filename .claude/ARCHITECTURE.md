@@ -1,27 +1,27 @@
-# Stinō — Architecture
+# Stinō Architecture
 
-For agents: what lives where and what each part is for, so nobody has to scan the code. **Do not read top-to-bottom** — check §0, then Grep for `## <n>.`.
+For agents: what lives where and what each part is for, so nobody has to scan the code. **Do not read top-to-bottom:** check §0, then Grep for `## <n>.`.
 Not here: behaviour, how-it-works and history; those live in code and tests. One short sentence per fact. Rules, scope, stack and design language: [AGENTS.md](../AGENTS.md).
 
 | § | Contents |
 | --- | --- |
-| 0 | Quick Lookup — where does X go? (check this first for any new code) |
+| 0 | Quick Lookup: where does X go? (check this first for any new code) |
 | 1 | Guiding principles |
 | 2 | Topology |
-| 3 | Backend: layers, route/service/db/domain modules, shared helpers, API contract, tests — in [ARCHITECTURE-BACKEND.md](./ARCHITECTURE-BACKEND.md) |
-| 4 | Frontend: layers, feature folders, controllers and state, components, helpers, responsive and drag contract, design tokens — in [ARCHITECTURE-FRONTEND.md](./ARCHITECTURE-FRONTEND.md) |
-| 5 | Data model: tables, indexes, date and recurrence rules, RRULE options, import mapping, mirrored constants — in [DATA-MODEL.md](./DATA-MODEL.md) |
+| 3 | Backend: layers, route/service/db/domain modules, shared helpers, API contract, tests, all in [ARCHITECTURE-BACKEND.md](./ARCHITECTURE-BACKEND.md) |
+| 4 | Frontend: layers, feature folders, controllers and state, components, helpers, responsive and drag contract, design tokens, all in [ARCHITECTURE-FRONTEND.md](./ARCHITECTURE-FRONTEND.md) |
+| 5 | Data model: tables, indexes, date and recurrence rules, RRULE options, import mapping, mirrored constants, all in [DATA-MODEL.md](./DATA-MODEL.md) |
 | 6 | Cross-cutting concerns |
-| 7 | Modularity contract — rules with their guards + wrong→right table |
+| 7 | Modularity contract: rules with their guards + wrong→right table |
 | 8 | When to update these documents |
 
 ---
 
-## 0. Quick Lookup — where does X go?
+## 0. Quick Lookup: where does X go?
 
 Every row has exactly one correct location; anywhere else is a contract violation (§7).
 
-**Backend** — paths relative to `backend/src/` unless they start with `backend/`:
+**Backend** (paths relative to `backend/src/` unless they start with `backend/`):
 
 | You are adding / changing… | It goes in… |
 | --- | --- |
@@ -66,7 +66,7 @@ Every row has exactly one correct location; anywhere else is a contract violatio
 | A table, column or index | A new file in `backend/migrations/` (never edit an applied one) + DATA-MODEL.md §5.1 |
 | The offline query cache after a query or migration change | Regenerate `backend/.sqlx/` (§6, SQLx offline cache) |
 
-**Frontend** — paths relative to `frontend/src/` unless they start with `frontend/`:
+**Frontend** (paths relative to `frontend/src/` unless they start with `frontend/`):
 
 | You are adding / changing… | It goes in… |
 | --- | --- |
@@ -122,7 +122,7 @@ Every row has exactly one correct location; anywhere else is a contract violatio
 ```text
 Browser (Svelte SPA)
    │ same-origin HTTP/JSON, relative /api
-Axum — one process, one container, reachable only over Tailscale
+Axum (one process, one container, reachable only over Tailscale)
    ├─ /api/*  → routes → services → db (SQLx) → SQLite on the DATA_DIR volume
    └─ other   → the built SPA from STATIC_DIR, index.html fallback
 ```
@@ -169,7 +169,7 @@ In [DATA-MODEL.md](./DATA-MODEL.md). §5.x references resolve there.
 | Migrations | `backend/migrations/`, `backend/build.rs` | Embedded at compile time; the build script rebuilds when one is added; additive only (Hard Rule 3) |
 | Lint policy (BE) | `backend/Cargo.toml`, `backend/clippy.toml` | clippy `unwrap_used`, `expect_used`, `too_many_lines` (60) deny; unwrap and expect are allowed in tests |
 | Test boundary (BE) | `backend/tests/api/common/app.rs` | Every integration test runs the real router in-process on a fresh one-connection `sqlite::memory:` pool with all migrations; never a file DB or the live DB |
-| HTTP client (FE) | `frontend/src/lib/api.ts` | Relative `/api` (`API_BASE`); a non-2xx throws the API's message (a 5xx a generic one), no response throws `NETWORK_ERROR_MESSAGE` |
+| HTTP client (FE) | `frontend/src/lib/api.ts` | Relative `/api` (`API_BASE`); every failure throws an `ApiError` (`network`, `server` for a 5xx or unreadable body, `rejected` with the API's reason for a 4xx) |
 | Constants and copy (FE) | `frontend/src/lib/constants.ts`, `frontend/src/lib/messages.ts` | One home each; mirrored caps per DATA-MODEL.md §5.6 |
 | Theme | `frontend/src/lib/theme.ts`, `frontend/index.html`, `frontend/src/app.css` | System / Light / Dark in `localStorage`; `data-theme` on `<html>` set before first paint; tokens re-point per theme |
 | Viewport | `frontend/src/lib/viewport.svelte.ts` | `isCompact()` (≤ `COMPACT_MAX_WIDTH`) and `isCoarsePointer()`, the only media queries in script |
@@ -207,10 +207,11 @@ Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.t
 | 14 | Every backticked `backend/` path in these docs and `AGENTS.md` exists | `doc_paths_exist` |
 | 15 | These docs describe the current state only | `docs_describe_the_current_state` |
 | 16 | Each doc stays within its size cap; no prose line over 240 characters | `docs_stay_within_their_size` |
-| 17 | `db/` functions hold no business rule: they return rows, `Option` or `bool`, and the service decides | review |
-| 18 | A handler makes one service call | review |
-| 19 | One home per concern (§0): field primitives, messages, constants, the task projection | review |
-| 20 | Migrations are additive and never edited once applied | review; sqlx refuses to run against a DB whose applied migration changed |
+| 17 | No em dash (U+2014) in the project's own files; migrations are out of scope | `own_files_hold_no_em_dash` |
+| 18 | `db/` functions hold no business rule: they return rows, `Option` or `bool`, and the service decides | review |
+| 19 | A handler makes one service call | review |
+| 20 | One home per concern (§0): field primitives, messages, constants, the task projection | review |
+| 21 | Migrations are additive and never edited once applied | review; sqlx refuses to run against a DB whose applied migration changed |
 
 **Frontend:**
 
@@ -267,7 +268,7 @@ Frontend guards are the `it(...)` tests in `frontend/src/lib/test/architecture.t
 | Both layouts rendered, one hidden with `sm:hidden` | `{#if isCompact()}` … `{:else}` … |
 | A `$state` busy flag and try/catch around an `api` call in a view | `core.optimistic`, `core.save` or `createLock().run` |
 | `invisible` on a zone mid-drag | `hidden` |
-| A literal `'Could not …'` or a literal duration in a component | A constant in `lib/messages.ts` or `lib/constants.ts` |
+| A literal `'Couldn’t …'` or a literal duration in a component | A constant in `lib/messages.ts` or `lib/constants.ts` |
 | `value as Task`, `task!` | Narrow with a type guard or an early return |
 | `// eslint-disable-next-line` | Fix the code |
 

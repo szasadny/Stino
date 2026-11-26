@@ -5,7 +5,7 @@ version: 2
 # broke the Docker build). Each ecosystem collapses its updates into a SINGLE
 # grouped PR per run. Do a major upgrade deliberately, by hand, as its own task.
 updates:
-  # Rust backend — patch-only: most crates here are 0.x, where a "minor" bump
+  # Rust backend, patch-only: most crates here are 0.x, where a "minor" bump
   # (sqlx 0.8→0.9) is a breaking release under Cargo's semver rules.
   - package-ecosystem: cargo
     directory: /backend
@@ -23,7 +23,7 @@ updates:
         patterns:
           - "*"
 
-  # Svelte frontend — patch + minor; majors (Tailwind, Vite, TypeScript) are
+  # Svelte frontend, patch + minor. Majors (Tailwind, Vite, TypeScript) are
   # breaking and stay manual.
   - package-ecosystem: npm
     directory: /frontend
@@ -40,7 +40,7 @@ updates:
         patterns:
           - "*"
 
-  # Container base images — majors (a new Node/Debian line) stay manual.
+  # Container base images: majors (a new Node/Debian line) stay manual.
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -56,7 +56,7 @@ updates:
         patterns:
           - "*"
 
-  # GitHub Actions — workflows pin major tags, so each update is a major bump to review.
+  # GitHub Actions: workflows pin major tags, so each update is a major bump to review.
   - package-ecosystem: github-actions
     directory: /
     schedule:

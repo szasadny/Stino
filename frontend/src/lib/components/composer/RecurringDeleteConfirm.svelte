@@ -1,7 +1,24 @@
 <script lang="ts">
   // A completed occurrence is history, so "This occurrence" is disabled for it.
-  import { DESTRUCTIVE_BTN_CLASS } from '../../constants'
+  import {
+    BTN_SM_CLASS,
+    DESTRUCTIVE_BTN_CLASS,
+    GHOST_BTN_CLASS,
+    MODAL_BODY_CLASS,
+  } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
+  import { autofocus } from '../../dnd/autofocus.action'
+  import {
+    CANCEL,
+    COMPLETED_OCCURRENCE_KEPT,
+    DELETE,
+    DELETE_RECURRING_TITLE,
+    EVERY_OCCURRENCE,
+    SERIES_KEEPS_REPEATING,
+    TASK_REPEATS,
+    THIS_OCCURRENCE,
+    WHOLE_SERIES,
+  } from '../../messages'
   import Modal from '../Modal.svelte'
 
   let { composer }: { composer: Composer } = $props()
@@ -24,19 +41,20 @@
   type="button"
   onclick={() => (open = true)}
   disabled={composer.pending}
-  class="{DESTRUCTIVE_BTN_CLASS} px-3 py-1.5 text-sm"
+  class="hit-area {DESTRUCTIVE_BTN_CLASS} {BTN_SM_CLASS}"
 >
-  Delete
+  {DELETE}
 </button>
 
 <Modal
   {open}
   onClose={() => (open = false)}
-  title="Delete recurring task"
-  subtitle="This task repeats."
+  title={DELETE_RECURRING_TITLE}
+  subtitle={TASK_REPEATS}
   size="sm"
+  dismiss="closerequest"
 >
-  <div class="space-y-2 px-5 py-4">
+  <div class="space-y-2 {MODAL_BODY_CLASS}">
     <button
       type="button"
       onclick={() => choose(composer.onDeleteOccurrence)}
@@ -44,14 +62,14 @@
       aria-describedby={canDeleteOccurrence ? undefined : noteId}
       class={choiceClass}
     >
-      This occurrence
+      {THIS_OCCURRENCE}
       {#if canDeleteOccurrence}
-        <span class="mt-0.5 block text-xs font-normal text-sage">The series keeps repeating.</span>
+        <span class="mt-0.5 block text-xs font-normal text-sage">{SERIES_KEEPS_REPEATING}</span>
       {/if}
     </button>
     {#if !canDeleteOccurrence}
       <!-- Outside the faded button so the reason stays legible. -->
-      <p id={noteId} class="px-1 text-xs text-sage">Completed — kept in your history.</p>
+      <p id={noteId} class="px-1 text-xs text-sage">{COMPLETED_OCCURRENCE_KEPT}</p>
     {/if}
     <button
       type="button"
@@ -59,17 +77,16 @@
       disabled={composer.pending}
       class={choiceClass}
     >
-      Whole series
-      <span class="mt-0.5 block text-xs font-normal text-sage"
-        >Every past and future occurrence.</span
-      >
+      {WHOLE_SERIES}
+      <span class="mt-0.5 block text-xs font-normal text-sage">{EVERY_OCCURRENCE}</span>
     </button>
     <button
+      {@attach autofocus}
       type="button"
       onclick={() => (open = false)}
-      class="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-sage transition hover:text-pine-deep"
+      class="hit-area {GHOST_BTN_CLASS} w-full px-4 py-2.5 text-sm"
     >
-      Cancel
+      {CANCEL}
     </button>
   </div>
 </Modal>

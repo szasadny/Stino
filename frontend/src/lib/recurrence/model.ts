@@ -102,6 +102,17 @@ export function monthlyDefaultsFor(
   }
 }
 
+// The last day, last weekday and workday shapes are not derived from a date, so they stay.
+export function followStart(value: RecurrenceValue, iso: string | null): RecurrenceValue {
+  const monthly = value.freq === 'monthly' || (value.freq === 'custom' && value.unit === 'month')
+  if (!iso || !monthly) return value
+  const { monthday, position, monthWeekday } = monthlyDefaultsFor(iso)
+  if (value.monthlyMode === 'monthday')
+    return value.monthday === -1 ? value : { ...value, monthday }
+  if (value.position === -1 || value.monthWeekday === WORKDAY_CODE) return value
+  return { ...value, position, monthWeekday }
+}
+
 export function withFreq(
   value: RecurrenceValue,
   freq: RecurrenceFreq,

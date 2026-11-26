@@ -45,7 +45,7 @@
   aria-label={toggleTaskLabel(title, checked)}
   class="grid shrink-0 place-items-center rounded-full border transition {size === 'sm'
     ? 'h-3.5 w-3.5'
-    : 'mt-px h-5 w-5 sm:mt-0 sm:self-center'} {checked
+    : 'hit-area mt-px h-5 w-5 sm:mt-0 sm:self-center'} {checked
     ? 'border-pine bg-pine text-surface'
     : size === 'sm'
       ? 'border-sage/70 bg-surface/70 text-transparent hover:border-pine'

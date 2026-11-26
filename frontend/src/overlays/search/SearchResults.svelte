@@ -2,28 +2,26 @@
   import EmptyState from '../../lib/components/EmptyState.svelte'
   import TaskRow from '../../lib/components/TaskRow.svelte'
   import { MUTED_CENTER_CLASS } from '../../lib/constants'
-  import { formatShortDate } from '../../lib/date'
+  import { taskDateLabel } from '../../lib/format'
+  import { noSearchMatch, SEARCH_PROMPT, SEARCHING } from '../../lib/messages'
   import { isRecurring, occurrenceKey } from '../../lib/tasks/predicates'
-  import type { Task } from '../../lib/types'
+  import { todayDate } from '../../lib/today.svelte'
   import type { Search } from './search.svelte'
 
   let { search }: { search: Search } = $props()
 
   const term = $derived(search.query.trim())
-
-  function dateLabelFor(task: Task): string {
-    return task.due_date ? formatShortDate(task.due_date) : 'Inbox'
-  }
+  const year = $derived(todayDate().getFullYear())
 </script>
 
-{#if search.loading}
-  <p class="{MUTED_CENTER_CLASS} py-8">Searching…</p>
-{:else if !term}
-  <EmptyState message="Start typing to search across all your tasks." />
-{:else if search.searched && search.results.length === 0}
-  <EmptyState message={`No tasks match “${term}”.`} />
-{:else}
-  <ul class="space-y-2">
+{#if !term}
+  <EmptyState message={SEARCH_PROMPT} />
+{:else if search.results.length > 0}
+  <ul
+    aria-busy={search.stale}
+    class="space-y-2 transition-opacity motion-reduce:transition-none"
+    class:opacity-60={search.stale}
+  >
     {#each search.results as task (occurrenceKey(task))}
       {@const series = isRecurring(task)}
       <li>
@@ -31,11 +29,15 @@
         <TaskRow
           task={series ? { ...task, completed: false } : task}
           label={search.core.labelFor(task)}
-          dateLabel={dateLabelFor(task)}
+          dateLabel={series ? undefined : taskDateLabel(task, year)}
           onToggle={series ? undefined : () => void search.toggle(task)}
           onEdit={() => search.edit(task)}
         />
       </li>
     {/each}
   </ul>
+{:else if search.loading}
+  <p class="{MUTED_CENTER_CLASS} py-8">{SEARCHING}</p>
+{:else if search.searched}
+  <EmptyState message={noSearchMatch(term)} />
 {/if}

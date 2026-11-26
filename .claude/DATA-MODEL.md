@@ -1,4 +1,4 @@
-# Stinō — Data Model
+# Stinō Data Model
 
 This is §5 of [ARCHITECTURE.md](./ARCHITECTURE.md), split out so the data model only loads when it is the task; §5.x references elsewhere resolve here.
 Maintenance rule (ARCHITECTURE.md §8): every table, column, index or rule change updates this file alongside its migration or code.
@@ -12,7 +12,7 @@ Not here: process and flow; those live in the code and its tests.
 
 Source of truth: `backend/migrations/`, embedded at compile time; foreign keys are enforced on every connection (`db::connect`).
 
-**label** — a user-defined colour tag; a task has at most one.
+**label:** a user-defined colour tag; a task has at most one.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ Source of truth: `backend/migrations/`, embedded at compile time; foreign keys a
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | Label order; reorder writes 0-based positions, a new label appends |
 | `created_at`, `updated_at` | TEXT NOT NULL DEFAULT `datetime('now')` | Bookkeeping |
 
-**task** — one row per one-off task or per recurring series.
+**task:** one row per one-off task or per recurring series.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Source of truth: `backend/migrations/`, embedded at compile time; foreign keys a
 | `detached_from` | INTEGER NULL → `task(id)` ON DELETE SET NULL | The series a rollover copy came from; NULL for every other task, moved occurrences included |
 | `created_at`, `updated_at` | TEXT NOT NULL DEFAULT `datetime('now')` | Bookkeeping |
 
-**completion** — one row per done occurrence.
+**completion:** one row per done occurrence.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ Source of truth: `backend/migrations/`, embedded at compile time; foreign keys a
 
 `UNIQUE (task_id, occurrence_date)`; SQLite treats NULLs as distinct, so `add_completion` keeps a NULL-date completion single.
 
-**task_exception** — one row per occurrence a series hides.
+**task_exception:** one row per occurrence a series hides.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ Source of truth: `backend/migrations/`, embedded at compile time; foreign keys a
 
 `UNIQUE (task_id, occurrence_date)`.
 
-**imported_history_rule** — backup written by migration 0005, never read by the app.
+**imported_history_rule:** backup written by migration 0005, never read by the app.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -133,6 +133,7 @@ The backend accepts any RRULE that repeats daily or less often and yields an occ
 | Ends on a date | `;UNTIL=…` on any shape |
 
 - A month without the chosen day (a 31st, a fifth Monday) has no occurrence.
+- Choosing a repeat with no date sets the date to today; changing the date moves a monthly day n or Nth weekday to the new date, while last day, last weekday and workday shapes stay.
 - Any other shape, including one with `COUNT`, is shown read-only by the picker.
 
 ### 5.5 TickTick import mapping
@@ -148,7 +149,7 @@ Columns are read by header name, case-insensitively; the header is the first row
 | Due Date, Is All Day, Timezone, Is Floating | `task.due_date`, `task.due_time` | §5.2 Import; all-day drops the time; an unparseable date leaves the task in the Inbox |
 | Repeat | `task.recurrence_rule` | `RRULE:` stripped; dropped on a done row, without a due date, or when it fails validation |
 | Status (`1` completed, `2` archived), Completed Time | a `completion` row | At the task's `due_date` (NULL in the Inbox) |
-| Reminder, Priority, Start Date, Order, other columns | — | Ignored |
+| Reminder, Priority, Start Date, Order, other columns | none | Ignored |
 
 | Rule | Fact |
 | --- | --- |

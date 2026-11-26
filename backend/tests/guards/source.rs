@@ -25,22 +25,32 @@ pub(crate) fn manifest_dir() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
 
-// Paths relative to the manifest dir (`src/…`), sorted.
-pub(crate) fn rust_files(dirs: &[&str]) -> Vec<String> {
-    let root = manifest_dir();
-    let mut pending: Vec<PathBuf> = dirs.iter().map(|dir| root.join(dir)).collect();
+// Vitest writes its cache to `frontend/src/node_modules`.
+const GENERATED_DIR: &str = "node_modules";
+
+// Paths relative to `base`, sorted.
+pub(crate) fn files_under(base: &Path, roots: &[&str]) -> Vec<String> {
+    let mut pending: Vec<PathBuf> = roots.iter().map(|root| base.join(root)).collect();
     let mut files = Vec::new();
     while let Some(path) = pending.pop() {
-        if path.is_dir() {
+        let meta = fs::symlink_metadata(&path).unwrap_or_else(or_panic(&path));
+        if meta.is_dir() && !path.ends_with(GENERATED_DIR) {
             for entry in fs::read_dir(&path).unwrap_or_else(or_panic(&path)) {
                 pending.push(entry.unwrap_or_else(or_panic(&path)).path());
             }
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy();
+        } else if meta.is_file() {
+            let rel = path.strip_prefix(base).unwrap_or(&path).to_string_lossy();
             files.push(rel.replace('\\', "/"));
         }
     }
     files.sort();
+    files
+}
+
+// Paths relative to the manifest dir (`src/…`), sorted.
+pub(crate) fn rust_files(dirs: &[&str]) -> Vec<String> {
+    let mut files = files_under(manifest_dir(), dirs);
+    files.retain(|rel| rel.ends_with(".rs"));
     files
 }
 

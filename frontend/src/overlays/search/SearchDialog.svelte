@@ -1,12 +1,20 @@
 <script lang="ts">
   import ComposerForm from '../../lib/components/composer/ComposerForm.svelte'
-  import ErrorAlert from '../../lib/components/ErrorAlert.svelte'
   import IconButton from '../../lib/components/IconButton.svelte'
   import ArrowLeft from './ArrowLeft.svelte'
   import Close from '../../lib/components/icons/Close.svelte'
   import SearchIcon from '../../lib/components/icons/Search.svelte'
   import Modal from '../../lib/components/Modal.svelte'
-  import { EDIT_TASK_TITLE } from '../../lib/messages'
+  import PanelHeader from '../../lib/components/PanelHeader.svelte'
+  import { MODAL_BODY_CLASS } from '../../lib/constants'
+  import {
+    BACK_TO_RESULTS,
+    CLOSE_SEARCH,
+    EDIT_TASK_TITLE,
+    SEARCH,
+    SEARCH_PLACEHOLDER,
+    SEARCH_TASKS,
+  } from '../../lib/messages'
   import { createSearch } from './search.svelte'
   import SearchResults from './SearchResults.svelte'
 
@@ -17,44 +25,40 @@
   const composer = search.composer
 </script>
 
-<Modal open {onClose} label="Search" size="xl">
+<Modal open {onClose} onEscape={composer.dismiss} label={SEARCH} size="xl" error={search.error}>
   {#snippet header()}
     {#if composer.open}
-      <div class="flex items-center gap-2 border-b border-lichen px-4 py-3">
-        <IconButton label="Back to results" onclick={composer.close} class="-ml-1 shrink-0">
-          <ArrowLeft />
-        </IconButton>
-        <h2
-          class="min-w-0 flex-1 truncate font-display text-base font-semibold tracking-tight text-pine-deep"
-        >
-          {EDIT_TASK_TITLE}
-        </h2>
-        <IconButton label="Close search" onclick={onClose} class="-mr-1 shrink-0">
-          <Close />
-        </IconButton>
-      </div>
+      <PanelHeader title={EDIT_TASK_TITLE} {onClose} closeLabel={CLOSE_SEARCH}>
+        {#snippet leading()}
+          <IconButton label={BACK_TO_RESULTS} onclick={composer.close} class="-ml-1 -mt-1 shrink-0">
+            <ArrowLeft />
+          </IconButton>
+        {/snippet}
+      </PanelHeader>
     {:else}
-      <div class="flex items-center gap-2 border-b border-lichen px-4">
+      <div
+        class="flex items-center gap-2 border-b border-lichen px-5 transition-colors has-[input:focus]:border-pine"
+      >
         <SearchIcon class="h-5 w-5 shrink-0 text-sage" />
+        <!-- Remounts when edit mode ends, which hands focus back to the field. -->
         <input
+          {@attach (input) => input.focus()}
           value={search.query}
           oninput={(e) => search.input(e.currentTarget.value)}
           type="search"
-          placeholder="Search tasks…"
+          placeholder={SEARCH_PLACEHOLDER}
           autocomplete="off"
-          aria-label="Search tasks"
-          class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage"
+          aria-label={SEARCH_TASKS}
+          class="min-w-0 flex-1 bg-transparent py-3.5 text-base text-ink outline-none placeholder:text-sage [&::-webkit-search-cancel-button]:appearance-none"
         />
-        <IconButton label="Close search" onclick={onClose} class="-mr-1 shrink-0">
+        <IconButton label={CLOSE_SEARCH} onclick={onClose} class="-mr-1 shrink-0">
           <Close />
         </IconButton>
       </div>
     {/if}
   {/snippet}
 
-  <ErrorAlert error={search.error} class="mx-4 mt-4" />
-
-  <div class="flex-1 overflow-y-auto px-4 py-4">
+  <div class="flex-1 overflow-y-auto {MODAL_BODY_CLASS}">
     {#if composer.open}
       <ComposerForm {composer} />
     {:else}

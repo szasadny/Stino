@@ -19,6 +19,7 @@ function sameOrder(labels: Label[], ids: number[]): boolean {
 export function createLabelStore() {
   const lock = createLock()
   let labels = $state<Label[]>([])
+  let loaded = false
   let loading = $state(true)
 
   return {
@@ -37,9 +38,10 @@ export function createLabelStore() {
     clearError: lock.clearError,
 
     async load(): Promise<void> {
-      loading = true
+      loading = !loaded
       await lock.run(async () => {
         labels = await api.labels.list()
+        loaded = true
       }, LOAD_LABELS_FAILED)
       loading = false
     },

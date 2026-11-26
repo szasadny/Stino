@@ -2,7 +2,7 @@
 name = "stino-backend"
 version = "0.1.0"
 edition = "2021"
-description = "Stinō — self-hosted TickTick replacement (backend)"
+description = "Stinō, a self-hosted TickTick replacement (backend)"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }

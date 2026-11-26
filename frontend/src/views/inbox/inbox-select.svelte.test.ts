@@ -2,6 +2,7 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { createTaskCore, type TaskCore } from '../../lib/controllers/task-core.svelte'
+import { ApiError } from '../../lib/errors'
 import { LOAD_FAILED, UPDATE_SELECTED_FAILED } from '../../lib/messages'
 import { MON, makeTask } from '../../lib/test/factories'
 import type { Task } from '../../lib/types'
@@ -90,7 +91,7 @@ describe('createInboxSelect', () => {
   })
 
   it('keeps the selection and shows the error when the batch fails', async () => {
-    vi.mocked(api.tasks.batch).mockRejectedValueOnce('down')
+    vi.mocked(api.tasks.batch).mockRejectedValueOnce(new ApiError('server'))
     select.toggle(1)
     await select.remove()
     expect(ids()).toEqual([1, 2, 3])

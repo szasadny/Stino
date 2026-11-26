@@ -1,5 +1,6 @@
 <script lang="ts">
   import { FIELD_LABEL_CLASS } from '../../constants'
+  import { LABEL, NO_LABEL } from '../../messages'
   import type { Label } from '../../types'
   import LabelMark from '../LabelMark.svelte'
   import ToggleChip from './ToggleChip.svelte'
@@ -13,14 +14,14 @@
 
 {#if labels.length > 0}
   <div class="space-y-1.5">
-    <span class={FIELD_LABEL_CLASS}>Label</span>
+    <span class={FIELD_LABEL_CLASS}>{LABEL}</span>
     <div class="flex flex-wrap gap-1.5">
       <ToggleChip
         pressed={labelId === null}
         onclick={() => pick(null)}
         class="rounded-full px-2.5 py-1"
       >
-        None
+        {NO_LABEL}
       </ToggleChip>
       {#each labels as label (label.id)}
         <ToggleChip

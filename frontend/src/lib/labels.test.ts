@@ -3,6 +3,7 @@ import {
   findLabelByName,
   labelColorVar,
   labelLookup,
+  labelTint,
   mergeLabelOrder,
   moveId,
   nextPaletteColor,
@@ -64,6 +65,18 @@ describe('labelColorVar', () => {
     expect(labelColorVar(LABEL_PALETTE[1].hex)).toBe(`--label:${LABEL_PALETTE[1].hex}`)
     expect(labelColorVar(null)).toBe('')
     expect(labelColorVar(undefined)).toBe('')
+  })
+})
+
+describe('labelTint', () => {
+  it('tints with the label colour when there is one', () => {
+    const hex = LABEL_PALETTE[2].hex
+    expect(labelTint(hex, 'bg-surface')).toEqual({ class: 'label-tint', style: `--label:${hex}` })
+  })
+
+  it('falls back to the given class without a colour', () => {
+    expect(labelTint(null, 'bg-surface')).toEqual({ class: 'bg-surface', style: '' })
+    expect(labelTint(undefined, 'bg-pine/10')).toEqual({ class: 'bg-pine/10', style: '' })
   })
 })
 

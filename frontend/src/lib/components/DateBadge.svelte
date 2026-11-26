@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Attachment } from 'svelte/attachments'
+
   let {
     date,
     isToday,
@@ -6,6 +8,7 @@
     size = 'md',
     label,
     onclick,
+    ...attachments
   }: {
     date: Date
     isToday: boolean
@@ -13,6 +16,7 @@
     size?: 'sm' | 'md'
     label?: string
     onclick?: () => void
+    [key: symbol]: Attachment<HTMLButtonElement> | false | null | undefined
   } = $props()
 
   const base = $derived(
@@ -27,6 +31,7 @@
     type="button"
     {onclick}
     aria-label={label}
+    {...attachments}
     class="{base} transition {isToday
       ? 'hover:bg-pine-deep'
       : 'hover:bg-pine/10 hover:text-pine-deep'}"

@@ -2,12 +2,14 @@
   import type { Attachment } from 'svelte/attachments'
   import { on } from 'svelte/events'
   import { dragHandleZone } from 'svelte-dnd-action'
-  import { DND_GRID_TOUCH_HOLD_MS } from '../constants'
+  import { DND_GRID_TOUCH_HOLD_MS, MUTED_CENTER_CLASS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate } from '../date'
+  import { returnFocusOnDestroy } from '../dnd/focus-return.action'
   import { panelPosition } from '../dnd/panel-pos'
   import { calendarZone } from '../dnd/zone-options'
   import { dayTaskCount } from '../format'
+  import { DROP_OR_ADD_HINT, tasksOnDayLabel } from '../messages'
   import AddTaskButton from './AddTaskButton.svelte'
   import PanelHeader from './PanelHeader.svelte'
   import TaskPill from './TaskPill.svelte'
@@ -39,6 +41,12 @@
     return () => observer.disconnect()
   }
 
+  // Runs once per open: switching days keeps the component, so focus stays where the user put it.
+  const takeFocus: Attachment<HTMLElement> = (panel) => {
+    panel.focus({ preventScroll: true })
+  }
+  const returnFocus = returnFocusOnDestroy(() => selection.dayButton)
+
   // Un-hiding after a drag would replay the entrance, so it runs once per open.
   let opening = $state(true)
   function settle(e: AnimationEvent) {
@@ -61,16 +69,19 @@
 
 <div
   {@attach measurePanel}
+  {@attach returnFocus}
+  {@attach takeFocus}
   onanimationend={settle}
   {@attach (panel) => on(panel, 'animationcancel', settle)}
-  class="fixed z-floating max-h-[75vh] w-[19rem] flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay
+  class="fixed z-floating max-h-[75dvh] w-[19rem] flex-col overflow-hidden rounded-2xl border border-lichen bg-surface shadow-overlay focus:outline-none
     {opening ? 'animate-rise-in' : ''}
     {board.dragging ? 'hidden' : 'flex'}
     {pos ? '' : 'pointer-events-none opacity-0'}"
   style:left="{pos?.left ?? 0}px"
   style:top="{pos?.top ?? 0}px"
   role="dialog"
-  aria-label="Tasks on {title}"
+  tabindex="-1"
+  aria-label={tasksOnDayLabel(title)}
 >
   <PanelHeader {title} {subtitle} onClose={selection.clear} size="sm" />
 
@@ -87,13 +98,13 @@
     >
       {#each items as item (item.id)}
         <li>
-          <TaskPill task={item.task} draggable />
+          <TaskPill task={item.task} draggable wrap />
         </li>
       {/each}
     </ul>
 
     {#if items.length === 0}
-      <p class="pt-2 text-center text-sm text-sage">Drag a task here or add one below.</p>
+      <p class="{MUTED_CENTER_CLASS} pt-2">{DROP_OR_ADD_HINT}</p>
     {/if}
   </div>
 

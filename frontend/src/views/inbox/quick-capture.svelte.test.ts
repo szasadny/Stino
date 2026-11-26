@@ -2,6 +2,7 @@ import { flushSync } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { createTaskCore, type TaskCore } from '../../lib/controllers/task-core.svelte'
+import { ApiError } from '../../lib/errors'
 import { LOAD_FAILED } from '../../lib/messages'
 import { makeLabel, makeTask } from '../../lib/test/factories'
 import type { TaskInput } from '../../lib/types'
@@ -22,6 +23,7 @@ const key = (k: string) => ({ key: k, preventDefault: vi.fn() })
 describe('createQuickCapture', () => {
   let core: TaskCore
   let capture: QuickCapture
+  let onScheduled: ReturnType<typeof vi.fn<(dueDate: string) => void>>
   let cleanup: () => void
 
   beforeEach(async () => {
@@ -31,10 +33,11 @@ describe('createQuickCapture', () => {
     vi.mocked(api.tasks.create).mockImplementation(async (input: TaskInput) =>
       makeTask({ id: 5, title: input.title, label_id: input.label_id, due_date: input.due_date }),
     )
+    onScheduled = vi.fn<(dueDate: string) => void>()
     cleanup = $effect.root(() => {
       core = createTaskCore()
       core.bindLoad(async () => [], LOAD_FAILED)
-      capture = createQuickCapture(core)
+      capture = createQuickCapture(core, { onScheduled })
     })
     flushSync()
     await settle()
@@ -60,7 +63,9 @@ describe('createQuickCapture', () => {
     expect(down.preventDefault).toHaveBeenCalled()
     expect(capture.highlight).toBe(1)
 
-    capture.keydown(key('Escape'))
+    const escape = key('Escape')
+    capture.keydown(escape)
+    expect(escape.preventDefault).toHaveBeenCalled()
     expect(capture.menuOpen).toBe(false)
     type('buy #hom')
     expect(capture.menuOpen).toBe(true)
@@ -69,9 +74,11 @@ describe('createQuickCapture', () => {
 
   it('leaves keys alone while the menu is closed', () => {
     type('buy milk')
-    const enter = key('Enter')
-    capture.keydown(enter)
-    expect(enter.preventDefault).not.toHaveBeenCalled()
+    for (const k of ['Enter', 'Escape']) {
+      const event = key(k)
+      capture.keydown(event)
+      expect(event.preventDefault).not.toHaveBeenCalled()
+    }
   })
 
   it('chooses a label with Enter, cutting the tag out of the text', async () => {
@@ -113,19 +120,23 @@ describe('createQuickCapture', () => {
     expect(core.tasks.map((t) => t.id)).toEqual([5])
     expect(capture.text).toBe('')
     expect(capture.label).toBeNull()
+    expect(onScheduled).not.toHaveBeenCalled()
   })
 
-  it('does not list a capture that got a date', async () => {
+  it('does not list a capture that got a date, but reports its date', async () => {
     type('call mum tomorrow')
     expect(capture.preview).not.toBeNull()
     await capture.submit()
     expect(api.tasks.create).toHaveBeenCalledOnce()
     expect(core.tasks).toEqual([])
     expect(capture.text).toBe('')
+    const dueDate = vi.mocked(api.tasks.create).mock.calls[0]?.[0].due_date
+    expect(dueDate).toEqual(expect.any(String))
+    expect(onScheduled).toHaveBeenCalledExactlyOnceWith(dueDate)
   })
 
   it('adds nothing when the pending label cannot be created', async () => {
-    vi.mocked(api.labels.create).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.labels.create).mockRejectedValueOnce(new ApiError('server'))
     type('lift #gym ')
     await capture.submit()
     expect(api.tasks.create).not.toHaveBeenCalled()
@@ -142,7 +153,7 @@ describe('createQuickCapture', () => {
       rule: null,
     })
 
-    vi.mocked(api.labels.create).mockRejectedValueOnce(new Error('down'))
+    vi.mocked(api.labels.create).mockRejectedValueOnce(new ApiError('server'))
     type('lift #run ')
     expect(await capture.details()).toBeNull()
   })

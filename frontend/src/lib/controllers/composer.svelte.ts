@@ -59,14 +59,24 @@ export function createComposer(
     if (await core.removeOccurrence(editing.task.id, occurrence)) close()
   }
 
+  function start(next: Editing) {
+    core.clearError()
+    editing = next
+  }
+
   return {
     create(initial: Partial<ComposerDraft> = {}) {
-      editing = { mode: 'create', initial }
+      start({ mode: 'create', initial })
     },
     edit(task: Task) {
-      editing = { mode: 'edit', task }
+      start({ mode: 'edit', task })
     },
     close,
+    dismiss(): boolean {
+      if (!editing) return false
+      close()
+      return true
+    },
     submit,
     get open() {
       return editing != null
@@ -76,6 +86,9 @@ export function createComposer(
     },
     get pending() {
       return core.pending
+    },
+    get error() {
+      return core.error
     },
     get title() {
       return editing?.mode === 'create' ? NEW_TASK_TITLE : EDIT_TASK_TITLE
@@ -97,6 +110,9 @@ export function createComposer(
     },
     get canDeleteOccurrence(): boolean {
       return editing?.mode !== 'edit' || canSkipOccurrence(editing.task)
+    },
+    get editingTitle(): string | undefined {
+      return editing?.mode === 'edit' ? editing.task.title : undefined
     },
     get editingSeries(): boolean {
       return editing?.mode === 'edit' && isRecurring(editing.task)

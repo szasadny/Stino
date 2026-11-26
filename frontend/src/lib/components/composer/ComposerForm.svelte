@@ -1,13 +1,19 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte'
-  import { draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
+  import { dateForRule, draftToInput, emptyDraft, type ComposerDraft } from '../../composer'
   import {
-    INPUT_CLASS,
+    BTN_SM_CLASS,
+    GHOST_BTN_CLASS,
+    MODAL_FILL_CLASS,
+    MODAL_FOOTER_CLASS,
     PRIMARY_BTN_CLASS,
+    TEXTAREA_CLASS,
     TITLE_INPUT_CLASS,
     TITLE_MAX_LENGTH,
   } from '../../constants'
   import type { Composer } from '../../controllers/composer.svelte'
+  import { CANCEL, DELETE_TASK_TITLE, NOTES, SERIES_EDIT_NOTE, TASK_NAME } from '../../messages'
+  import { todayKey } from '../../today.svelte'
   import { isCoarsePointer } from '../../viewport.svelte'
   import DeleteConfirm from '../DeleteConfirm.svelte'
   import LabelPicker from './LabelPicker.svelte'
@@ -27,30 +33,35 @@
     void tick().then(() => node.focus())
   }
 
+  function setRule(rule: string | null) {
+    draft.date = dateForRule(draft, rule, todayKey())
+    draft.rule = rule
+  }
+
   function submit(event: SubmitEvent) {
     event.preventDefault()
     if (canSubmit) void composer.submit(draftToInput(draft))
   }
 </script>
 
-<form onsubmit={submit} class="space-y-4">
+<form onsubmit={submit} class="gap-4 {MODAL_FILL_CLASS}">
   <div class="space-y-3">
     <input
       bind:value={draft.title}
       use:focus
       type="text"
-      placeholder="Task name"
+      placeholder={TASK_NAME}
       maxlength={TITLE_MAX_LENGTH}
       autocomplete="off"
-      aria-label="Task name"
+      aria-label={TASK_NAME}
       class="w-full {TITLE_INPUT_CLASS}"
     />
     <textarea
       bind:value={draft.notes}
       rows="2"
-      placeholder="Notes"
-      aria-label="Notes"
-      class="w-full resize-none {INPUT_CLASS}"
+      placeholder={NOTES}
+      aria-label={NOTES}
+      class="max-h-48 min-h-16 w-full resize-none [field-sizing:content] {TEXTAREA_CLASS}"
     ></textarea>
   </div>
 
@@ -58,21 +69,23 @@
 
   <SchedulePicker bind:date={draft.date} bind:time={draft.time} />
 
-  <RecurrencePicker
-    value={draft.rule}
-    startDate={draft.date || null}
-    onChange={(rule) => (draft.rule = rule)}
-  />
+  <RecurrencePicker value={draft.rule} startDate={draft.date || null} onChange={setRule} />
 
-  <div class="space-y-2 border-t border-lichen pt-3">
+  <!-- Pinned to the sheet's bottom on a phone, so Save stays reachable in a long form. -->
+  <div class="space-y-2 border-t border-lichen pt-3 {MODAL_FOOTER_CLASS}">
     {#if composer.editingSeries}
-      <p class="text-xs text-sage">Changes apply to the whole series.</p>
+      <p class="text-xs text-sage">{SERIES_EDIT_NOTE}</p>
     {/if}
     <div class="flex items-center justify-between gap-3">
       {#if composer.onDelete && composer.onDeleteOccurrence}
         <RecurringDeleteConfirm {composer} />
       {:else if composer.onDelete}
-        <DeleteConfirm onConfirm={composer.onDelete} busy={composer.pending} />
+        <DeleteConfirm
+          onConfirm={composer.onDelete}
+          title={DELETE_TASK_TITLE}
+          detail={composer.editingTitle}
+          busy={composer.pending}
+        />
       {:else}
         <span></span>
       {/if}
@@ -80,11 +93,15 @@
         <button
           type="button"
           onclick={composer.close}
-          class="rounded-lg px-3 py-1.5 text-sm font-medium text-sage transition hover:text-pine-deep"
+          class="hit-area {GHOST_BTN_CLASS} {BTN_SM_CLASS}"
         >
-          Cancel
+          {CANCEL}
         </button>
-        <button type="submit" disabled={!canSubmit} class="{PRIMARY_BTN_CLASS} px-4 py-1.5">
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          class="hit-area {PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
+        >
           {composer.submitLabel}
         </button>
       </div>

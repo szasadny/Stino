@@ -165,9 +165,11 @@ export function weekdayLong(d: Date): string {
   return WEEKDAY_NAMES[mondayIndex(d)]
 }
 
-export function formatShortDate(iso: string): string {
+// e.g. "Fri 26 June"; the year shows only when the date leaves `currentYear`.
+export function formatShortDate(iso: string, currentYear?: number): string {
   const d = fromISODate(iso)
-  return `${weekdayAbbrev(d)} ${d.getDate()} ${monthName(d.getMonth())}`
+  const year = currentYear != null && d.getFullYear() !== currentYear ? ` ${d.getFullYear()}` : ''
+  return `${weekdayAbbrev(d)} ${d.getDate()} ${monthName(d.getMonth())}${year}`
 }
 
 export function formatDayFull(d: Date): string {

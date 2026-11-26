@@ -1,4 +1,4 @@
-# Stinō — Architecture: Frontend
+# Stinō Architecture: Frontend
 
 For: what lives where in `frontend/src/` and what each part is for, without scanning the code.
 Not here: behaviour, history and how-it-works; those live in the code and its tests.
@@ -27,9 +27,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | Folder | Entry | Also holds |
 | --- | --- | --- |
-| `views/inbox/` | `InboxView` | Quick capture: `QuickCapture`, `CapturePreview`, `LabelListbox`, `quick-capture.svelte.ts`; Batch edit: `BulkBar`, `LabelSelect`, `SelectableTaskRow`, `inbox-select.svelte.ts`; complete with undo: `UndoToast`, `inbox-complete.svelte.ts`; the row outro `fold-away.ts` |
+| `views/inbox/` | `InboxView` | Quick capture: `QuickCapture`, `CapturePreview`, `LabelListbox` (its combobox popup), `quick-capture.svelte.ts`; Batch edit: `BulkBar` (native label select and date field, each with Apply), `SelectableTaskRow`, `inbox-select.svelte.ts`; one toast for an undo offer or a dated capture's notice: `UndoToast`, `inbox-complete.svelte.ts`; the row outro `fold-away.ts` |
 | `views/today/` | `TodayView` | Nothing else: today's `DayAgenda`, an Add task button and the composer |
-| `views/week/` | `WeekView` | `DaySheet`: the phone full-screen day zoom |
+| `views/week/` | `WeekView` | `DaySheet`: the phone full-screen day zoom; `scroll-to-day.action.ts`: scrolls the phone stack to today |
 | `views/month/` | `MonthView` | `MonthGridCompact`, `CalendarCellMobile`, `grid-expand.svelte.ts` (bottom dwell exposes the phone grid mid-drag), `month-period.ts` (period step and fetched range) |
 | `overlays/search/` | `SearchDialog` | `SearchResults`, `search.svelte.ts` (debounced query, inline editor), `ArrowLeft` |
 | `overlays/labels/` | `LabelManager` | `LabelRow`, `LabelForm`, `label-store.svelte.ts` |
@@ -46,19 +46,20 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Owns | Bound by |
 | --- | --- | --- |
-| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `ensureLabel` creates a label outside the lock; `persistToggle` | Every view; `search.svelte.ts` |
-| `lock.svelte.ts` | `createLock()`: one `pending` flag and `error`; `run`, `optimistic` (apply, persist, revert on failure), `save` (keeps the lock through the follow-up) | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
-| `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence | Every view, `DaySheet`, `search.svelte.ts` |
+| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
+| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
+| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` and `beginLoad` re-show outstanding ticks on rows that replace a list; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
+| `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
 | `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
-| `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday`; binds the core's load to the period's range | `MonthView`, `WeekView` |
+| `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday` (then `onToday` once it has slid in); binds the core's load to the period's range | `MonthView`, `WeekView` |
 | `calendar-board.svelte.ts` | `createCalendarBoard(core, keys, open)`: per-day drop lists, `consider` / `finalize`, the drop plan and tap-to-open | `MonthView`, `WeekView` |
-| `calendar-selection.svelte.ts` | `createCalendarSelection(core)`: the open day, its tasks, the anchor rect for `DayPanel` | `MonthView`, `WeekView` |
+| `calendar-selection.svelte.ts` | `createCalendarSelection(core)`: the open day, its tasks, the anchor rect for `DayPanel` and the date button it returns focus to | `MonthView`, `WeekView` |
 | `calendar-context.ts` | `setCalendarContext` / `getCalendarContext`: core, board, selection and composer for calendar components | Set by `MonthView` and `WeekView`; read by the day surfaces, `PeriodShell` and `DaySheet` |
 
 | Concern | Model |
 | --- | --- |
 | Server data | One `createTaskCore()` per view or overlay; components read it, never keep a copy (review) |
-| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
+| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
 | Add/edit | `createComposer`; `afterSave` defaults to the core's `reload`, Inbox passes its own to drop a task that gained a date |
 | Drag lists | `createDropList`, re-projected only while no gesture is live (§4.6) |
 | Period navigation | `createPeriodNav` → `core.loadThrough` fetches the target range first, then commits inside `navigateWithSlide` (`nav-transition.ts`), a View Transition that never mounts the outgoing grid twice |
@@ -73,23 +74,23 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- | --- |
 | Shells | `ListViewShell` | Today and Inbox frame: title, actions, error, loading and empty states, optional edge scroll |
 | | `PeriodShell` | Month and Week frame: title, previous / today / next, swipe, error |
-| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES` |
-| | `PanelHeader` | Title, subtitle and close button of `Modal` and `DayPanel` |
+| | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
+| | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
-| | `DayListSection` | A day heading over its task rows: the phone month agenda and the phone week stack |
-| | `DayPanel` | The desktop floating, non-modal day zoom beside its cell |
-| | `DayAgenda` | One day's list, flat or in label sections, with the order toggle: Today and `DaySheet` |
+| | `DayListSection` | A day heading (`headingLevel` from the host) over its task rows: the phone month agenda and the phone week stack |
+| | `DayPanel` | The desktop floating, non-modal day zoom beside its cell; takes focus on open, returns it to the day's date button |
+| | `DayAgenda` | One day's list, flat or in label sections headed at `headingLevel`, with the order toggle: Today and `DaySheet` |
 | | `DateBadge` | The day number, filled for today |
 | | `QuickAddButton`, `AddTaskButton` | Per-day "+" button; full-width "Add a task" button under a day list |
 | Tasks | `TaskRow` | List row: toggle, title, `TaskMeta`, label tint; `slim`, `holdToDrag`, `completing`, `leading` / `trailing` |
-| | `TaskPill` | Compact grid task with label tint and toggle |
+| | `TaskPill` | Compact grid task with label tint and toggle; `wrap` shows the full title (`DayPanel`) |
 | | `TaskMeta` | A row's meta line: date, time, repeat, label |
 | | `CheckToggle` | The completion checkbox, safe inside a drag item |
 | | `ReorderList` | A reorderable list: grip zone on wide, press-and-hold zone on phone |
-| Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji and name in a chip, option or toggle look |
-| Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button; generic segmented choice |
+| Labels | `LabelChip`, `LabelMark` | Label pill; its dot, emoji (`font-emoji` in a fixed box) and name in a chip, option or toggle look |
+| Controls | `IconButton`, `SegmentedControl` | Labelled icon-only button (`sm`/`md` size, label as tooltip); generic segmented choice |
 | | `GroupViewToggle` | The List / By label control for `group-view.svelte.ts` |
-| | `DeleteConfirm` | Two-step Delete, then Yes / No |
+| | `DeleteConfirm` | Delete button that opens a small confirmation (`title`, optional `detail`) with Cancel focused |
 | Feedback | `ErrorAlert`, `EmptyState` | Error banner; dashed empty message |
 | Brand | `Cairn` | The logo mark, filled from theme tokens |
 | `lib/components/composer/` | `ComposerDialog`, `ComposerForm` | The add/edit dialog and its form, embedded inline by `DaySheet` and Search; the other files are internal parts (schedule, label, recurrence pickers, recurring-delete confirm) |
@@ -97,36 +98,40 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 ### 4.5 Helper map
 
-`lib/tasks/` — pure task logic:
+`lib/tasks/` holds pure task logic:
 
 | File | Exports |
 | --- | --- |
 | `predicates.ts` | `isUntimed`, `isRecurring`, `sameOccurrence`, `occurrenceKey` (the per-row key), `skippableOccurrence`, `canSkipOccurrence` |
-| `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only) |
+| `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only), `sortForSearch` (upcoming first, an ended series among the past) |
 | `projection.ts` | `buildBoard` (per-day cell items, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
 | `day-order.ts` | `untimedReadingOrder`, `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
 | `drop.ts` | `dropKind`: none, reorder, move, or move one occurrence |
 | `optimistic.ts` | Optimistic mirrors of server writes: `applyUntimedOrder`, `applyMove`, `applyLabelOrder`, `replaceOccurrence`, `withoutTasks`, `withoutOccurrence`, `restoreOccurrence` |
 
-`lib/recurrence/` — picker options ⇄ RRULE and typed phrases; the backend validates and expands:
+`lib/recurrence/` maps picker options ⇄ RRULE and typed phrases; the backend validates and expands:
 
 | File | Exports |
 | --- | --- |
-| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`) |
-| `options.ts` | Option lists and labels for the picker controls |
+| `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a monthly rule follows a changed start date) |
+| `options.ts` | Option lists for the picker controls, labelled from `messages.ts` |
 | `rrule-build.ts` | `buildRRule` |
-| `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only) |
+| `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only), `seriesUntil` (any rule's end date) |
 | `describe.ts` | `summarize`, `summarizeRule`, `monthlySkipNote` |
 | `phrase-grammar.ts` | The typed-phrase vocabulary and `PHRASE_RULES` |
 | `phrase-parse.ts` | `parseRecurrencePhrase(text, start)`: the RRULE and the text to strip |
 | `first-occurrence.ts` | `firstOccurrenceOnOrAfter(rule, start)`: snaps a quick-add start to the rule's first date |
 
-`lib/dnd/` — gesture and drag helpers; `*.action.ts` files touch the DOM and have no unit test:
+`lib/dnd/` holds gesture and drag helpers; `*.action.ts` files touch the DOM and have no unit test:
 
 | File | Exports |
 | --- | --- |
 | `zone-options.ts` | `calendarZone` (options of every calendar zone), `isShadowItem` |
-| `tap.ts` | `trustedClick`, `activateOnKey`, `createPressTracker`, `tappedItem` |
+| `tap.ts` | `trustedClick`, `activateOnKey`, `createPressTracker`, `tappedItem`, `opensFromEmptySpace` |
+| `dismiss.ts` | `interceptsEscape`, `isOutsidePress`, `dismissesOnRelease`: the `Modal` Escape and light-dismiss decisions |
+| `cell-click.action.ts` | `clickOnEmptySpace`: a click on a `DayCell`'s empty space opens the day |
+| `autofocus.action.ts` | `autofocus`: the control `showModal()` focuses first |
+| `focus-return.action.ts` | `returnFocusOnDestroy`: after an overlay left the DOM with focus inside, focus its opener (`Modal`, `DayPanel`) |
 | `presses.action.ts` | `presses` (the app-wide press tracker), `trackPresses` (started in `main.ts`) |
 | `drag-scroll.ts` | `edgeScrollStep`, `pointFrom`, `createBottomDwell` |
 | `drag-scroll.action.ts` | `dragEdgeScroll`, `dragIsLive`, `trackPointer` |
@@ -139,17 +144,17 @@ Single files in `lib/`:
 
 | File | Exports |
 | --- | --- |
-| `api.ts` | `api`: one typed function per endpoint, the only `fetch` |
+| `api.ts` | `api`: one typed function per endpoint, the only `fetch`; every failure throws an `ApiError` |
 | `types.ts` | API shapes (`Task`, `Label`, `TaskInput`, `LabelInput`, `BatchOp`, `ImportSummary`, `RolloverSummary`), `ViewId`, `ThemePref` |
-| `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`), look-token classes (§4.7) |
-| `messages.ts` | User-facing copy: load and save failures, network and refresh messages, titles, button text, aria-label builders |
-| `format.ts` | `pluralize`, `dayTaskCount` |
+| `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`, labelled from `messages.ts`), look-token classes (§4.7) |
+| `messages.ts` | User-facing copy: load and save failures and `failureWithReason`, network and refresh messages, titles, button text, option and tab labels, aria-label builders |
+| `format.ts` | Copy that needs a count or a date (`pluralize`, `dayTaskCount`, `dayCellLabel`, `taskDateLabel`, `scheduledNotice`); imports `messages.ts`, never the reverse |
 | `storage.ts` | `readStored`, `writeStored`: `localStorage` that never throws |
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |
 | `quickadd.ts` | `parseQuickAdd(input, ref)`, `quickAddInput`, `describeDraft`; `#tag` menu helpers (`activeLabelToken`, `removeActiveToken`, `labelSuggestions`, `listboxStep`) |
-| `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
-| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput` |
-| `errors.ts` | `errorMessage` (thrown value → UI string), `apiErrorMessage` (the API's `{"error"}` text) |
+| `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
+| `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today) |
+| `errors.ts` | `ApiError` (`kind` network, server or rejected; a 4xx carries the API's `{"error"}` text as `reason`), `rejectionReason`; `errorMessage`: network → `NETWORK_ERROR_MESSAGE`, rejected with a reason → action message plus reason (`failureWithReason`), else the action message |
 | `theme.ts` | `getThemePref`, `setThemePref` |
 | `nav-transition.ts` | `navigateWithSlide(dir, apply)` |
 | `palette.ts` | `LABEL_PALETTE`, `PaletteHex` |
@@ -194,7 +199,8 @@ Single files in `lib/`:
 | Shadows | `shadow-soft`, `shadow-lift`, `shadow-overlay` in `frontend/tailwind.config.js`, on `--shadow` / `--shadow-deep` with dark values in `app.css`; no other shadow class |
 | Font sizes and fonts | Tailwind's scale plus `text-wordmark`, `text-2xs`, `text-3xs`; `font-sans` (Inter), `font-display` (Hanken Grotesk), loaded in `main.ts` |
 | z-index | `z-sticky`, `z-chrome`, `z-popover`, `z-floating` |
+| Touch and focus | `.hit-area` / `.hit-area-y` in `app.css`: an invisible 44px tap area (both axes / height only) under `pointer: coarse`, the visible box unchanged; one `pine` `:focus-visible` outline for non-field controls in `@layer base`; fields keep `INPUT_LOOK`'s ring and are `text-base` below `sm` (iOS zoom) |
 | Motion | Keyframes, `--duration-*` and `--ease-soft` in `app.css`, with a `prefers-reduced-motion` block; the period slide on `vt-calendar` |
-| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar`; `.label-tint` (rows, pills) and `.label-dot` (chips) in `app.css` |
-| Look-token class strings | `constants.ts`: `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES` |
+| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar` (or `labelTint` for a tinted surface); `.label-tint` (rows, pills), `.label-dot` (chips) and `.label-picker` (a native select's dotted options where `appearance: base-select` works) in `app.css` |
+| Look-token class strings | `constants.ts`: `BTN_SM_CLASS` / `BTN_MD_CLASS` (one control height, shared by fields), `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TEXTAREA_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `SECONDARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `ICON_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `DISPLAY_TITLE_CLASS`, `EYEBROW_CLASS`, `TASK_CARD_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES`, `MODAL_BODY_CLASS` (every dialog body's padding), `MODAL_FILL_CLASS` / `MODAL_FOOTER_CLASS` (a phone form fills the sheet with its footer pinned), `DRAG_HANDLE_SIZE_CLASS` (the grip's box and the space a grip-less row reserves) |
 | Browser chrome colour | The `theme-color` metas in `frontend/index.html`, equal to `--fog` per theme |

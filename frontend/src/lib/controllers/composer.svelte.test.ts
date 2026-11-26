@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
-import { EDIT_TASK_TITLE, NEW_TASK_TITLE, SUBMIT_ADD, SUBMIT_SAVE } from '../messages'
+import { ApiError } from '../errors'
+import {
+  EDIT_TASK_TITLE,
+  NEW_TASK_TITLE,
+  SAVE_TASK_FAILED,
+  SUBMIT_ADD,
+  SUBMIT_SAVE,
+} from '../messages'
 import { MON, TUE, makeTask, on, recurring } from '../test/factories'
 import { createComposer, type ComposerChange } from './composer.svelte'
 import { createTaskCore } from './task-core.svelte'
@@ -20,11 +27,13 @@ describe('createComposer', () => {
     expect([composer.title, composer.submitLabel]).toEqual([NEW_TASK_TITLE, SUBMIT_ADD])
     expect(composer.initial).toEqual({ date: MON, title: 'gym' })
     expect(composer.onDelete).toBeUndefined()
+    expect(composer.editingTitle).toBeUndefined()
 
     composer.edit(on(MON, { id: 3, title: 'Read' }))
     expect([composer.title, composer.submitLabel]).toEqual([EDIT_TASK_TITLE, SUBMIT_SAVE])
     expect(composer.initial.title).toBe('Read')
     expect(composer.onDelete).toBeDefined()
+    expect(composer.editingTitle).toBe('Read')
   })
 
   it('hands each landed write to `afterSave` and closes', async () => {
@@ -49,12 +58,35 @@ describe('createComposer', () => {
     const afterSave = vi.fn()
     const core = createTaskCore()
     const composer = createComposer(core, { afterSave })
-    vi.mocked(api.tasks.create).mockRejectedValue(new Error('down'))
+    vi.mocked(api.tasks.create).mockRejectedValue(new ApiError('server'))
     composer.create()
     await composer.submit({ title: 'A' })
     expect(composer.open).toBe(true)
-    expect(core.error).toBe('down')
+    expect([core.error, composer.error]).toEqual([SAVE_TASK_FAILED, SAVE_TASK_FAILED])
     expect(afterSave).not.toHaveBeenCalled()
+  })
+
+  it('clears a stale error when a create or an edit opens', async () => {
+    const core = createTaskCore()
+    const composer = createComposer(core)
+    vi.mocked(api.tasks.create).mockRejectedValue(new ApiError('server'))
+    composer.create()
+    await composer.submit({ title: 'A' })
+    composer.close()
+    composer.create()
+    expect(core.error).toBeNull()
+
+    await composer.submit({ title: 'A' })
+    composer.edit(on(MON, { id: 3 }))
+    expect(core.error).toBeNull()
+  })
+
+  it('dismisses only an open form', () => {
+    const composer = createComposer(createTaskCore())
+    expect(composer.dismiss()).toBe(false)
+    composer.create()
+    expect(composer.dismiss()).toBe(true)
+    expect(composer.open).toBe(false)
   })
 
   it('offers "this occurrence" only for an unfinished recurring occurrence', () => {

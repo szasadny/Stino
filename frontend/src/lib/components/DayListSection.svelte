@@ -4,7 +4,7 @@
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate, weekdayLong } from '../date'
   import { calendarZone } from '../dnd/zone-options'
-  import { addTaskOnLabel, NOTHING_SCHEDULED } from '../messages'
+  import { addTaskOnLabel, hideDayLabel, NOTHING_SCHEDULED, openDayLabel } from '../messages'
   import { todayKey } from '../today.svelte'
   import DateBadge from './DateBadge.svelte'
   import IconButton from './IconButton.svelte'
@@ -13,7 +13,11 @@
   import Chevron from './icons/Chevron.svelte'
   import Close from './icons/Close.svelte'
 
-  let { date, variant }: { date: Date; variant: 'month' | 'week' } = $props()
+  let {
+    date,
+    variant,
+    headingLevel,
+  }: { date: Date; variant: 'month' | 'week'; headingLevel: 2 | 3 } = $props()
 
   const { core, board, selection, composer } = getCalendarContext()
   const dateKey = $derived(toISODate(date))
@@ -29,32 +33,34 @@
   <DateBadge {date} {isToday} />
 {/snippet}
 
-<section class="group">
+<!-- Clip x: the edge buttons' tap areas would otherwise scroll the day list sideways. -->
+<section class="group overflow-x-clip">
   <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
-    {#if variant === 'week'}
-      <button
-        type="button"
-        onclick={() => selection.select(date)}
-        aria-label="Open {dayLabel}"
-        class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-pine/5 active:bg-pine/10"
-      >
+    <svelte:element this={`h${headingLevel}`} class="flex items-center gap-2">
+      {#if variant === 'week'}
+        <button
+          type="button"
+          onclick={() => selection.select(date)}
+          aria-label={openDayLabel(dayLabel)}
+          class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-pine/5 active:bg-pine/10"
+        >
+          {@render heading()}
+          <Chevron dir="right" class="h-3.5 w-3.5 text-sage/70" />
+        </button>
+      {:else}
         {@render heading()}
-        <Chevron dir="right" class="h-3.5 w-3.5 text-sage/70" />
-      </button>
-    {:else}
-      <div class="flex items-center gap-2">
-        {@render heading()}
-      </div>
-    {/if}
+      {/if}
+    </svelte:element>
 
     <div class="flex shrink-0 items-center gap-1">
       <QuickAddButton
         onAdd={() => composer.create({ date: dateKey })}
         label={addTaskOnLabel(dayLabel)}
         alwaysOnMobile
+        class="hit-area"
       />
       {#if variant === 'month'}
-        <IconButton label="Hide {dayLabel}" onclick={selection.clear}>
+        <IconButton label={hideDayLabel(dayLabel)} onclick={selection.clear}>
           <Close />
         </IconButton>
       {/if}
@@ -88,7 +94,7 @@
       {/each}
     </ul>
     {#if items.length === 0}
-      <p class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage/70">
+      <p class="pointer-events-none absolute inset-0 flex items-center px-0.5 text-sm text-sage">
         {NOTHING_SCHEDULED}
       </p>
     {/if}

@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { DISPLAY_TITLE_CLASS, GHOST_BTN_CLASS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import type { PeriodNav } from '../controllers/period-nav.svelte'
   import { swipe } from '../dnd/swipe.action'
-  import { LOADING } from '../messages'
+  import { LOADING, periodStepLabel, TODAY } from '../messages'
   import ErrorAlert from './ErrorAlert.svelte'
   import IconButton from './IconButton.svelte'
   import Chevron from './icons/Chevron.svelte'
@@ -12,14 +13,12 @@
     nav,
     title,
     unit,
-    todayLabel,
     nowrap = false,
     children,
   }: {
     nav: PeriodNav
     title: string
     unit: 'month' | 'week'
-    todayLabel: string
     nowrap?: boolean
     children: Snippet
   } = $props()
@@ -35,9 +34,7 @@
 >
   <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
     <div class="flex items-baseline gap-2">
-      <h1
-        class="font-display text-xl font-semibold tracking-tight {noWrap} text-pine-deep sm:text-2xl"
-      >
+      <h1 class="{DISPLAY_TITLE_CLASS} text-xl {noWrap} sm:text-2xl">
         {title}
       </h1>
       {#if core.loading}
@@ -45,17 +42,17 @@
       {/if}
     </div>
     <div class="flex items-center gap-1 {nowrap ? 'shrink-0' : ''}">
-      <IconButton label="Previous {unit}" onclick={() => nav.go(-1)}>
+      <IconButton label={periodStepLabel(unit, -1)} onclick={() => nav.go(-1)}>
         <Chevron dir="left" />
       </IconButton>
       <button
         type="button"
         onclick={nav.goToday}
-        class="rounded-lg px-3 py-1.5 {noWrap} text-sm font-medium text-sage transition hover:bg-pine/5 hover:text-pine-deep"
+        class="{GHOST_BTN_CLASS} px-3 py-1.5 {noWrap} text-sm"
       >
-        {todayLabel}
+        {TODAY}
       </button>
-      <IconButton label="Next {unit}" onclick={() => nav.go(1)}>
+      <IconButton label={periodStepLabel(unit, 1)} onclick={() => nav.go(1)}>
         <Chevron dir="right" />
       </IconButton>
     </div>

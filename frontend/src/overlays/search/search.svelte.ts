@@ -1,11 +1,13 @@
 import { api } from '../../lib/api'
 import { SEARCH_DEBOUNCE_MS } from '../../lib/constants'
 import { createComposer } from '../../lib/controllers/composer.svelte'
-import { createTaskCore, persistToggle } from '../../lib/controllers/task-core.svelte'
+import { createTaskCore } from '../../lib/controllers/task-core.svelte'
+import type { TaskList } from '../../lib/controllers/toggles'
 import { errorMessage } from '../../lib/errors'
-import { LOAD_LABELS_FAILED, SEARCH_FAILED, UPDATE_TASK_FAILED } from '../../lib/messages'
-import { replaceOccurrence } from '../../lib/tasks/optimistic'
+import { LOAD_LABELS_FAILED, SEARCH_FAILED } from '../../lib/messages'
 import { isRecurring } from '../../lib/tasks/predicates'
+import { sortForSearch } from '../../lib/tasks/sort'
+import { todayKey } from '../../lib/today.svelte'
 import type { Task } from '../../lib/types'
 
 export type Search = ReturnType<typeof createSearch>
@@ -25,6 +27,10 @@ export function createSearch() {
   let timer: ReturnType<typeof setTimeout> | undefined
   // Only the newest query may land, so a slow response can't overwrite a newer one.
   let token = 0
+  const list: TaskList = {
+    read: () => results,
+    write: (tasks) => (results = tasks),
+  }
 
   $effect(() => () => {
     clearTimeout(timer)
@@ -38,10 +44,12 @@ export function createSearch() {
 
   async function run(term: string, mine: number): Promise<void> {
     clearErrors()
+    const withTicks = core.toggles.beginLoad()
     try {
       const found = await api.search(term)
       if (mine !== token) return
-      results = found
+      // Sorted on arrival only, so a ticked row stays under the pointer.
+      results = sortForSearch(withTicks(found), todayKey())
       searched = true
     } catch (err) {
       if (mine === token) searchError = errorMessage(err, SEARCH_FAILED)
@@ -69,6 +77,9 @@ export function createSearch() {
     get loading() {
       return loading
     },
+    get stale() {
+      return loading && results.length > 0
+    },
     get searched() {
       return searched
     },
@@ -93,9 +104,7 @@ export function createSearch() {
     },
 
     toggle(task: Task): Promise<boolean> {
-      return core.run(async () => {
-        results = replaceOccurrence(results, await persistToggle(task))
-      }, UPDATE_TASK_FAILED)
+      return core.toggles.toggleIn(list, task)
     },
 
     // A recurring row stands for its whole series, so there's no single occurrence to delete.

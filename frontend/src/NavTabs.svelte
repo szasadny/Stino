@@ -16,8 +16,9 @@
       <button
         type="button"
         onclick={() => onSelect(view.id)}
+        aria-current={current === view.id ? 'page' : undefined}
         class="rounded-full px-3.5 py-1.5 text-sm font-medium transition {current === view.id
-          ? 'bg-pine/12 text-pine-deep ring-1 ring-pine/15'
+          ? 'bg-pine/10 text-pine-deep ring-1 ring-pine/15'
           : 'text-sage hover:bg-pine/5 hover:text-pine-deep'}"
       >
         {view.label}
@@ -32,7 +33,8 @@
       <button
         type="button"
         onclick={() => onSelect(view.id)}
-        class="relative flex-1 py-2.5 text-center text-xs font-medium transition {current ===
+        aria-current={current === view.id ? 'page' : undefined}
+        class="relative min-h-11 flex-1 py-2.5 text-center text-xs font-medium transition {current ===
         view.id
           ? 'text-pine-deep'
           : 'text-sage'}"

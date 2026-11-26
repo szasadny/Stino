@@ -88,7 +88,7 @@ async fn moving_an_occurrence_to_its_own_day_changes_nothing() {
     );
     assert!(
         days.iter().all(|d| d["id"] == id),
-        "every row is still the series — no one-off copy was created"
+        "every row is still the series and no one-off copy was created"
     );
 }
 

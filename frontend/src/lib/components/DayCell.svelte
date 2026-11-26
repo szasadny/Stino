@@ -3,11 +3,12 @@
   import { DND_GRID_TOUCH_HOLD_MS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate, weekdayAbbrev } from '../date'
+  import { clickOnEmptySpace } from '../dnd/cell-click.action'
   import { dayCellToneClass } from '../dnd/cell-tone'
   import { createLineFit } from '../dnd/line-fit.action.svelte'
   import { calendarZone } from '../dnd/zone-options'
-  import { pluralize } from '../format'
-  import { addTaskOnLabel } from '../messages'
+  import { dayCellLabel } from '../format'
+  import { addTaskOnLabel, moreTasks } from '../messages'
   import { todayKey } from '../today.svelte'
   import DateBadge from './DateBadge.svelte'
   import QuickAddButton from './QuickAddButton.svelte'
@@ -25,7 +26,7 @@
   const isToday = $derived(dateKey === todayKey())
   const open = $derived(selection.selectedKey === dateKey)
   const dayLabel = $derived(formatDayFull(date))
-  const ariaLabel = $derived(`${dayLabel}, ${pluralize(items.length, 'task')}`)
+  const ariaLabel = $derived(dayCellLabel(dayLabel, items.length))
   const fit = createLineFit(() => items.length)
   const select = () => selection.select(date)
 </script>
@@ -40,19 +41,28 @@
 
 <div
   {@attach open && selection.anchorTo}
+  {@attach clickOnEmptySpace(select, () => board.dragging)}
   class="group flex h-full w-full flex-col overflow-hidden rounded-lg border transition
     {variant === 'month' ? 'min-h-0 gap-1 p-1 sm:p-1.5' : 'min-h-[4rem] gap-1.5 p-2'}
     {dayCellToneClass(isToday, inCurrentMonth, open)}"
 >
   <div class="flex shrink-0 items-center justify-between {variant === 'week' ? 'gap-1' : ''}">
     {#if variant === 'month'}
-      <DateBadge {date} {isToday} muted={!inCurrentMonth} label={ariaLabel} onclick={select} />
+      <DateBadge
+        {date}
+        {isToday}
+        muted={!inCurrentMonth}
+        label={ariaLabel}
+        onclick={select}
+        {@attach open && selection.markDayButton}
+      />
     {:else}
       <button
+        {@attach open && selection.markDayButton}
         type="button"
         onclick={select}
         aria-label={ariaLabel}
-        class="-mx-1 flex shrink-0 items-baseline gap-1.5 rounded-md px-1 text-left transition hover:bg-pine/10"
+        class="-mx-1 flex shrink-0 items-baseline gap-1.5 rounded-md px-1 text-left transition hover:bg-pine/5 active:bg-pine/10"
       >
         <span
           class="text-2xs font-medium uppercase tracking-wide {isToday ? 'text-pine' : 'text-sage'}"
@@ -91,15 +101,13 @@
     </ul>
   {/if}
 
-  {#if variant === 'week' && items.length === 0}
-    <span class="shrink-0 text-2xs leading-tight text-sage/60">—</span>
-  {:else if fit.overflow > 0}
+  {#if fit.overflow > 0}
     <button
       type="button"
       onclick={select}
       class="shrink-0 pl-0.5 text-left text-2xs leading-tight text-sage transition hover:text-pine-deep"
     >
-      +{fit.overflow} more
+      +{moreTasks(fit.overflow)}
     </button>
   {/if}
 </div>

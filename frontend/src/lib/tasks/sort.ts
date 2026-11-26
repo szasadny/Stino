@@ -1,5 +1,6 @@
+import { seriesUntil } from '../recurrence/rrule-parse'
 import type { Task } from '../types'
-import { isUntimed } from './predicates'
+import { isRecurring, isUntimed } from './predicates'
 
 type Ordered = { id: number; sort_order: number }
 
@@ -23,4 +24,47 @@ export function sortForView(tasks: Task[]): Task[] {
 // Display-only; never persisted.
 export function completedLast<T extends { completed: boolean }>(items: T[]): T[] {
   return [...items.filter((t) => !t.completed), ...items.filter((t) => t.completed)]
+}
+
+const UPCOMING = 0
+const UNDATED = 1
+const PAST = 2
+const DONE = 3
+
+type Ranked = { task: Task; group: number; date: string }
+
+const titleOrder = new Intl.Collator(undefined, { sensitivity: 'accent' })
+
+// A search row stands for a whole series dated by its start, so a running series counts as today.
+function rankForSearch(task: Task, today: string): Ranked {
+  const date = task.due_date
+  const series = isRecurring(task)
+  if (task.completed && !series) return { task, group: DONE, date: date ?? '' }
+  if (!date) return { task, group: UNDATED, date: '' }
+  const until = task.recurrence_rule ? seriesUntil(task.recurrence_rule) : null
+  if (until && until < today) return { task, group: PAST, date: until }
+  if (series || date >= today) {
+    return { task, group: UPCOMING, date: date < today ? today : date }
+  }
+  return { task, group: PAST, date }
+}
+
+function compareInGroup(a: Ranked, b: Ranked): number {
+  if (a.group !== UPCOMING) return compareText(b.date, a.date)
+  return (
+    compareText(a.date, b.date) ||
+    Number(isUntimed(a.task)) - Number(isUntimed(b.task)) ||
+    compareText(a.task.due_time ?? '', b.task.due_time ?? '')
+  )
+}
+
+// Upcoming (nearest first), undated, past (latest first), then completed (latest first).
+export function sortForSearch(tasks: Task[], today: string): Task[] {
+  return tasks
+    .map((task) => rankForSearch(task, today))
+    .sort(
+      (a, b) =>
+        a.group - b.group || compareInGroup(a, b) || titleOrder.compare(a.task.title, b.task.title),
+    )
+    .map((ranked) => ranked.task)
 }

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
-import {
-  CREATE_LABEL_FAILED,
-  LOAD_LABELS_FAILED,
-  SAVE_LABEL_ORDER_FAILED,
-} from '../../lib/messages'
+import { ApiError } from '../../lib/errors'
+import { NETWORK_ERROR_MESSAGE, SAVE_LABEL_ORDER_FAILED } from '../../lib/messages'
 import { makeLabel } from '../../lib/test/factories'
 import { createLabelStore } from './label-store.svelte'
 
@@ -33,10 +30,36 @@ describe('createLabelStore', () => {
     const store = await loaded()
     expect([store.loading, ids(store)]).toEqual([false, [1, 2]])
 
-    vi.mocked(api.labels.list).mockRejectedValueOnce('down')
+    vi.mocked(api.labels.list).mockRejectedValueOnce(new ApiError('network'))
     await store.load()
-    expect(store.error).toBe(LOAD_LABELS_FAILED)
+    expect(store.error).toBe(NETWORK_ERROR_MESSAGE)
     expect(store.loading).toBe(false)
+  })
+
+  it('shows the loading state only until the labels first arrive', async () => {
+    let land: (labels: (typeof HOME)[]) => void = () => {}
+    vi.mocked(api.labels.list).mockReturnValue(new Promise((resolve) => (land = resolve)))
+    const store = createLabelStore()
+    const first = store.load()
+    expect(store.loading).toBe(true)
+    land([HOME])
+    await first
+
+    vi.mocked(api.labels.list).mockReturnValue(new Promise((resolve) => (land = resolve)))
+    const reload = store.load()
+    expect([store.loading, ids(store)]).toEqual([false, [1]])
+    land([HOME, WORK])
+    await reload
+    expect(ids(store)).toEqual([1, 2])
+  })
+
+  it('keeps the loading state for a retry after a failed first load', async () => {
+    vi.mocked(api.labels.list).mockRejectedValueOnce(new ApiError('server'))
+    const store = createLabelStore()
+    await store.load()
+    vi.mocked(api.labels.list).mockReturnValue(new Promise(() => {}))
+    void store.load()
+    expect(store.loading).toBe(true)
   })
 
   it('creates, updates and removes through the lock', async () => {
@@ -65,9 +88,14 @@ describe('createLabelStore', () => {
 
   it('keeps the list and reports a failed create', async () => {
     const store = await loaded()
-    vi.mocked(api.labels.create).mockRejectedValue('down')
-    expect(await store.create({ name: 'Gym', color: HOME.color, emoji: null })).toBe(false)
-    expect([ids(store), store.error]).toEqual([[1, 2], CREATE_LABEL_FAILED])
+    vi.mocked(api.labels.create).mockRejectedValue(
+      new ApiError('rejected', 'a label with that name already exists'),
+    )
+    expect(await store.create({ name: 'Home', color: HOME.color, emoji: null })).toBe(false)
+    expect([ids(store), store.error]).toEqual([
+      [1, 2],
+      'Couldn’t create the label: a label with that name already exists.',
+    ])
   })
 
   it('reorders optimistically and skips an unchanged order', async () => {
@@ -86,7 +114,7 @@ describe('createLabelStore', () => {
 
   it('reverts to the pre-drag order when saving the order fails', async () => {
     const store = await loaded()
-    vi.mocked(api.labels.reorder).mockRejectedValue('down')
+    vi.mocked(api.labels.reorder).mockRejectedValue(new ApiError('server'))
     expect(await store.reorder([2, 1])).toBe(false)
     expect([ids(store), store.error]).toEqual([[1, 2], SAVE_LABEL_ORDER_FAILED])
   })

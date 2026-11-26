@@ -22,9 +22,13 @@ const ORDINAL_DAY = new RegExp(`^(?<position>[+-]?\\d+)?(?<code>${WEEKDAY_CODES.
 export function parseRRule(rule: string | null): RecurrenceValue {
   const base = parseBase(rule)
   if (base.freq === 'none' || !rule) return base
-  const rawUntil = parseParts(rule).get('UNTIL')
-  const until = rawUntil ? fromRRuleDate(rawUntil) : null
+  const until = seriesUntil(rule)
   return until ? { ...base, until } : base
+}
+
+export function seriesUntil(rule: string): string | null {
+  const raw = parseParts(rule).get('UNTIL')
+  return raw ? fromRRuleDate(raw) : null
 }
 
 export function isUnmodeledRule(rule: string | null): rule is string {

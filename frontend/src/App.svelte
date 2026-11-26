@@ -8,6 +8,7 @@
   import { watchDayChange } from './lib/day-change.svelte'
   import { bumpRefresh } from './lib/refresh.svelte'
   import type { ViewId } from './lib/types'
+  import { LABELS, SEARCH, SETTINGS } from './lib/messages'
   import { isCompact } from './lib/viewport.svelte'
   import NavTabs from './NavTabs.svelte'
   import ImportDialog from './overlays/import/ImportDialog.svelte'
@@ -42,7 +43,7 @@
 
 <div class="flex h-dvh flex-col overflow-hidden">
   <header
-    class="z-chrome flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 px-4 shadow-soft backdrop-blur-md"
+    class="z-chrome flex h-14 shrink-0 items-center gap-4 border-b border-lichen/80 bg-surface/75 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] shadow-soft backdrop-blur-md"
   >
     <div class="flex items-center gap-2">
       <Cairn class="h-7 w-7" />
@@ -57,13 +58,13 @@
     {/if}
 
     <div class="ml-auto flex items-center gap-1">
-      <IconButton label="Search" onclick={() => (searchOpen = true)} aria-haspopup="dialog">
+      <IconButton label={SEARCH} onclick={() => (searchOpen = true)} aria-haspopup="dialog">
         <Search strokeWidth={1.8} />
       </IconButton>
-      <IconButton label="Labels" onclick={() => (labelsOpen = true)} aria-haspopup="dialog">
+      <IconButton label={LABELS} onclick={() => (labelsOpen = true)} aria-haspopup="dialog">
         <Tag />
       </IconButton>
-      <IconButton label="Settings" onclick={() => (settingsOpen = true)} aria-haspopup="dialog">
+      <IconButton label={SETTINGS} onclick={() => (settingsOpen = true)} aria-haspopup="dialog">
         <Gear />
       </IconButton>
     </div>

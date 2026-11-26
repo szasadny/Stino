@@ -20,7 +20,10 @@ export type QuickCapture = ReturnType<typeof createQuickCapture>
 
 export type CaptureLabel = { label: Label; chosen: boolean } | { pending: string }
 
-export function createQuickCapture(core: TaskCore) {
+export function createQuickCapture(
+  core: TaskCore,
+  options: { onScheduled?: (dueDate: string) => void } = {},
+) {
   let text = $state('')
   let caret = $state(0)
   let chosenId = $state<number | null>(null)
@@ -72,7 +75,8 @@ export function createQuickCapture(core: TaskCore) {
   }
 
   function captured(task: Task): void {
-    if (!task.due_date) core.insert(task)
+    if (task.due_date) options.onScheduled?.(task.due_date)
+    else core.insert(task)
     text = ''
     chosenId = null
   }

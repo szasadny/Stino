@@ -1,6 +1,7 @@
 <script lang="ts">
   import SegmentedControl from '../../lib/components/SegmentedControl.svelte'
   import { THEME_OPTIONS } from '../../lib/constants'
+  import { THEME } from '../../lib/messages'
   import { getThemePref, setThemePref } from '../../lib/theme'
   import type { ThemePref } from '../../lib/types'
 
@@ -12,4 +13,4 @@
   }
 </script>
 
-<SegmentedControl options={THEME_OPTIONS} value={pref} onChange={choose} label="Theme" />
+<SegmentedControl options={THEME_OPTIONS} value={pref} onChange={choose} label={THEME} />
