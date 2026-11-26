@@ -53,7 +53,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday` (then `onToday` once it has slid in); binds the core's load to the period's range | `MonthView`, `WeekView` |
 | `calendar-board.svelte.ts` | `createCalendarBoard(core, keys, open)`: per-day drop lists, `consider` / `finalize`, the drop plan and tap-to-open | `MonthView`, `WeekView` |
-| `calendar-selection.svelte.ts` | `createCalendarSelection(core)`: the open day, its tasks, the anchor rect for `DayPanel` | `MonthView`, `WeekView` |
+| `calendar-selection.svelte.ts` | `createCalendarSelection(core)`: the open day, its tasks, the anchor rect for `DayPanel` and the date button it returns focus to | `MonthView`, `WeekView` |
 | `calendar-context.ts` | `setCalendarContext` / `getCalendarContext`: core, board, selection and composer for calendar components | Set by `MonthView` and `WeekView`; read by the day surfaces, `PeriodShell` and `DaySheet` |
 
 | Concern | Model |
@@ -78,7 +78,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
 | | `DayListSection` | A day heading over its task rows: the phone month agenda and the phone week stack |
-| | `DayPanel` | The desktop floating, non-modal day zoom beside its cell |
+| | `DayPanel` | The desktop floating, non-modal day zoom beside its cell; takes focus on open, returns it to the day's date button |
 | | `DayAgenda` | One day's list, flat or in label sections, with the order toggle: Today and `DaySheet` |
 | | `DateBadge` | The day number, filled for today |
 | | `QuickAddButton`, `AddTaskButton` | Per-day "+" button; full-width "Add a task" button under a day list |
@@ -130,6 +130,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | `tap.ts` | `trustedClick`, `activateOnKey`, `createPressTracker`, `tappedItem`, `opensFromEmptySpace` |
 | `cell-click.action.ts` | `clickOnEmptySpace`: a click on a `DayCell`'s empty space opens the day |
 | `autofocus.action.ts` | `autofocus`: the control `showModal()` focuses first |
+| `focus-return.action.ts` | `returnFocusOnDestroy`: after an overlay left the DOM with focus inside, focus its opener (`Modal`, `DayPanel`) |
 | `presses.action.ts` | `presses` (the app-wide press tracker), `trackPresses` (started in `main.ts`) |
 | `drag-scroll.ts` | `edgeScrollStep`, `pointFrom`, `createBottomDwell` |
 | `drag-scroll.action.ts` | `dragEdgeScroll`, `dragIsLive`, `trackPointer` |

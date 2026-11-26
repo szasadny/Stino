@@ -3,6 +3,7 @@
   import type { Attachment } from 'svelte/attachments'
   import { on } from 'svelte/events'
   import { MODAL_SIZES, type ModalSize } from '../constants'
+  import { returnFocusOnDestroy, type FocusTarget } from '../dnd/focus-return.action'
   import ErrorAlert from './ErrorAlert.svelte'
   import PanelHeader from './PanelHeader.svelte'
 
@@ -38,7 +39,7 @@
 
   const titleId = $props.id()
   let dialogEl = $state<HTMLDialogElement | null>(null)
-  let opener: Element | null = null
+  let opener: FocusTarget | null = null
   let destroyed = false
   let pressedOutside = false
 
@@ -46,7 +47,7 @@
     if (!dialogEl) return
     if (open) {
       if (!dialogEl.open) {
-        opener = document.activeElement
+        opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
         dialogEl.showModal()
         onOpen?.()
       }
@@ -55,13 +56,15 @@
     }
   })
 
-  // Teardown runs after the dialog left the DOM, where the browser does not return focus.
-  const closeOnDestroy: Attachment<HTMLDialogElement> = (dialog) => () => {
-    destroyed = true
-    if (!dialog.open) return
-    dialog.close()
-    if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-  }
+  const closeOnDestroy = returnFocusOnDestroy<HTMLDialogElement>(
+    () => opener,
+    (dialog) => {
+      destroyed = true
+      if (!dialog.open) return false
+      dialog.close()
+      return true
+    },
+  )
 
   function handleClose() {
     if (!destroyed) onClose()

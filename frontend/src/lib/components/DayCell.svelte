@@ -48,9 +48,17 @@
 >
   <div class="flex shrink-0 items-center justify-between {variant === 'week' ? 'gap-1' : ''}">
     {#if variant === 'month'}
-      <DateBadge {date} {isToday} muted={!inCurrentMonth} label={ariaLabel} onclick={select} />
+      <DateBadge
+        {date}
+        {isToday}
+        muted={!inCurrentMonth}
+        label={ariaLabel}
+        onclick={select}
+        {@attach open && selection.markDayButton}
+      />
     {:else}
       <button
+        {@attach open && selection.markDayButton}
         type="button"
         onclick={select}
         aria-label={ariaLabel}

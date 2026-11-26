@@ -48,4 +48,17 @@ describe('createCalendarSelection', () => {
       null,
     ])
   })
+
+  it("keeps the open day's date button for the zoom to return focus to", () => {
+    const button = () => Object.assign(new EventTarget(), { isConnected: true, focus() {} })
+    const mon = button()
+    const tue = button()
+    selection.select(fromISODate(MON))
+    selection.markDayButton(mon)
+    selection.select(fromISODate(TUE))
+    selection.markDayButton(tue)
+    expect(selection.dayButton).toBe(tue)
+    selection.clear()
+    expect(selection.dayButton).toBe(tue)
+  })
 })
