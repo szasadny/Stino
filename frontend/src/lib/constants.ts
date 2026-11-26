@@ -159,6 +159,8 @@ export const MODAL_FILL_CLASS = '-mb-4 flex min-h-[calc(100%+1rem)] flex-col sm:
 export const MODAL_FOOTER_CLASS =
   'sticky -bottom-4 -mx-5 mt-auto bg-surface px-5 pb-4 sm:static sm:mx-0 sm:px-0 sm:pb-0'
 
+// The grip's box; a row without a grip reserves the same space.
+export const DRAG_HANDLE_SIZE_CLASS = 'h-5 w-5'
 export const DROP_TARGET_RING_CLASSES = ['ring-2', 'ring-inset', 'ring-pine/40', 'bg-pine/5']
 
 export const LABEL_EMOJI_SUGGESTIONS = [

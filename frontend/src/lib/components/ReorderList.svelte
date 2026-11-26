@@ -1,7 +1,7 @@
 <script lang="ts" generics="T extends { id: string | number }">
   import type { Snippet } from 'svelte'
   import { dndzone, dragHandle, dragHandleZone, type DndEvent } from 'svelte-dnd-action'
-  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS } from '../constants'
+  import { DND_FLIP_MS, DND_TOUCH_HOLD_MS, DRAG_HANDLE_SIZE_CLASS } from '../constants'
   import { DRAG_TO_REORDER } from '../messages'
   import { isCompact } from '../viewport.svelte'
 
@@ -29,7 +29,7 @@
   <div
     use:dragHandle
     title={DRAG_TO_REORDER}
-    class="grid h-5 w-5 cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
+    class="grid {DRAG_HANDLE_SIZE_CLASS} cursor-grab touch-none place-items-center rounded text-sage transition hover:text-pine-deep active:cursor-grabbing"
   >
     <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true">
       <circle cx="9" cy="6" r="1.4" />

@@ -4,7 +4,7 @@
   import type { Task } from '../types'
   import type { TaskCore } from '../controllers/task-core.svelte'
   import { createDropList } from '../controllers/drop-list.svelte'
-  import { EYEBROW_CLASS } from '../constants'
+  import { DRAG_HANDLE_SIZE_CLASS, EYEBROW_CLASS } from '../constants'
   import { moveSectionLabel, NO_LABEL, SORT_TASKS } from '../messages'
   import { isCompact } from '../viewport.svelte'
   import { moveId } from '../labels'
@@ -83,7 +83,7 @@
 
 <!-- Holds the drag handle's place, so timed and untimed rows share one checkbox column. -->
 {#snippet handleSpace()}
-  <span class="h-5 w-5"></span>
+  <span class={DRAG_HANDLE_SIZE_CLASS}></span>
 {/snippet}
 
 {#snippet timedList(list: Task[], classes: string)}
