@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import { DISPLAY_TITLE_CLASS, GHOST_BTN_CLASS } from '../constants'
+  import { GHOST_BTN_CLASS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import type { PeriodNav } from '../controllers/period-nav.svelte'
   import { swipe } from '../dnd/swipe.action'
   import { LOADING, periodStepLabel, TODAY } from '../messages'
   import ErrorAlert from './ErrorAlert.svelte'
   import IconButton from './IconButton.svelte'
+  import PageHeader from './PageHeader.svelte'
   import Chevron from './icons/Chevron.svelte'
 
   let {
@@ -32,31 +33,30 @@
   class="flex h-full flex-col px-3 py-3 sm:px-5 sm:py-4"
   use:swipe={{ onLeft: () => nav.go(1), onRight: () => nav.go(-1) }}
 >
-  <header class="mb-3 flex shrink-0 items-center justify-between gap-2 px-0.5">
-    <div class="flex items-baseline gap-2">
-      <h1 class="{DISPLAY_TITLE_CLASS} text-xl {noWrap} sm:text-2xl">
-        {title}
-      </h1>
+  <PageHeader {title} {nowrap} class="mb-3 gap-2 px-0.5">
+    {#snippet status()}
       {#if core.loading}
         <span class="text-xs text-sage">{LOADING}</span>
       {/if}
-    </div>
-    <div class="flex items-center gap-1.5 {nowrap ? 'shrink-0' : ''}">
-      <IconButton label={periodStepLabel(unit, -1)} onclick={() => nav.go(-1)}>
-        <Chevron dir="left" />
-      </IconButton>
-      <button
-        type="button"
-        onclick={nav.goToday}
-        class="{GHOST_BTN_CLASS} px-3 py-1.5 {noWrap} text-sm"
-      >
-        {TODAY}
-      </button>
-      <IconButton label={periodStepLabel(unit, 1)} onclick={() => nav.go(1)}>
-        <Chevron dir="right" />
-      </IconButton>
-    </div>
-  </header>
+    {/snippet}
+    {#snippet actions()}
+      <div class="flex items-center gap-1.5 {nowrap ? 'shrink-0' : ''}">
+        <IconButton label={periodStepLabel(unit, -1)} onclick={() => nav.go(-1)}>
+          <Chevron dir="left" />
+        </IconButton>
+        <button
+          type="button"
+          onclick={nav.goToday}
+          class="{GHOST_BTN_CLASS} px-3 py-1.5 {noWrap} text-sm"
+        >
+          {TODAY}
+        </button>
+        <IconButton label={periodStepLabel(unit, 1)} onclick={() => nav.go(1)}>
+          <Chevron dir="right" />
+        </IconButton>
+      </div>
+    {/snippet}
+  </PageHeader>
 
   <ErrorAlert error={core.error} class="mb-3" />
 
