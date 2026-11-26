@@ -1,33 +1,66 @@
 import { errorMessage } from '../errors'
 import { REFRESH_FAILED_MESSAGE } from '../messages'
 
+type Persisted<T> = { ok: true; value: T } | { ok: false }
+
 export function createLock() {
   let held = $state(0)
   let error = $state<string | null>(null)
-  let tail: Promise<boolean> = Promise.resolve(true)
+  let tail: Promise<unknown> = Promise.resolve()
+  // A write counts from enqueue until its persist settles; a failed one may still have landed.
+  let writing = 0
+  let settled = 0
+  const idleWaiters: (() => void)[] = []
+
+  function startWrite(): () => void {
+    writing++
+    return () => {
+      writing--
+      settled++
+      if (writing === 0) for (const wake of idleWaiters.splice(0)) wake()
+    }
+  }
+
+  const writesIdle = (): Promise<void> =>
+    writing === 0 ? Promise.resolve() : new Promise((resolve) => idleWaiters.push(resolve))
 
   // A failure stays visible past later queued successes; only an idle start clears it.
-  function serial(
-    fn: () => Promise<unknown>,
+  // `tail` excludes `after`, so a reload there can wait out a tick queued behind it.
+  async function serial<T>(
+    persist: () => Promise<T>,
     failMsg: string,
     revert?: () => void,
+    after?: (result: T) => unknown,
   ): Promise<boolean> {
     if (held === 0) error = null
     held++
-    async function attempt(): Promise<boolean> {
+    const end = startWrite()
+    async function attempt(): Promise<Persisted<T>> {
       try {
-        await fn()
-        return true
+        return { ok: true, value: await persist() }
       } catch (err) {
         revert?.()
         error = errorMessage(err, failMsg)
-        return false
+        return { ok: false }
       } finally {
-        held--
+        end()
       }
     }
-    tail = held === 1 ? attempt() : tail.then(attempt)
-    return tail
+    const persisted = held === 1 ? attempt() : tail.then(attempt, attempt)
+    tail = persisted
+    try {
+      const outcome = await persisted
+      if (outcome.ok && after) {
+        try {
+          await after(outcome.value)
+        } catch {
+          error = REFRESH_FAILED_MESSAGE
+        }
+      }
+      return outcome.ok
+    } finally {
+      held--
+    }
   }
 
   function run(fn: () => Promise<unknown>, failMsg: string, revert?: () => void): Promise<boolean> {
@@ -83,14 +116,36 @@ export function createLock() {
       after: (result: T) => unknown,
       failMsg: string,
     ): Promise<boolean> {
-      return run(async () => {
-        const result = await persist()
-        try {
-          await after(result)
-        } catch {
-          error = REFRESH_FAILED_MESSAGE
+      if (held > 0) return Promise.resolve(false)
+      return serial(persist, failMsg, undefined, after)
+    },
+
+    // Counts as a write for `read` without taking the lock.
+    async unlocked<T>(persist: () => Promise<T>): Promise<T> {
+      const end = startWrite()
+      try {
+        return await persist()
+      } finally {
+        end()
+      }
+    },
+
+    // Fetches again until no write overlapped; `overlapped` stays true once a later write starts.
+    async read<T>(
+      fetch: () => Promise<T>,
+      current: () => boolean,
+    ): Promise<{ data: T; overlapped: () => boolean } | null> {
+      while (current()) {
+        const since = settled
+        const overlapped = () => writing > 0 || settled !== since
+        if (overlapped()) {
+          await writesIdle()
+          continue
         }
-      }, failMsg)
+        const data = await fetch()
+        if (current() && !overlapped()) return { data, overlapped }
+      }
+      return null
     },
   }
 }

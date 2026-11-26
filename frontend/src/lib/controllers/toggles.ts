@@ -10,8 +10,7 @@ export type TaskList = {
   write: (tasks: Task[]) => void
 }
 
-// `known` stamps when `base` was learned, against the `clock` that `beginLoad` also reads.
-type Outstanding = { latest: number; base: Task; completed: boolean; known: number }
+type Outstanding = { latest: number; base: Task; completed: boolean }
 
 export function persistToggle(task: Task): Promise<Task> {
   return task.completed
@@ -23,30 +22,11 @@ export function persistToggle(task: Task): Promise<Task> {
 export function createToggles(lock: ReturnType<typeof createLock>) {
   const outstanding = new Map<string, Outstanding>()
   let seq = 0
-  let clock = 0
-
-  function overlay(tasks: Task[], since: number): Task[] {
-    if (outstanding.size === 0) return tasks
-    return tasks.map((row) => {
-      const entry = outstanding.get(occurrenceKey(row))
-      if (!entry) return row
-      if (since > entry.known) {
-        entry.base = row
-        entry.known = since
-      }
-      return { ...row, completed: entry.completed }
-    })
-  }
 
   function toggleIn(list: TaskList, task: Task): Promise<boolean> {
     const key = occurrenceKey(task)
     const mine = ++seq
-    const entry = outstanding.get(key) ?? {
-      latest: mine,
-      base: task,
-      completed: false,
-      known: ++clock,
-    }
+    const entry = outstanding.get(key) ?? { latest: mine, base: task, completed: false }
     entry.latest = mine
     entry.completed = !task.completed
     outstanding.set(key, entry)
@@ -57,7 +37,6 @@ export function createToggles(lock: ReturnType<typeof createLock>) {
         const saved = await persistToggle(task)
         if (entry.latest !== mine) {
           entry.base = saved
-          entry.known = ++clock
           return
         }
         outstanding.delete(key)
@@ -75,11 +54,12 @@ export function createToggles(lock: ReturnType<typeof createLock>) {
   return {
     toggleIn,
     // Re-shows the outstanding ticks on rows that replace a list, e.g. a write's snapshot revert.
-    overlay: (tasks: Task[]): Task[] => overlay(tasks, 0),
-    // Call before the fetch: only rows fetched after an entry's base was learned may replace it.
-    beginLoad(): (tasks: Task[]) => Task[] {
-      const since = ++clock
-      return (tasks) => overlay(tasks, since)
+    overlay(tasks: Task[]): Task[] {
+      if (outstanding.size === 0) return tasks
+      return tasks.map((row) => {
+        const entry = outstanding.get(occurrenceKey(row))
+        return entry ? { ...row, completed: entry.completed } : row
+      })
     },
   }
 }

@@ -169,7 +169,7 @@ describe('createSearch', () => {
     expect(search.results[0]?.completed).toBe(false)
   })
 
-  it('shows a queued tick on results that land before its request does', async () => {
+  it('holds a refined query while a tick is in flight, then searches once', async () => {
     const task = on(MON, { id: 3 })
     vi.mocked(api.search).mockResolvedValue([task])
     await type('t')
@@ -177,10 +177,37 @@ describe('createSearch', () => {
     vi.mocked(api.tasks.complete).mockReturnValue(saving.promise)
     const tick = search.toggle(task)
     await type('ta')
-    expect(search.results[0]?.completed).toBe(true)
+    expect([search.results[0]?.completed, vi.mocked(api.search).mock.calls.length]).toEqual([
+      true,
+      1,
+    ])
+    vi.mocked(api.search).mockResolvedValue([{ ...task, completed: true }])
     saving.resolve({ ...task, completed: true })
     expect(await tick).toBe(true)
-    expect(search.results[0]?.completed).toBe(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect([search.results[0]?.completed, vi.mocked(api.search).mock.calls.length]).toEqual([
+      true,
+      2,
+    ])
+  })
+
+  it('searches again when a tick settles while the search is in flight', async () => {
+    const task = on(MON, { id: 3 })
+    vi.mocked(api.search).mockResolvedValue([task])
+    await type('t')
+    const stale = deferred<Task[]>()
+    vi.mocked(api.search)
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce([{ ...task, completed: true }])
+    await type('ta')
+    vi.mocked(api.tasks.complete).mockResolvedValue({ ...task, completed: true })
+    expect(await search.toggle(task)).toBe(true)
+    stale.resolve([task])
+    await vi.advanceTimersByTimeAsync(0)
+    expect([search.results[0]?.completed, vi.mocked(api.search).mock.calls.length]).toEqual([
+      true,
+      3,
+    ])
   })
 
   it('shows upcoming results first and keeps a ticked row in place', async () => {

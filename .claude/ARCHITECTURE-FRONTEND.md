@@ -46,9 +46,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Owns | Bound by |
 | --- | --- | --- |
-| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
-| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
-| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` and `beginLoad` re-show outstanding ticks on rows that replace a list; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
+| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`), `read` for another list's fetch; `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock (`unlocked`) | Every view; `search.svelte.ts` |
+| `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write; `unlocked` counts a write without the lock; `read` fetches again until no write overlapped the fetch | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
+| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` re-shows outstanding ticks on a write's snapshot revert; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
 | `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
 | `drop-list.svelte.ts` | `createDropList(source)`: dnd lists keyed by zone; the landing zone's `finalize` ends the gesture and runs its write | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday` (then `onToday` once it has slid in); binds the core's load to the period's range | `MonthView`, `WeekView` |
@@ -59,7 +59,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | Concern | Model |
 | --- | --- |
 | Server data | One `createTaskCore()` per view or overlay; components read it, never keep a copy (review) |
-| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits |
+| Writes | Through the core's one lock: optimistic apply, persist, revert on failure; a tick queues behind a busy lock, any other write is dropped; `save` when a reload follows, so a failed refresh never reads as a failed write; only the newest load commits, and only once no write overlapped its fetch (`lock.read`) |
 | Add/edit | `createComposer`; `afterSave` defaults to the core's `reload`, Inbox passes its own to drop a task that gained a date |
 | Drag lists | `createDropList`, the source's projection outside a gesture (§4.6) |
 | Period navigation | `createPeriodNav` → `core.loadThrough` fetches the target range first, then commits inside `navigateWithSlide` (`nav-transition.ts`), a View Transition that never mounts the outgoing grid twice |
