@@ -206,7 +206,8 @@ describe('architecture guards', () => {
     const fog = [...css.matchAll(/--fog:\s*(\d+)\s+(\d+)\s+(\d+);/g)].map((m) =>
       hexFromChannels(m.slice(1)),
     )
-    const metas = [...html.matchAll(/<meta\b[^>]*name="theme-color"[^>]*>/g)].map(([tag]) => [
+    const metaTags = [...html.matchAll(/<meta\b[^>]*name="theme-color"[^>]*>/g)].map(([tag]) => tag)
+    const metas = metaTags.map((tag) => [
       /prefers-color-scheme: (\w+)/.exec(tag)?.[1],
       /content="([^"]+)"/.exec(tag)?.[1]?.toUpperCase(),
     ])
@@ -215,6 +216,7 @@ describe('architecture guards', () => {
         palette: LABEL_PALETTE.map(({ hex }) => hex),
         caps: [TITLE_MAX_LENGTH, LABEL_NAME_MAX_LENGTH, LABEL_EMOJI_MAX_LENGTH],
         themeKey: THEME_STORAGE_KEY,
+        themeScheme: metas.map(([scheme]) => scheme),
         themeColor: [
           ['light', fog[0]],
           ...[...new Set(fog.slice(1))].map((dark) => ['dark', dark]),
@@ -225,6 +227,7 @@ describe('architecture guards', () => {
       palette: [...rustPalette.matchAll(/"([^"]+)"/g)].map(([, hex]) => hex),
       caps: ['MAX_TITLE_LEN', 'MAX_LABEL_NAME_LEN', 'MAX_LABEL_EMOJI_LEN'].map(rustCap),
       themeKey: /localStorage\.getItem\('([^']+)'\)/.exec(html)?.[1],
+      themeScheme: metaTags.map((tag) => /data-scheme="(\w+)"/.exec(tag)?.[1]),
       themeColor: metas,
     })
   })

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { THEME_OPTIONS, THEME_STORAGE_KEY } from './constants'
-import { getThemePref } from './theme'
+import { getThemePref, themeColorMedia } from './theme'
 
 const storing = (value: string | null) => ({
   getItem: (key: string) => (key === THEME_STORAGE_KEY ? value : null),
@@ -24,6 +24,19 @@ describe('getThemePref', () => {
   it('falls back to system when storage is unavailable', () => {
     vi.stubGlobal('localStorage', undefined)
     expect(getThemePref()).toBe('system')
+  })
+})
+
+describe('themeColorMedia', () => {
+  it('leaves the choice to the system preference', () => {
+    expect(themeColorMedia('system', 'dark')).toBe('(prefers-color-scheme: dark)')
+  })
+
+  it('lets only the chosen scheme match under an explicit theme', () => {
+    expect(['light', 'dark'].map((scheme) => themeColorMedia('dark', scheme))).toEqual([
+      'not all',
+      'all',
+    ])
   })
 })
 

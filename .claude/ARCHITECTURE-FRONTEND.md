@@ -155,7 +155,7 @@ Single files in `lib/`:
 | `labels.ts` | `nextPaletteColor`, `labelColorVar`, `labelTint`, `labelLookup`, `findLabelByName`, `mergeLabelOrder`, `moveId` |
 | `composer.ts` | `ComposerDraft`, `emptyDraft`, `taskToDraft`, `draftToInput`, `dateForRule` (a first repeat on an undated draft starts today) |
 | `errors.ts` | `ApiError` (`kind` network, server or rejected; a 4xx carries the API's `{"error"}` text as `reason`), `rejectionReason`; `errorMessage`: network → `NETWORK_ERROR_MESSAGE`, rejected with a reason → action message plus reason (`failureWithReason`), else the action message |
-| `theme.ts` | `getThemePref`, `setThemePref` |
+| `theme.ts` | `getThemePref`, `setThemePref` (sets `data-theme` and points the `theme-color` metas at the chosen scheme, `themeColorMedia`) |
 | `nav-transition.ts` | `navigateWithSlide(dir, apply)` |
 | `palette.ts` | `LABEL_PALETTE`, `PaletteHex` |
 | `day-change.svelte.ts` | `watchDayChange`, `createDayChange` |
