@@ -26,10 +26,12 @@
     core,
     tasks,
     onEdit,
+    headingLevel,
   }: {
     core: TaskCore
     tasks: Task[]
     onEdit: (task: Task) => void
+    headingLevel: 2 | 3
   } = $props()
 
   const canGroup = $derived(hasLabelGroups(tasks, core.labels))
@@ -115,11 +117,13 @@
   {@const timed = timedOf(group, false)}
   {#if grouped}
     <div class="mb-2 flex items-center gap-1.5 px-0.5">
-      {#if group.label}
-        <LabelChip label={group.label} />
-      {:else}
-        <span class="text-xs {EYEBROW_CLASS}">{NO_LABEL}</span>
-      {/if}
+      <svelte:element this={`h${headingLevel}`} class="flex min-w-0">
+        {#if group.label}
+          <LabelChip label={group.label} />
+        {:else}
+          <span class="text-xs {EYEBROW_CLASS}">{NO_LABEL}</span>
+        {/if}
+      </svelte:element>
       {#if sectionIndex != null && labelSections.length > 1}
         <div class="ml-auto flex items-center gap-0.5">
           {@render moveButton(group.label?.name ?? '', sectionIndex, -1)}

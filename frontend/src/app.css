@@ -133,6 +133,37 @@
   background-color: color-mix(in srgb, var(--label) var(--label-tint), transparent);
 }
 
+/* Customizable selects keep each option's label dot; touch keeps the platform's own picker. */
+@supports (appearance: base-select) {
+  @media (pointer: fine) {
+    .label-picker,
+    .label-picker::picker(select) {
+      appearance: base-select;
+    }
+
+    .label-picker {
+      @apply items-center;
+    }
+
+    .label-picker::picker-icon {
+      @apply text-2xs text-sage;
+    }
+
+    .label-picker::picker(select) {
+      @apply mt-1 rounded-lg border border-lichen bg-surface p-1 text-ink shadow-lift;
+    }
+
+    .label-picker option {
+      @apply flex items-center gap-2 rounded-md px-2 py-2;
+    }
+
+    .label-picker option:enabled:hover,
+    .label-picker option:focus-visible {
+      @apply bg-pine/5;
+    }
+  }
+}
+
 /* `backwards` avoids leaving an animated ancestor as a containing block for dialogs. */
 @keyframes rise-in {
   from {

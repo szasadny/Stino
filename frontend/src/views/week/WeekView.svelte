@@ -66,7 +66,7 @@
     >
       {#each days as { date, key } (key)}
         <div data-day={key}>
-          <DayListSection {date} variant="week" />
+          <DayListSection {date} variant="week" headingLevel={2} />
         </div>
       {/each}
     </div>

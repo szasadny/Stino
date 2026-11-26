@@ -27,7 +27,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | Folder | Entry | Also holds |
 | --- | --- | --- |
-| `views/inbox/` | `InboxView` | Quick capture: `QuickCapture`, `CapturePreview`, `LabelListbox`, `quick-capture.svelte.ts`; Batch edit: `BulkBar`, `LabelSelect`, `SelectableTaskRow`, `inbox-select.svelte.ts`; one toast for an undo offer or a dated capture's notice: `UndoToast`, `inbox-complete.svelte.ts`; the row outro `fold-away.ts` |
+| `views/inbox/` | `InboxView` | Quick capture: `QuickCapture`, `CapturePreview`, `LabelListbox` (its combobox popup), `quick-capture.svelte.ts`; Batch edit: `BulkBar` (native label select and date field, each with Apply), `SelectableTaskRow`, `inbox-select.svelte.ts`; one toast for an undo offer or a dated capture's notice: `UndoToast`, `inbox-complete.svelte.ts`; the row outro `fold-away.ts` |
 | `views/today/` | `TodayView` | Nothing else: today's `DayAgenda`, an Add task button and the composer |
 | `views/week/` | `WeekView` | `DaySheet`: the phone full-screen day zoom; `scroll-to-day.action.ts`: scrolls the phone stack to today |
 | `views/month/` | `MonthView` | `MonthGridCompact`, `CalendarCellMobile`, `grid-expand.svelte.ts` (bottom dwell exposes the phone grid mid-drag), `month-period.ts` (period step and fetched range) |
@@ -77,9 +77,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | | `Modal` | The native `<dialog>` scaffold of every dialog; sizes from `MODAL_SIZES`; `error` shows under the header, `onEscape` lets Escape end an inner state first, `onHeaderClose` overrides the X, `dismiss="closerequest"` turns off the outside click; presses and clicks stop at the dialog |
 | | `PanelHeader` | Title, subtitle and close button of `Modal`, `DayPanel` and Search's edit mode; optional `leading` snippet and `closeLabel` |
 | Calendar | `DayCell` | Wide month or week cell with pills (`variant`) |
-| | `DayListSection` | A day heading over its task rows: the phone month agenda and the phone week stack |
+| | `DayListSection` | A day heading (`headingLevel` from the host) over its task rows: the phone month agenda and the phone week stack |
 | | `DayPanel` | The desktop floating, non-modal day zoom beside its cell; takes focus on open, returns it to the day's date button |
-| | `DayAgenda` | One day's list, flat or in label sections, with the order toggle: Today and `DaySheet` |
+| | `DayAgenda` | One day's list, flat or in label sections headed at `headingLevel`, with the order toggle: Today and `DaySheet` |
 | | `DateBadge` | The day number, filled for today |
 | | `QuickAddButton`, `AddTaskButton` | Per-day "+" button; full-width "Add a task" button under a day list |
 | Tasks | `TaskRow` | List row: toggle, title, `TaskMeta`, label tint; `slim`, `holdToDrag`, `completing`, `leading` / `trailing` |
@@ -200,6 +200,6 @@ Single files in `lib/`:
 | z-index | `z-sticky`, `z-chrome`, `z-popover`, `z-floating` |
 | Touch and focus | `.hit-area` / `.hit-area-y` in `app.css`: an invisible 44px tap area (both axes / height only) under `pointer: coarse`, the visible box unchanged; one `pine` `:focus-visible` outline for non-field controls in `@layer base`; fields keep `INPUT_LOOK`'s ring and are `text-base` below `sm` (iOS zoom) |
 | Motion | Keyframes, `--duration-*` and `--ease-soft` in `app.css`, with a `prefers-reduced-motion` block; the period slide on `vt-calendar` |
-| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar` (or `labelTint` for a tinted surface); `.label-tint` (rows, pills) and `.label-dot` (chips) in `app.css` |
+| Label colours | `LABEL_PALETTE` (`palette.ts`), set as `--label` by `labelColorVar` (or `labelTint` for a tinted surface); `.label-tint` (rows, pills), `.label-dot` (chips) and `.label-picker` (a native select's dotted options where `appearance: base-select` works) in `app.css` |
 | Look-token class strings | `constants.ts`: `BTN_SM_CLASS` / `BTN_MD_CLASS` (one control height, shared by fields), `INPUT_CLASS`, `COMPACT_INPUT_CLASS`, `TEXTAREA_CLASS`, `TITLE_INPUT_CLASS`, `EMOJI_INPUT_CLASS`, `PRIMARY_BTN_CLASS`, `SECONDARY_BTN_CLASS`, `DESTRUCTIVE_BTN_CLASS`, `GHOST_BTN_CLASS`, `CLEAR_BTN_CLASS`, `ICON_BTN_CLASS`, `CHIP_ON_CLASS`, `CHIP_OFF_CLASS`, `DISPLAY_TITLE_CLASS`, `EYEBROW_CLASS`, `TASK_CARD_CLASS`, `FIELD_LABEL_CLASS`, `MUTED_CENTER_CLASS`, `POPOVER_CLASS`, `TODAY_CELL_CLASS`, `OPEN_CELL_CLASS`, `DROP_TARGET_RING_CLASSES`, `MODAL_SIZES`, `MODAL_BODY_CLASS` (every dialog body's padding), `MODAL_FILL_CLASS` / `MODAL_FOOTER_CLASS` (a phone form fills the sheet with its footer pinned) |
 | Browser chrome colour | The `theme-color` metas in `frontend/index.html`, equal to `--fog` per theme |

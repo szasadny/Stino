@@ -40,7 +40,7 @@
     </button>
   {/snippet}
 
-  <DayAgenda {core} tasks={core.tasks} onEdit={composer.edit} />
+  <DayAgenda {core} tasks={core.tasks} onEdit={composer.edit} headingLevel={2} />
 </ListViewShell>
 
 <ComposerDialog {composer} />

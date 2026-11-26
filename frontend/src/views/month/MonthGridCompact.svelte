@@ -33,7 +33,7 @@
       class="mt-2 min-h-0 flex-[9] overflow-y-auto border-t border-lichen pt-2
         {expand.expanded ? 'hidden' : ''}"
     >
-      <DayListSection date={selection.selectedDate} variant="month" />
+      <DayListSection date={selection.selectedDate} variant="month" headingLevel={2} />
     </div>
   {/if}
 </div>

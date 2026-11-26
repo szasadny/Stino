@@ -46,7 +46,7 @@
       </div>
     {:else if date}
       {@const day = toISODate(date)}
-      <DayAgenda {core} {tasks} onEdit={composer.edit} />
+      <DayAgenda {core} {tasks} onEdit={composer.edit} headingLevel={3} />
       <AddTaskButton onclick={() => composer.create({ date: day })} class="mt-4 py-2.5" />
     {/if}
   </div>

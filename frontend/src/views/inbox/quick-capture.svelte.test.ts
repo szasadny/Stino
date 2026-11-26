@@ -63,7 +63,9 @@ describe('createQuickCapture', () => {
     expect(down.preventDefault).toHaveBeenCalled()
     expect(capture.highlight).toBe(1)
 
-    capture.keydown(key('Escape'))
+    const escape = key('Escape')
+    capture.keydown(escape)
+    expect(escape.preventDefault).toHaveBeenCalled()
     expect(capture.menuOpen).toBe(false)
     type('buy #hom')
     expect(capture.menuOpen).toBe(true)
@@ -72,9 +74,11 @@ describe('createQuickCapture', () => {
 
   it('leaves keys alone while the menu is closed', () => {
     type('buy milk')
-    const enter = key('Enter')
-    capture.keydown(enter)
-    expect(enter.preventDefault).not.toHaveBeenCalled()
+    for (const k of ['Enter', 'Escape']) {
+      const event = key(k)
+      capture.keydown(event)
+      expect(event.preventDefault).not.toHaveBeenCalled()
+    }
   })
 
   it('chooses a label with Enter, cutting the tag out of the text', async () => {

@@ -10,20 +10,22 @@
   import type { TaskCore } from '../../lib/controllers/task-core.svelte'
   import { isPlausibleISODate } from '../../lib/date'
   import DeleteConfirm from '../../lib/components/DeleteConfirm.svelte'
+  import LabelMark from '../../lib/components/LabelMark.svelte'
   import { deleteTasksTitle } from '../../lib/format'
   import {
     APPLY,
     CANNOT_UNDO,
+    CHOOSE_LABEL,
     CLEAR_ALL,
     COMPLETE,
     deleteCount,
     DONE,
+    NO_LABEL,
     SCHEDULE,
     SELECT_ALL,
     selectedCount,
     SET_LABEL,
   } from '../../lib/messages'
-  import LabelSelect from './LabelSelect.svelte'
   import type { InboxSelect } from './inbox-select.svelte'
 
   let { select, core }: { select: InboxSelect; core: TaskCore } = $props()
@@ -31,11 +33,18 @@
   const uid = $props.id()
   let date = $state('')
   const dateValid = $derived(isPlausibleISODate(date))
+  let labelId = $state<number | null | undefined>()
 
   // Applied only on submit: Chromium fires `change` mid-typing with partial years.
   function schedule(event: SubmitEvent) {
     event.preventDefault()
     if (dateValid) void select.schedule(date)
+  }
+
+  // Applied only on submit: Chromium fires `change` on every arrow key while the select is closed.
+  function setLabel(event: SubmitEvent) {
+    event.preventDefault()
+    if (labelId !== undefined) void select.setLabel(labelId)
   }
 </script>
 
@@ -61,15 +70,30 @@
   {#if select.ids.length > 0}
     <div class="mt-3 flex flex-wrap items-end gap-3 border-t border-lichen pt-3">
       {#if core.labels.length > 0}
-        <div class="min-w-[10rem]">
+        <form onsubmit={setLabel}>
           <label for="{uid}-label" class="mb-1 {FIELD_LABEL_CLASS}">{SET_LABEL}</label>
-          <LabelSelect
-            id="{uid}-label"
-            labels={core.labels}
-            value={null}
-            onChange={select.setLabel}
-          />
-        </div>
+          <div class="flex items-center gap-1.5">
+            <select
+              id="{uid}-label"
+              bind:value={labelId}
+              disabled={core.pending}
+              class="label-picker w-40 {COMPACT_INPUT_CLASS}"
+            >
+              <option value={undefined} disabled>{CHOOSE_LABEL}</option>
+              <option value={null}>{NO_LABEL}</option>
+              {#each core.labels as label (label.id)}
+                <option value={label.id}><LabelMark {label} look="option" /></option>
+              {/each}
+            </select>
+            <button
+              type="submit"
+              disabled={core.pending || labelId === undefined}
+              class="{PRIMARY_BTN_CLASS} {BTN_SM_CLASS}"
+            >
+              {APPLY}
+            </button>
+          </div>
+        </form>
       {/if}
       <form onsubmit={schedule}>
         <label for="{uid}-date" class="mb-1 {FIELD_LABEL_CLASS}">{SCHEDULE}</label>

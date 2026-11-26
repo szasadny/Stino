@@ -17,7 +17,7 @@
   import { isCompact } from '../../lib/viewport.svelte'
   import Icon from '../../lib/components/icons/Icon.svelte'
   import CapturePreview from './CapturePreview.svelte'
-  import LabelListbox from './LabelListbox.svelte'
+  import LabelListbox, { optionId } from './LabelListbox.svelte'
   import type { QuickCapture } from './quick-capture.svelte'
 
   let {
@@ -54,6 +54,9 @@
         aria-expanded={capture.menuOpen}
         aria-controls={listboxId}
         aria-autocomplete="list"
+        aria-activedescendant={capture.menuOpen
+          ? optionId(listboxId, capture.highlight)
+          : undefined}
         class="w-full {INPUT_CLASS}"
       />
       {#if capture.menuOpen}
@@ -62,7 +65,6 @@
           rows={capture.suggestions}
           active={capture.highlight}
           {anchor}
-          keepFocus
           onChoose={capture.choose}
           onHover={capture.hover}
           onDismiss={capture.dismiss}
