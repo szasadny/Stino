@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { RRULE, WORKDAY_LIST } from '../test/factories'
 import { EMPTY_RECURRENCE } from './model'
 import { buildRRule } from './rrule-build'
-import { isUnmodeledRule, parseRRule } from './rrule-parse'
+import { isUnmodeledRule, parseRRule, seriesUntil } from './rrule-parse'
 
 describe('parseRRule', () => {
   it('treats null/unmodeled rules as "none"', () => {
@@ -209,5 +209,23 @@ describe('isUnmodeledRule', () => {
   it('is false for a rule the picker models, and for no rule', () => {
     expect(isUnmodeledRule('FREQ=WEEKLY;BYDAY=MO,WE')).toBe(false)
     expect(isUnmodeledRule(null)).toBe(false)
+  })
+})
+
+describe('seriesUntil', () => {
+  it('reads the end date of any rule, modeled or not', () => {
+    expect(seriesUntil('FREQ=DAILY;UNTIL=20260624')).toBe('2026-06-24')
+    expect(seriesUntil('FREQ=YEARLY;BYMONTH=6;BYMONTHDAY=24;until=20261231')).toBe('2026-12-31')
+  })
+
+  it('keeps the date part of a date-time UNTIL', () => {
+    expect(seriesUntil('FREQ=WEEKLY;BYDAY=MO;UNTIL=20260624T000000Z')).toBe('2026-06-24')
+  })
+
+  it('is null without an UNTIL or with a malformed one', () => {
+    expect(seriesUntil(RRULE.daily)).toBeNull()
+    expect(seriesUntil('FREQ=DAILY;COUNT=5')).toBeNull()
+    expect(seriesUntil('FREQ=DAILY;UNTIL=soon')).toBeNull()
+    expect(seriesUntil('FREQ=DAILY;UNTIL=')).toBeNull()
   })
 })

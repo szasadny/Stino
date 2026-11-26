@@ -145,6 +145,23 @@ describe('sortForSearch', () => {
     ])
   })
 
+  it('places an ended series among the past tasks, dated by its end', () => {
+    const tasks = [
+      on(MON, { title: 'past one-off' }),
+      recurring(on('2020-01-06', { title: 'ended series' }), 'FREQ=DAILY;UNTIL=20260602'),
+      recurring(on('2020-01-06', { title: 'ends today' }), 'FREQ=DAILY;UNTIL=20260603'),
+      recurring(on('2020-01-06', { title: 'old ended' }), 'FREQ=WEEKLY;BYMONTH=1;UNTIL=20210101'),
+      on(THU, { title: 'upcoming' }),
+    ]
+    expect(titles(sortForSearch(tasks, today))).toEqual([
+      'ends today',
+      'upcoming',
+      'ended series',
+      'past one-off',
+      'old ended',
+    ])
+  })
+
   it('never sinks a series among the completed rows', () => {
     const tasks = [done(on(MON, { title: 'done' })), recurring(done(on(MON, { title: 'series' })))]
     expect(titles(sortForSearch(tasks, today))).toEqual(['series', 'done'])

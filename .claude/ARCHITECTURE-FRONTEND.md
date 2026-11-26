@@ -46,9 +46,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 
 | File | Owns | Bound by |
 | --- | --- | --- |
-| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
+| `task-core.svelte.ts` | `createTaskCore()`: tasks, labels, `bindLoad` / `loadThrough` / `reload`, and every task or label write behind one lock (`toggle`, `reopen`, `reorder`, `reorderLabels`, `remove`, `removeOccurrence`, `moveToDay`, `moveOccurrence`, `optimistic`, `save`, `run`); `toggles.toggleIn` ticks a row in another list; `ensureLabel` creates a label outside the lock | Every view; `search.svelte.ts` |
 | `lock.svelte.ts` | `createLock()`: `pending` until every write is done, and `error`; `run`, `optimistic` (apply, persist, revert on failure) and `save` (keeps the lock through the follow-up) are dropped while pending; `queue` applies at once and persists after every earlier write | `task-core.svelte.ts`, `label-store.svelte.ts`, `import.svelte.ts` |
-| `toggles.ts` | `createToggles(lock)`: queued ticks; only an occurrence's newest tick writes its row, a failure restores its last server state; `persistToggle` | `task-core.svelte.ts` |
+| `toggles.ts` | `createToggles(lock)`: queued ticks (`toggleIn`); only an occurrence's newest tick writes its row, a failure restores its newest known server state; `overlay` and `beginLoad` re-show outstanding ticks on rows that replace a list; `persistToggle` | `task-core.svelte.ts`, `search.svelte.ts` |
 | `composer.svelte.ts` | `createComposer(core, { afterSave })`: the add/edit dialog state, submit, delete a task or one occurrence; `dismiss` closes an open form and reports whether it did | Every view, `DaySheet`, `search.svelte.ts` |
 | `drop-list.svelte.ts` | `createDropList(source)`: owned dnd lists keyed by zone; `settle` puts the source back after a write that did not land | `calendar-board.svelte.ts`, `DayAgenda`, `InboxView`, `LabelManager` |
 | `period-nav.svelte.ts` | `createPeriodNav(core, options)`: the shown period, `go`, `goToday` (then `onToday` once it has slid in); binds the core's load to the period's range | `MonthView`, `WeekView` |
@@ -103,7 +103,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | File | Exports |
 | --- | --- |
 | `predicates.ts` | `isUntimed`, `isRecurring`, `sameOccurrence`, `occurrenceKey` (the per-row key), `skippableOccurrence`, `canSkipOccurrence` |
-| `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only), `sortForSearch` (upcoming first) |
+| `sort.ts` | `sortForView` (the backend's day order), `compareSortOrder`, `completedLast` (display only), `sortForSearch` (upcoming first, an ended series among the past) |
 | `projection.ts` | `buildBoard` (per-day cell items, by label when given labels), `dayViewGroups`, `hasLabelGroups`, `withoutMissedOccurrences`; types `TaskGroup`, `CellItem` |
 | `day-order.ts` | `untimedReadingOrder`, `isUntimedOrder`, `appendedUntimedOrder`: the id lists a reorder sends |
 | `drop.ts` | `dropKind`: none, reorder, move, or move one occurrence |
@@ -114,9 +114,9 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | File | Exports |
 | --- | --- |
 | `model.ts` | `RecurrenceValue` and the picker types, weekday codes, defaults, updaters (`withFreq`, `withUnit`, `monthlyDefaultsFor`, `followStart`: a monthly rule follows a changed start date) |
-| `options.ts` | Option lists and labels for the picker controls |
+| `options.ts` | Option lists for the picker controls, labelled from `messages.ts` |
 | `rrule-build.ts` | `buildRRule` |
-| `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only) |
+| `rrule-parse.ts` | `parseRRule`, `isUnmodeledRule` (a shape the picker shows read-only), `seriesUntil` (any rule's end date) |
 | `describe.ts` | `summarize`, `summarizeRule`, `monthlySkipNote` |
 | `phrase-grammar.ts` | The typed-phrase vocabulary and `PHRASE_RULES` |
 | `phrase-parse.ts` | `parseRecurrencePhrase(text, start)`: the RRULE and the text to strip |
@@ -128,6 +128,7 @@ Paths are relative to `frontend/src/` unless they start with `frontend/`. Guards
 | --- | --- |
 | `zone-options.ts` | `calendarZone` (options of every calendar zone), `isShadowItem` |
 | `tap.ts` | `trustedClick`, `activateOnKey`, `createPressTracker`, `tappedItem`, `opensFromEmptySpace` |
+| `dismiss.ts` | `interceptsEscape`, `isOutsidePress`, `dismissesOnRelease`: the `Modal` Escape and light-dismiss decisions |
 | `cell-click.action.ts` | `clickOnEmptySpace`: a click on a `DayCell`'s empty space opens the day |
 | `autofocus.action.ts` | `autofocus`: the control `showModal()` focuses first |
 | `focus-return.action.ts` | `returnFocusOnDestroy`: after an overlay left the DOM with focus inside, focus its opener (`Modal`, `DayPanel`) |
@@ -145,8 +146,8 @@ Single files in `lib/`:
 | --- | --- |
 | `api.ts` | `api`: one typed function per endpoint, the only `fetch`; every failure throws an `ApiError` |
 | `types.ts` | API shapes (`Task`, `Label`, `TaskInput`, `LabelInput`, `BatchOp`, `ImportSummary`, `RolloverSummary`), `ViewId`, `ThemePref` |
-| `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`), look-token classes (§4.7) |
-| `messages.ts` | User-facing copy: load and save failures and `failureWithReason`, network and refresh messages, titles, button text, aria-label builders |
+| `constants.ts` | Mirrored caps, `API_BASE`, `COMPACT_MAX_WIDTH`, calendar counts, gesture timings and sizes, storage keys, option lists (`VIEWS`, `THEME_OPTIONS`, `GROUP_VIEW_OPTIONS`, labelled from `messages.ts`), look-token classes (§4.7) |
+| `messages.ts` | User-facing copy: load and save failures and `failureWithReason`, network and refresh messages, titles, button text, option and tab labels, aria-label builders |
 | `format.ts` | Copy that needs a count or a date (`pluralize`, `dayTaskCount`, `dayCellLabel`, `taskDateLabel`, `scheduledNotice`); imports `messages.ts`, never the reverse |
 | `storage.ts` | `readStored`, `writeStored`: `localStorage` that never throws |
 | `date.ts` | Local date math and formats: `toISODate`, `fromISODate`, `toLocalTime`, `currentDateKey`, grids, steps, English day and range labels |

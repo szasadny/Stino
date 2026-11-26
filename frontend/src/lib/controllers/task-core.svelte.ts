@@ -53,11 +53,10 @@ export function createTaskCore() {
   // Only the newest load may write state, so an out-of-order response can't land stale.
   let loadToken = 0
   let source: { fetchTasks: () => Promise<Task[]>; failMsg: string } | null = null
-  const toggleIn = createToggles(lock)
+  const toggles = createToggles(lock)
   const list: TaskList = {
     read: () => state.tasks,
     write: (tasks) => (state.tasks = tasks),
-    version: () => loadToken,
   }
 
   // `quiet` refreshes the same scope without the loading state, so lists never blank.
@@ -68,6 +67,7 @@ export function createTaskCore() {
     quiet: boolean,
   ): Promise<void> {
     const mine = ++loadToken
+    const withTicks = toggles.beginLoad()
     if (!quiet) loading = true
     lock.clearError()
     try {
@@ -75,7 +75,7 @@ export function createTaskCore() {
       if (mine !== loadToken) return
       await commitWrap(() => {
         if (mine !== loadToken) return
-        state.tasks = withoutMissedOccurrences(data.tasks, todayKey())
+        state.tasks = withoutMissedOccurrences(withTicks(data.tasks), todayKey())
         if (data.labels) state.labels = data.labels
       })
     } catch (err) {
@@ -102,7 +102,7 @@ export function createTaskCore() {
     return lock.optimistic(apply, persist, failMsg, () => {
       // Loads aren't gated by the lock; never revert over a newer load's server data.
       if (loadToken !== tokenAtStart) return
-      state.tasks = snapTasks
+      state.tasks = toggles.overlay(snapTasks)
       state.labels = snapLabels
     })
   }
@@ -131,8 +131,8 @@ export function createTaskCore() {
     save: lock.save,
     optimistic,
     reload,
-    toggle: (task: Task) => toggleIn(list, task),
-    toggleIn,
+    toggle: (task: Task) => toggles.toggleIn(list, task),
+    toggles,
 
     // Call at component init: loads once mounted, then quietly on every refresh bump.
     bindLoad(fetchTasks: () => Promise<Task[]>, failMsg: string): void {

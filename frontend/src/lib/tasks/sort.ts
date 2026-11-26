@@ -1,3 +1,4 @@
+import { seriesUntil } from '../recurrence/rrule-parse'
 import type { Task } from '../types'
 import { isRecurring, isUntimed } from './predicates'
 
@@ -40,6 +41,8 @@ function rankForSearch(task: Task, today: string): Ranked {
   const series = isRecurring(task)
   if (task.completed && !series) return { task, group: DONE, date: date ?? '' }
   if (!date) return { task, group: UNDATED, date: '' }
+  const until = task.recurrence_rule ? seriesUntil(task.recurrence_rule) : null
+  if (until && until < today) return { task, group: PAST, date: until }
   if (series || date >= today) {
     return { task, group: UPCOMING, date: date < today ? today : date }
   }

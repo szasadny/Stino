@@ -154,6 +154,35 @@ describe('createSearch', () => {
     expect(search.results.map((t) => t.completed)).toEqual([true, true])
   })
 
+  it('undoes a failed tick on the results kept on screen while a refined query runs', async () => {
+    const task = on(MON, { id: 3 })
+    vi.mocked(api.search).mockResolvedValueOnce([task])
+    await type('t')
+    const failing = deferred<Task>()
+    vi.mocked(api.tasks.complete).mockReturnValue(failing.promise)
+    vi.mocked(api.search).mockReturnValueOnce(deferred<Task[]>().promise)
+    const tick = search.toggle(task)
+    await type('ta')
+    expect([search.stale, search.results[0]?.completed]).toEqual([true, true])
+    failing.reject(new ApiError('server'))
+    expect(await tick).toBe(false)
+    expect(search.results[0]?.completed).toBe(false)
+  })
+
+  it('shows a queued tick on results that land before its request does', async () => {
+    const task = on(MON, { id: 3 })
+    vi.mocked(api.search).mockResolvedValue([task])
+    await type('t')
+    const saving = deferred<Task>()
+    vi.mocked(api.tasks.complete).mockReturnValue(saving.promise)
+    const tick = search.toggle(task)
+    await type('ta')
+    expect(search.results[0]?.completed).toBe(true)
+    saving.resolve({ ...task, completed: true })
+    expect(await tick).toBe(true)
+    expect(search.results[0]?.completed).toBe(true)
+  })
+
   it('shows upcoming results first and keeps a ticked row in place', async () => {
     setToday(WED)
     const past = on(MON, { id: 1, title: 'Past' })

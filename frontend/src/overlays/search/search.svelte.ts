@@ -30,7 +30,6 @@ export function createSearch() {
   const list: TaskList = {
     read: () => results,
     write: (tasks) => (results = tasks),
-    version: () => token,
   }
 
   $effect(() => () => {
@@ -45,11 +44,12 @@ export function createSearch() {
 
   async function run(term: string, mine: number): Promise<void> {
     clearErrors()
+    const withTicks = core.toggles.beginLoad()
     try {
       const found = await api.search(term)
       if (mine !== token) return
       // Sorted on arrival only, so a ticked row stays under the pointer.
-      results = sortForSearch(found, todayKey())
+      results = sortForSearch(withTicks(found), todayKey())
       searched = true
     } catch (err) {
       if (mine === token) searchError = errorMessage(err, SEARCH_FAILED)
@@ -104,7 +104,7 @@ export function createSearch() {
     },
 
     toggle(task: Task): Promise<boolean> {
-      return core.toggleIn(list, task)
+      return core.toggles.toggleIn(list, task)
     },
 
     // A recurring row stands for its whole series, so there's no single occurrence to delete.

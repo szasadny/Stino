@@ -232,6 +232,52 @@ describe('createTaskCore ticks', () => {
     expect([doneIds(), core.pending]).toEqual([[1], false])
   })
 
+  it('keeps a queued tick shown when the reorder ahead of it fails, then persists it', async () => {
+    const saving = deferred()
+    vi.mocked(api.tasks.reorder).mockReturnValue(saving.promise)
+    const reorder = core.reorder([2, 1])
+    const tick = core.toggle(a)
+    saving.reject(new ApiError('server'))
+    expect(await reorder).toBe(false)
+    expect([core.tasks.map((t) => t.id), doneIds()]).toEqual([[1, 2], [1]])
+    await settle()
+    expect(calls()).toEqual([`complete 1 ${MON}`])
+    reply(0).resolve(done(a))
+    expect(await tick).toBe(true)
+    expect(doneIds()).toEqual([1])
+  })
+
+  it('keeps a queued tick shown when a quiet reload lands before its request', async () => {
+    void core.toggle(a)
+    const second = core.toggle(b)
+    fetchTasks.mockResolvedValue([a, { ...b, title: 'Server' }])
+    await core.reload()
+    expect(doneIds()).toEqual([1, 2])
+    reply(0).resolve(done(a))
+    await settle()
+    reply(1).resolve({ ...done(b), title: 'Server' })
+    expect(await second).toBe(true)
+    expect(core.tasks.map((t) => [t.title, t.completed])).toEqual([
+      ['T1', true],
+      ['Server', true],
+    ])
+  })
+
+  it('reverts a queued tick that fails after a reload to the reloaded row', async () => {
+    void core.toggle(a)
+    const second = core.toggle(b)
+    fetchTasks.mockResolvedValue([a, { ...b, title: 'Server' }])
+    await core.reload()
+    reply(0).resolve(done(a))
+    await settle()
+    reply(1).reject(new ApiError('server'))
+    expect(await second).toBe(false)
+    expect(core.tasks.map((t) => [t.title, t.completed])).toEqual([
+      ['T1', true],
+      ['Server', false],
+    ])
+  })
+
   it('still drops a form write while a tick is in flight', async () => {
     const tick = core.toggle(a)
     const write = vi.fn(() => Promise.resolve())

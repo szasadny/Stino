@@ -24,21 +24,19 @@ describe('persistToggle', () => {
 describe('createToggles', () => {
   const task = on(MON, { id: 1 })
   let rows: Task[]
-  let version: number
   let list: TaskList
 
   beforeEach(() => {
     vi.clearAllMocks()
     rows = [task]
-    version = 0
-    list = { read: () => rows, write: (next) => (rows = next), version: () => version }
+    list = { read: () => rows, write: (next) => (rows = next) }
   })
 
   it('restores the state an earlier tick saved when the newest tick fails', async () => {
     const saved = deferred<Task>()
     vi.mocked(api.tasks.complete).mockReturnValue(saved.promise)
     vi.mocked(api.tasks.uncomplete).mockRejectedValue(new ApiError('server'))
-    const toggleIn = createToggles(createLock())
+    const { toggleIn } = createToggles(createLock())
     void toggleIn(list, task)
     const untick = toggleIn(list, done(task))
     saved.resolve(done(task))
@@ -46,14 +44,47 @@ describe('createToggles', () => {
     expect(rows[0]?.completed).toBe(true)
   })
 
-  it('leaves the row alone when the list was reloaded before the tick failed', async () => {
+  it('re-shows an outstanding tick on rows that replace the list', async () => {
+    const saving = deferred<Task>()
+    vi.mocked(api.tasks.complete).mockReturnValue(saving.promise)
+    const toggles = createToggles(createLock())
+    const tick = toggles.toggleIn(list, task)
+    expect(toggles.overlay([task, on(MON, { id: 2 })]).map((t) => t.completed)).toEqual([
+      true,
+      false,
+    ])
+    saving.resolve(done(task))
+    expect(await tick).toBe(true)
+    expect(toggles.overlay([task])[0]?.completed).toBe(false)
+  })
+
+  it('reverts a failed tick to the rows a newer load fetched', async () => {
     const failing = deferred<Task>()
     vi.mocked(api.tasks.complete).mockReturnValue(failing.promise)
-    const tick = createToggles(createLock())(list, task)
-    rows = [{ ...task, title: 'Reloaded' }]
-    version++
+    const toggles = createToggles(createLock())
+    const tick = toggles.toggleIn(list, task)
+    const withTicks = toggles.beginLoad()
+    rows = withTicks([{ ...task, title: 'Reloaded' }])
+    expect(rows[0]).toMatchObject({ title: 'Reloaded', completed: true })
     failing.reject(new ApiError('server'))
     expect(await tick).toBe(false)
-    expect(rows[0]?.title).toBe('Reloaded')
+    expect(rows[0]).toMatchObject({ title: 'Reloaded', completed: false })
+  })
+
+  it('keeps a newer saved state over rows a load fetched before it', async () => {
+    const saved = deferred<Task>()
+    const failing = deferred<Task>()
+    vi.mocked(api.tasks.complete).mockReturnValue(saved.promise)
+    vi.mocked(api.tasks.uncomplete).mockReturnValue(failing.promise)
+    const toggles = createToggles(createLock())
+    void toggles.toggleIn(list, task)
+    const untick = toggles.toggleIn(list, done(task))
+    const withTicks = toggles.beginLoad()
+    saved.resolve({ ...done(task), title: 'Saved' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    rows = withTicks([{ ...task, title: 'Stale' }])
+    failing.reject(new ApiError('server'))
+    expect(await untick).toBe(false)
+    expect(rows[0]).toMatchObject({ title: 'Saved', completed: true })
   })
 })

@@ -52,6 +52,7 @@ const OWN_FILES: &[&str] = &[
     "backend/.env.example",
     "backend/build.rs",
     "frontend/src",
+    "frontend/public",
     "frontend/index.html",
     "frontend/eslint.config.js",
     "frontend/tailwind.config.js",
@@ -235,6 +236,13 @@ fn docs_stay_within_their_size() {
 
 #[test]
 fn own_files_hold_no_em_dash() {
+    let missing = OWN_FILES
+        .iter()
+        .filter(|rel| fs::symlink_metadata(repo_path(rel)).is_err());
+    assert_none(
+        missing.map(|rel| (*rel).to_owned()),
+        "OWN_FILES lists a missing path:",
+    );
     let mut found = Vec::new();
     for rel in files_under(&repo_path(""), OWN_FILES) {
         let path = repo_path(&rel);

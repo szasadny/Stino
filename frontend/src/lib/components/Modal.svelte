@@ -3,6 +3,7 @@
   import type { Attachment } from 'svelte/attachments'
   import { on } from 'svelte/events'
   import { MODAL_SIZES, type ModalSize } from '../constants'
+  import { dismissesOnRelease, interceptsEscape, isOutsidePress } from '../dnd/dismiss'
   import { returnFocusOnDestroy, type FocusTarget } from '../dnd/focus-return.action'
   import ErrorAlert from './ErrorAlert.svelte'
   import PanelHeader from './PanelHeader.svelte'
@@ -70,24 +71,22 @@
 
   // A cancelled keydown issues no close request; `cancel` would also fire on an outside click.
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || event.isComposing || !onEscape) return
-    if (!(event.target instanceof Element) || event.target.closest('dialog') !== dialogEl) return
-    if (!onEscape()) return
+    const { key, isComposing, target } = event
+    const fromThisDialog = target instanceof Element && target.closest('dialog') === dialogEl
+    if (!interceptsEscape({ key, isComposing, fromThisDialog }, onEscape)) return
     event.preventDefault()
     event.stopPropagation()
   }
 
   // Light-dismiss fallback for browsers lacking `closedby` (notably Safari).
-  function outsideContent(event: PointerEvent): boolean {
-    if (!dialogEl || dismiss !== 'any' || 'closedBy' in HTMLDialogElement.prototype) return false
-    if (event.target !== event.currentTarget) return false
-    const rect = dialogEl.getBoundingClientRect()
-    return (
-      event.clientX < rect.left ||
-      event.clientX > rect.right ||
-      event.clientY < rect.top ||
-      event.clientY > rect.bottom
-    )
+  function dialogPress(dialog: HTMLDialogElement, event: PointerEvent) {
+    return {
+      fallback: dismiss === 'any' && !('closedBy' in HTMLDialogElement.prototype),
+      onBackdrop: event.target === event.currentTarget,
+      x: event.clientX,
+      y: event.clientY,
+      box: () => dialog.getBoundingClientRect(),
+    }
   }
 
   // Presses must not reach a drag item or row the DOM sits in; releases stay free for in-dialog drags.
@@ -96,7 +95,7 @@
     const stop = (event: Event) => event.stopPropagation()
     const offs = [
       on(dialog, 'pointerdown', (event) => {
-        pressedOutside = outsideContent(event)
+        pressedOutside = isOutsidePress(dialogPress(dialog, event))
         stop(event)
       }),
       on(dialog, 'mousedown', stop),
@@ -106,9 +105,9 @@
     return () => offs.forEach((off) => off())
   }
 
-  // Press and release both outside, so a text selection dragged onto the backdrop keeps it open.
   function handlePointerUp(event: PointerEvent) {
-    if (pressedOutside && outsideContent(event)) dialogEl?.close()
+    if (dialogEl && dismissesOnRelease(pressedOutside, dialogPress(dialogEl, event)))
+      dialogEl.close()
     pressedOutside = false
   }
 </script>

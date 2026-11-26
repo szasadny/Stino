@@ -1,3 +1,14 @@
+import {
+  INBOX,
+  MONTH,
+  ORDER_BY_LABEL,
+  ORDER_LIST,
+  THEME_DARK,
+  THEME_LIGHT,
+  THEME_SYSTEM,
+  TODAY,
+  WEEK,
+} from './messages'
 import type { ThemePref, ViewId } from './types'
 
 // Caps mirrored from backend config.rs.
@@ -63,21 +74,21 @@ export const THEME_STORAGE_KEY = 'stino-theme'
 export const GROUP_VIEW_STORAGE_KEY = 'stino-day-grouping'
 
 export const THEME_OPTIONS: { value: ThemePref; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: THEME_SYSTEM },
+  { value: 'light', label: THEME_LIGHT },
+  { value: 'dark', label: THEME_DARK },
 ]
 
 export const GROUP_VIEW_OPTIONS: { value: boolean; label: string }[] = [
-  { value: false, label: 'List' },
-  { value: true, label: 'By label' },
+  { value: false, label: ORDER_LIST },
+  { value: true, label: ORDER_BY_LABEL },
 ]
 
 export const VIEWS: { id: ViewId; label: string }[] = [
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'Week' },
-  { id: 'month', label: 'Month' },
+  { id: 'inbox', label: INBOX },
+  { id: 'today', label: TODAY },
+  { id: 'week', label: WEEK },
+  { id: 'month', label: MONTH },
 ]
 
 const DISABLED_LOOK = 'disabled:cursor-not-allowed disabled:opacity-40'
