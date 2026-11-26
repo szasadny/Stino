@@ -88,7 +88,7 @@
     >
       {#each items as item (item.id)}
         <li>
-          <TaskPill task={item.task} draggable />
+          <TaskPill task={item.task} draggable wrap />
         </li>
       {/each}
     </ul>

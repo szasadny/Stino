@@ -23,6 +23,7 @@ const key = (k: string) => ({ key: k, preventDefault: vi.fn() })
 describe('createQuickCapture', () => {
   let core: TaskCore
   let capture: QuickCapture
+  let onScheduled: ReturnType<typeof vi.fn<(dueDate: string) => void>>
   let cleanup: () => void
 
   beforeEach(async () => {
@@ -32,10 +33,11 @@ describe('createQuickCapture', () => {
     vi.mocked(api.tasks.create).mockImplementation(async (input: TaskInput) =>
       makeTask({ id: 5, title: input.title, label_id: input.label_id, due_date: input.due_date }),
     )
+    onScheduled = vi.fn<(dueDate: string) => void>()
     cleanup = $effect.root(() => {
       core = createTaskCore()
       core.bindLoad(async () => [], LOAD_FAILED)
-      capture = createQuickCapture(core)
+      capture = createQuickCapture(core, { onScheduled })
     })
     flushSync()
     await settle()
@@ -114,15 +116,19 @@ describe('createQuickCapture', () => {
     expect(core.tasks.map((t) => t.id)).toEqual([5])
     expect(capture.text).toBe('')
     expect(capture.label).toBeNull()
+    expect(onScheduled).not.toHaveBeenCalled()
   })
 
-  it('does not list a capture that got a date', async () => {
+  it('does not list a capture that got a date, but reports its date', async () => {
     type('call mum tomorrow')
     expect(capture.preview).not.toBeNull()
     await capture.submit()
     expect(api.tasks.create).toHaveBeenCalledOnce()
     expect(core.tasks).toEqual([])
     expect(capture.text).toBe('')
+    const dueDate = vi.mocked(api.tasks.create).mock.calls[0]?.[0].due_date
+    expect(dueDate).toEqual(expect.any(String))
+    expect(onScheduled).toHaveBeenCalledExactlyOnceWith(dueDate)
   })
 
   it('adds nothing when the pending label cannot be created', async () => {

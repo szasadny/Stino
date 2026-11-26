@@ -5,9 +5,10 @@
   import { GHOST_BTN_CLASS } from '../../lib/constants'
   import { presses } from '../../lib/dnd/presses.action'
   import { tappedItem } from '../../lib/dnd/tap'
+  import { scheduledNotice } from '../../lib/format'
+  import { todayDate } from '../../lib/today.svelte'
   import {
     BATCH_EDIT,
-    completedToast,
     DELETE_TASK_TITLE,
     EDIT,
     INBOX,
@@ -35,9 +36,11 @@
 
   const core = createTaskCore()
   core.bindLoad(() => api.tasks.inbox(), LOAD_INBOX_FAILED)
-  const capture = createQuickCapture(core)
-  const select = createInboxSelect(core)
   const complete = createInboxComplete(core)
+  const capture = createQuickCapture(core, {
+    onScheduled: (dueDate) => complete.notify(scheduledNotice(dueDate, todayDate())),
+  })
+  const select = createInboxSelect(core)
   const list = createDropList(() => ({ inbox: core.tasks }))
 
   // A task that gains a date leaves the Inbox.
@@ -130,7 +133,7 @@
             label={core.labelFor(task)}
             completing={complete.isCompleting(task.id)}
             onToggle={() => complete.toggle(task)}
-            onEdit={handle ? undefined : () => edit(task)}
+            onEdit={() => edit(task)}
             holdToDrag={handle == null}
             leading={handle ?? undefined}
             trailing={handle ? actions : undefined}
@@ -142,9 +145,9 @@
 
   {#snippet overlay()}
     <UndoToast
-      message={complete.undone ? completedToast(complete.undone.title) : null}
+      message={complete.message}
       busy={core.pending}
-      onUndo={complete.undo}
+      onUndo={complete.undoable ? complete.undo : undefined}
     />
   {/snippet}
 </ListViewShell>

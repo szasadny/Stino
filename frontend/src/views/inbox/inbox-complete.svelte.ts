@@ -3,7 +3,7 @@ import { SvelteMap } from 'svelte/reactivity'
 import { api } from '../../lib/api'
 import { INBOX_COMPLETE_HOLD_MS, INBOX_COMPLETE_RETRY_MS, UNDO_TOAST_MS } from '../../lib/constants'
 import type { TaskCore } from '../../lib/controllers/task-core.svelte'
-import { UPDATE_TASK_FAILED } from '../../lib/messages'
+import { completedToast, UPDATE_TASK_FAILED } from '../../lib/messages'
 import type { Task } from '../../lib/types'
 
 export type InboxComplete = ReturnType<typeof createInboxComplete>
@@ -11,18 +11,19 @@ export type InboxComplete = ReturnType<typeof createInboxComplete>
 type Timer = ReturnType<typeof setTimeout>
 type Held = { task: Task; timer: Timer }
 type Undoable = { task: Task; index: number }
+type Toast = { message: string; undo: Undoable | null }
 
 // Call at component init: a tick still on hold when the view goes is persisted at once.
 export function createInboxComplete(core: TaskCore) {
   const held = new SvelteMap<number, Held>()
-  let undoable = $state.raw<Undoable | null>(null)
+  let toast = $state.raw<Toast | null>(null)
   let expiry: Timer | undefined
 
-  // Each offer restarts the clock, so a newer completion never inherits an older one's remainder.
-  function offer(next: Undoable | null): void {
+  // Each toast restarts the clock, so a newer one never inherits an older one's remainder.
+  function show(next: Toast | null): void {
     clearTimeout(expiry)
-    undoable = next
-    if (next) expiry = setTimeout(() => offer(null), UNDO_TOAST_MS)
+    toast = next
+    if (next) expiry = setTimeout(() => show(null), UNDO_TOAST_MS)
   }
 
   function hold(task: Task, ms: number): void {
@@ -47,9 +48,10 @@ export function createInboxComplete(core: TaskCore) {
       return
     }
     held.delete(task.id)
-    const shown = { task, index: core.tasks.findIndex((t) => t.id === task.id) }
-    void persist([task], () => offer(shown)).then((ok) => {
-      if (!ok && undoable === shown) offer(null)
+    const undo = { task, index: core.tasks.findIndex((t) => t.id === task.id) }
+    const offer = { message: completedToast(task.title), undo }
+    void persist([task], () => show(offer)).then((ok) => {
+      if (!ok && toast === offer) show(null)
     })
   }
 
@@ -72,8 +74,11 @@ export function createInboxComplete(core: TaskCore) {
   })
 
   return {
-    get undone() {
-      return undoable?.task ?? null
+    get message() {
+      return toast?.message ?? null
+    },
+    get undoable() {
+      return toast?.undo != null
     },
     isCompleting(id: number): boolean {
       return held.has(id)
@@ -90,10 +95,15 @@ export function createInboxComplete(core: TaskCore) {
     },
 
     undo(): void {
-      if (!undoable) return
-      const { task, index } = undoable
-      offer(null)
+      if (!toast?.undo) return
+      const { task, index } = toast.undo
+      show(null)
       void core.reopen(task, index)
+    },
+
+    // An undo offer outranks a notice: a notice never covers it, a new offer replaces a notice.
+    notify(message: string): void {
+      if (!toast?.undo) show({ message, undo: null })
     },
   }
 }

@@ -14,6 +14,18 @@ export function trustedClick(handler: () => void): (e: { isTrusted: boolean }) =
   }
 }
 
+interface CellClick {
+  isTrusted: boolean
+  onControl: boolean
+  dragging: boolean
+  stationary: boolean
+}
+
+// A press that travelled was a drag or a text selection, not a click on the cell.
+export function opensFromEmptySpace(click: CellClick): boolean {
+  return click.isTrusted && !click.onControl && !click.dragging && click.stationary
+}
+
 // Enter/Space on a `role="button"` surface (svelte-dnd-action can't drag a native button).
 export function activateOnKey(
   handler: () => void,

@@ -32,6 +32,7 @@ describe('createPeriodNav', () => {
   let core: TaskCore
   let nav: PeriodNav
   let onNavigate: ReturnType<typeof vi.fn<() => void>>
+  let onToday: ReturnType<typeof vi.fn<() => void>>
   let cleanup: () => void
 
   beforeEach(async () => {
@@ -40,6 +41,7 @@ describe('createPeriodNav', () => {
     vi.mocked(api.tasks.range).mockReset().mockResolvedValue([])
     vi.mocked(navigateWithSlide).mockClear()
     onNavigate = vi.fn<() => void>()
+    onToday = vi.fn<() => void>()
     cleanup = $effect.root(() => {
       core = createTaskCore()
       nav = createPeriodNav(core, {
@@ -48,6 +50,7 @@ describe('createPeriodNav', () => {
         rangeFor: (start) => spanBounds(buildWeekGrid(start)),
         failMsg: LOAD_FAILED,
         onNavigate,
+        onToday,
       })
     })
     flushSync()
@@ -104,5 +107,25 @@ describe('createPeriodNav', () => {
     await nav.goToday()
     expect(navigateWithSlide).toHaveBeenLastCalledWith(null, expect.any(Function))
     expect(toISODate(nav.start)).toBe(MON)
+  })
+
+  it('reports Today after it has slid in, also when already on the current period', async () => {
+    await nav.go(1)
+    expect(onToday).not.toHaveBeenCalled()
+    const back = nav.goToday()
+    expect(onToday).not.toHaveBeenCalled()
+    await back
+    expect(onToday).toHaveBeenCalledOnce()
+    await nav.goToday()
+    expect(onToday).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not report Today when a newer step overtook it or its load failed', async () => {
+    await nav.go(1)
+    await Promise.all([nav.goToday(), nav.go(1)])
+    expect(onToday).not.toHaveBeenCalled()
+    vi.mocked(api.tasks.range).mockRejectedValueOnce(new ApiError('server'))
+    await nav.goToday()
+    expect(onToday).not.toHaveBeenCalled()
   })
 })

@@ -12,6 +12,8 @@ interface PeriodOptions {
   rangeFor: (start: Date) => [string, string]
   failMsg: string
   onNavigate?: () => void
+  // Runs once "Today" has loaded and slid in, also when that period was already shown.
+  onToday?: () => void
 }
 
 // Call at component init; binds the core's load to the current period's range.
@@ -48,11 +50,12 @@ export function createPeriodNav(core: TaskCore, options: PeriodOptions) {
     go(delta: number): Promise<void> {
       return goTo(options.step(heading, delta), delta > 0 ? 'forward' : 'back')
     },
-    goToday(): Promise<void> {
+    async goToday(): Promise<void> {
       const target = options.periodStart(todayDate())
       const next = toISODate(target)
       const current = toISODate(start)
-      return goTo(target, next > current ? 'forward' : next < current ? 'back' : null)
+      await goTo(target, next > current ? 'forward' : next < current ? 'back' : null)
+      if (heading === start && toISODate(start) === next) options.onToday?.()
     },
   }
 }

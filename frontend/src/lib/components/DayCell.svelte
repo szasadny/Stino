@@ -3,6 +3,7 @@
   import { DND_GRID_TOUCH_HOLD_MS } from '../constants'
   import { getCalendarContext } from '../controllers/calendar-context'
   import { formatDayFull, toISODate, weekdayAbbrev } from '../date'
+  import { clickOnEmptySpace } from '../dnd/cell-click.action'
   import { dayCellToneClass } from '../dnd/cell-tone'
   import { createLineFit } from '../dnd/line-fit.action.svelte'
   import { calendarZone } from '../dnd/zone-options'
@@ -40,6 +41,7 @@
 
 <div
   {@attach open && selection.anchorTo}
+  {@attach clickOnEmptySpace(select, () => board.dragging)}
   class="group flex h-full w-full flex-col overflow-hidden rounded-lg border transition
     {variant === 'month' ? 'min-h-0 gap-1 p-1 sm:p-1.5' : 'min-h-[4rem] gap-1.5 p-2'}
     {dayCellToneClass(isToday, inCurrentMonth, open)}"

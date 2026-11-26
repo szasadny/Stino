@@ -5,11 +5,13 @@
   import { taskDateLabel } from '../../lib/format'
   import { noSearchMatch, SEARCH_PROMPT, SEARCHING } from '../../lib/messages'
   import { isRecurring, occurrenceKey } from '../../lib/tasks/predicates'
+  import { todayDate } from '../../lib/today.svelte'
   import type { Search } from './search.svelte'
 
   let { search }: { search: Search } = $props()
 
   const term = $derived(search.query.trim())
+  const year = $derived(todayDate().getFullYear())
 </script>
 
 {#if !term}
@@ -27,7 +29,7 @@
         <TaskRow
           task={series ? { ...task, completed: false } : task}
           label={search.core.labelFor(task)}
-          dateLabel={taskDateLabel(task)}
+          dateLabel={series ? undefined : taskDateLabel(task, year)}
           onToggle={series ? undefined : () => void search.toggle(task)}
           onEdit={() => search.edit(task)}
         />

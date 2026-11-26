@@ -6,6 +6,8 @@ import type { TaskList } from '../../lib/controllers/toggles'
 import { errorMessage } from '../../lib/errors'
 import { LOAD_LABELS_FAILED, SEARCH_FAILED } from '../../lib/messages'
 import { isRecurring } from '../../lib/tasks/predicates'
+import { sortForSearch } from '../../lib/tasks/sort'
+import { todayKey } from '../../lib/today.svelte'
 import type { Task } from '../../lib/types'
 
 export type Search = ReturnType<typeof createSearch>
@@ -46,7 +48,8 @@ export function createSearch() {
     try {
       const found = await api.search(term)
       if (mine !== token) return
-      results = found
+      // Sorted on arrival only, so a ticked row stays under the pointer.
+      results = sortForSearch(found, todayKey())
       searched = true
     } catch (err) {
       if (mine === token) searchError = errorMessage(err, SEARCH_FAILED)

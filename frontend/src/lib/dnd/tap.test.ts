@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { SOURCES, TRIGGERS } from 'svelte-dnd-action'
 import { TAP_SLOP_PX } from '../constants'
 import { dndDetail } from '../test/factories'
-import { activateOnKey, createPressTracker, tappedItem, trustedClick } from './tap'
+import {
+  activateOnKey,
+  createPressTracker,
+  opensFromEmptySpace,
+  tappedItem,
+  trustedClick,
+} from './tap'
 
 describe('activateOnKey', () => {
   it.each(['Enter', ' '])('activates on %j and suppresses the default', (key) => {
@@ -30,6 +36,23 @@ describe('trustedClick', () => {
     expect(handler).not.toHaveBeenCalled()
     onClick({ isTrusted: true })
     expect(handler).toHaveBeenCalledOnce()
+  })
+})
+
+describe('opensFromEmptySpace', () => {
+  const plain = { isTrusted: true, onControl: false, dragging: false, stationary: true }
+
+  it('opens for a still, trusted click on the empty part of a cell', () => {
+    expect(opensFromEmptySpace(plain)).toBe(true)
+  })
+
+  it.each([
+    ['a re-dispatched click', { isTrusted: false }],
+    ['a click on a pill, button or list item', { onControl: true }],
+    ['a drag that is live or still settling its drop', { dragging: true }],
+    ['a press that travelled', { stationary: false }],
+  ])('ignores %s', (_name, change) => {
+    expect(opensFromEmptySpace({ ...plain, ...change })).toBe(false)
   })
 })
 

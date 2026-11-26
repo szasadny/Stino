@@ -1,5 +1,13 @@
-import { formatShortDate } from './date'
-import { DELETE, INBOX, moreTasks, NOTHING_SCHEDULED } from './messages'
+import { formatShortDate, quickDates } from './date'
+import {
+  DELETE,
+  INBOX,
+  moreTasks,
+  NOTHING_SCHEDULED,
+  SCHEDULED_TODAY,
+  SCHEDULED_TOMORROW,
+  scheduledFor,
+} from './messages'
 import type { Task } from './types'
 
 export function pluralize(count: number, noun: string): string {
@@ -27,6 +35,13 @@ export function skippedRows(count: number): string {
   return `${pluralize(count, 'row')} skipped (empty or invalid).`
 }
 
-export function taskDateLabel(task: Pick<Task, 'due_date'>): string {
-  return task.due_date ? formatShortDate(task.due_date) : INBOX
+export function taskDateLabel(task: Pick<Task, 'due_date'>, currentYear: number): string {
+  return task.due_date ? formatShortDate(task.due_date, currentYear) : INBOX
+}
+
+export function scheduledNotice(dueDate: string, today: Date): string {
+  const near = quickDates(today)
+  if (dueDate === near.today) return SCHEDULED_TODAY
+  if (dueDate === near.tomorrow) return SCHEDULED_TOMORROW
+  return scheduledFor(formatShortDate(dueDate, today.getFullYear()))
 }

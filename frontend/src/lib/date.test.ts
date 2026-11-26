@@ -220,6 +220,12 @@ describe('formatMonthYear / formatShortDate / weekdayAbbrev', () => {
     expect(formatShortDate('2026-06-26')).toBe('Fri 26 June')
     expect(weekdayAbbrev(fromISODate(MON))).toBe('Mon')
   })
+
+  it('shows the year only for a date outside the current one', () => {
+    expect(formatShortDate('2026-06-26', 2026)).toBe('Fri 26 June')
+    expect(formatShortDate('2024-03-01', 2026)).toBe('Fri 1 March 2024')
+    expect(formatShortDate('2027-01-04', 2026)).toBe('Mon 4 January 2027')
+  })
 })
 
 describe('formatWeekRange', () => {

@@ -4,11 +4,12 @@ import {
   dayTaskCount,
   deleteTasksTitle,
   pluralize,
+  scheduledNotice,
   skippedRows,
   taskDateLabel,
   tasksDueToday,
 } from './format'
-import { INBOX, NOTHING_SCHEDULED } from './messages'
+import { INBOX, NOTHING_SCHEDULED, SCHEDULED_TODAY, SCHEDULED_TOMORROW } from './messages'
 
 describe('pluralize', () => {
   it.each([
@@ -70,7 +71,21 @@ describe('skippedRows', () => {
 
 describe('taskDateLabel', () => {
   it('shows the short date for a scheduled task and Inbox otherwise', () => {
-    expect(taskDateLabel({ due_date: '2026-06-24' })).toBe('Wed 24 June')
-    expect(taskDateLabel({ due_date: null })).toBe(INBOX)
+    expect(taskDateLabel({ due_date: '2026-06-24' }, 2026)).toBe('Wed 24 June')
+    expect(taskDateLabel({ due_date: '2025-06-24' }, 2026)).toBe('Tue 24 June 2025')
+    expect(taskDateLabel({ due_date: null }, 2026)).toBe(INBOX)
+  })
+})
+
+describe('scheduledNotice', () => {
+  const today = new Date(2026, 11, 30)
+
+  it.each([
+    ['2026-12-30', SCHEDULED_TODAY],
+    ['2026-12-31', SCHEDULED_TOMORROW],
+    ['2026-12-29', 'Scheduled for Tue 29 December'],
+    ['2027-01-01', 'Scheduled for Fri 1 January 2027'],
+  ])('reads %s as %j', (dueDate, expected) => {
+    expect(scheduledNotice(dueDate, today)).toBe(expected)
   })
 })

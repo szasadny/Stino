@@ -12,6 +12,7 @@ import {
   openTaskPillLabel,
   periodStepLabel,
   SAVE_TASK_FAILED,
+  scheduledFor,
   schedulingFor,
   selectedCount,
   tasksOnDayLabel,
@@ -61,6 +62,7 @@ describe('parameterised labels', () => {
     [moveSectionLabel('Work', 'up'), 'Move Work up'],
     [completedToast('Gym'), 'Completed “Gym”'],
     [schedulingFor('Mon 1 Jun'), 'Scheduling for Mon 1 Jun'],
+    [scheduledFor('Mon 1 June'), 'Scheduled for Mon 1 June'],
     [noSearchMatch('gym'), 'No tasks match “gym”.'],
   ])('reads %j', (actual, expected) => {
     expect(actual).toBe(expected)

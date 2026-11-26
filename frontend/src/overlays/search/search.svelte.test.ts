@@ -4,7 +4,17 @@ import { api } from '../../lib/api'
 import { SEARCH_DEBOUNCE_MS } from '../../lib/constants'
 import { ApiError } from '../../lib/errors'
 import { LOAD_LABELS_FAILED, NETWORK_ERROR_MESSAGE, SEARCH_FAILED } from '../../lib/messages'
-import { MON, deferred, makeLabel, makeTask, on, recurring } from '../../lib/test/factories'
+import {
+  MON,
+  THU,
+  WED,
+  deferred,
+  makeLabel,
+  makeTask,
+  on,
+  recurring,
+} from '../../lib/test/factories'
+import { setToday } from '../../lib/today.svelte'
 import type { Task } from '../../lib/types'
 import { createSearch, type Search } from './search.svelte'
 
@@ -142,6 +152,19 @@ describe('createSearch', () => {
     expect(await Promise.all(ticks)).toEqual([true, true])
     expect(api.tasks.complete).toHaveBeenCalledTimes(2)
     expect(search.results.map((t) => t.completed)).toEqual([true, true])
+  })
+
+  it('shows upcoming results first and keeps a ticked row in place', async () => {
+    setToday(WED)
+    const past = on(MON, { id: 1, title: 'Past' })
+    const upcoming = on(THU, { id: 2, title: 'Upcoming' })
+    vi.mocked(api.search).mockResolvedValue([past, upcoming])
+    await type('p')
+    expect(titles(search.results)).toEqual(['Upcoming', 'Past'])
+    vi.mocked(api.tasks.complete).mockResolvedValue({ ...upcoming, completed: true })
+    await search.toggle(upcoming)
+    expect(titles(search.results)).toEqual(['Upcoming', 'Past'])
+    expect(search.results[0]?.completed).toBe(true)
   })
 
   it('edits a recurring row as its series, without a single-occurrence delete', () => {

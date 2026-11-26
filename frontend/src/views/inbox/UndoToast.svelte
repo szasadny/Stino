@@ -1,7 +1,7 @@
 <script lang="ts">
   import { UNDO } from '../../lib/messages'
 
-  let { message, busy, onUndo }: { message: string | null; busy: boolean; onUndo: () => void } =
+  let { message, busy, onUndo }: { message: string | null; busy: boolean; onUndo?: () => void } =
     $props()
 </script>
 
@@ -13,17 +13,21 @@
 >
   {#if message}
     <div
-      class="pointer-events-auto flex w-full max-w-sm animate-rise-in items-center gap-3 rounded-xl border border-lichen bg-surface py-1.5 pl-4 pr-1.5 shadow-overlay"
+      class="pointer-events-auto flex w-full max-w-sm animate-rise-in items-center gap-3 rounded-xl border border-lichen bg-surface py-1.5 pl-4 shadow-overlay {onUndo
+        ? 'pr-1.5'
+        : 'min-h-14 pr-4 sm:min-h-12'}"
     >
       <span class="min-w-0 flex-1 truncate text-sm text-ink">{message}</span>
-      <button
-        type="button"
-        onclick={onUndo}
-        disabled={busy}
-        class="min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold text-pine transition hover:bg-pine/5 disabled:opacity-40 sm:min-h-9"
-      >
-        {UNDO}
-      </button>
+      {#if onUndo}
+        <button
+          type="button"
+          onclick={onUndo}
+          disabled={busy}
+          class="min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold text-pine transition hover:bg-pine/5 disabled:opacity-40 sm:min-h-9"
+        >
+          {UNDO}
+        </button>
+      {/if}
     </div>
   {/if}
 </div>

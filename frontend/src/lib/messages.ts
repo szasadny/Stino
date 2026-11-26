@@ -50,6 +50,8 @@ export const DELETE_TASK_TITLE = 'Delete task?'
 export const DELETE_RECURRING_TITLE = 'Delete recurring task?'
 export const CANNOT_UNDO = 'This can’t be undone.'
 export const LABEL_DELETE_KEEPS_TASKS = 'Its tasks stay, without a label.'
+export const SCHEDULED_TODAY = 'Scheduled for today'
+export const SCHEDULED_TOMORROW = 'Scheduled for tomorrow'
 
 export const SEARCH = 'Search'
 export const LABELS = 'Labels'
@@ -203,6 +205,10 @@ export function moveSectionLabel(name: string, dir: 'up' | 'down'): string {
 
 export function completedToast(title: string): string {
   return `Completed “${title}”`
+}
+
+export function scheduledFor(day: string): string {
+  return `Scheduled for ${day}`
 }
 
 export function schedulingFor(when: string): string {
